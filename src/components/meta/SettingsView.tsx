@@ -47,7 +47,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ credentials, onSave,
   // Carrega as credenciais padrão de testes fornecidas pelo usuário
   const loadAvanteDefaultCredentials = () => {
     setPixelId("3118022051838271");
-    setCapiToken("EAAJuG2qVusgBRlFszNPndh8lKKF5f2ZBBTEjvg8qaZBfFYze0scZAC7gi3nPdsiMAfh0TTDJ6GeTxbZCfovTdUJyOHH4uYB5epODNBoCFzKYp5UnBrCqyxjXQcnjhxmNRfo0k1KLGuvzVAIwEBoLfXRUK1ksYW1hem2RWWPQ8tEBYfny9MpJERvVT75lIAZDZD");
+    setCapiToken("EAAJuG2qVusgBRolxkQN6J07ZAeHOGuChHisR8Eb2AWM533MQYqHuhR0R2MFtcmZCjOOelUNUqxHtTFZByLsJDk54cdLQgV4x4voEnyBQiPDdL1Vn3Skhee4BipSjb5XqjaIJUQorfLu0QODIrpoIsNXkHZAZAZBmvnnhzl5ZAb90LM86GqzxN809bbcNej4pQZDZD");
     setAdAccountId("821406542700599");
     
     addNotification("Credenciais de Teste da Avante preenchidas! Clique em 'Salvar Configurações' para gravar.");

@@ -36,7 +36,7 @@ export default function MetaPixelPage() {
   const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false); // Sempre começa no modo Real para a Avante
   const [credentials, setCredentials] = useState<MetaCredentials>({
     pixelId: "3118022051838271",
-    capiToken: "EAAJuG2qVusgBRlFszNPndh8lKKF5f2ZBBTEjvg8qaZBfFYze0scZAC7gi3nPdsiMAfh0TTDJ6GeTxbZCfovTdUJyOHH4uYB5epODNBoCFzKYp5UnBrCqyxjXQcnjhxmNRfo0k1KLGuvzVAIwEBoLfXRUK1ksYW1hem2RWWPQ8tEBYfny9MpJERvVT75lIAZDZD",
+    capiToken: "EAAJuG2qVusgBRolxkQN6J07ZAeHOGuChHisR8Eb2AWM533MQYqHuhR0R2MFtcmZCjOOelUNUqxHtTFZByLsJDk54cdLQgV4x4voEnyBQiPDdL1Vn3Skhee4BipSjb5XqjaIJUQorfLu0QODIrpoIsNXkHZAZAZBmvnnhzl5ZAb90LM86GqzxN809bbcNej4pQZDZD",
     adAccountId: "821406542700599",
   });
 
@@ -47,7 +47,7 @@ export default function MetaPixelPage() {
   // 1. Carrega credenciais do localStorage ou usa as da Avante por padrão
   useEffect(() => {
     const savedPixel = localStorage.getItem("avante_meta_pixel_id") || "3118022051838271";
-    const savedCapi = localStorage.getItem("avante_meta_capi_token") || "EAAJuG2qVusgBRlFszNPndh8lKKF5f2ZBBTEjvg8qaZBfFYze0scZAC7gi3nPdsiMAfh0TTDJ6GeTxbZCfovTdUJyOHH4uYB5epODNBoCFzKYp5UnBrCqyxjXQcnjhxmNRfo0k1KLGuvzVAIwEBoLfXRUK1ksYW1hem2RWWPQ8tEBYfny9MpJERvVT75lIAZDZD";
+    const savedCapi = localStorage.getItem("avante_meta_capi_token") || "EAAJuG2qVusgBRolxkQN6J07ZAeHOGuChHisR8Eb2AWM533MQYqHuhR0R2MFtcmZCjOOelUNUqxHtTFZByLsJDk54cdLQgV4x4voEnyBQiPDdL1Vn3Skhee4BipSjb5XqjaIJUQorfLu0QODIrpoIsNXkHZAZAZBmvnnhzl5ZAb90LM86GqzxN809bbcNej4pQZDZD";
     const savedAdAccount = localStorage.getItem("avante_meta_ad_account_id") || "821406542700599";
 
     const creds = { pixelId: savedPixel, capiToken: savedCapi, adAccountId: savedAdAccount };
