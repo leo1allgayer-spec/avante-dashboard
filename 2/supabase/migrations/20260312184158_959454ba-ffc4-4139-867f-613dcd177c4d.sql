@@ -1,0 +1,2 @@
+DELETE FROM daily_metrics WHERE date >= '2025-01-01' AND date <= '2025-02-28' AND user_id = 'efba98f8-80de-4f35-906a-7515ee8dca3c';
+DELETE FROM daily_metrics WHERE date >= '2026-03-01' AND date <= '2026-03-31' AND user_id = 'efba98f8-80de-4f35-906a-7515ee8dca3c';

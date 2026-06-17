@@ -1,0 +1,1 @@
+ALTER TABLE public.course_bookings ADD COLUMN certificate_name text DEFAULT '';

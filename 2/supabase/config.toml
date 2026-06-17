@@ -1,0 +1,7 @@
+project_id = "yhyuwmrwhnyxyyztzvqw"
+
+[functions.meta-ads]
+verify_jwt = false
+
+[functions.sync-sheets]
+verify_jwt = false

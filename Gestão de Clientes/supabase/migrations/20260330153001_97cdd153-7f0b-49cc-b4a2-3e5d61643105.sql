@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN contract_value numeric NOT NULL DEFAULT 0;

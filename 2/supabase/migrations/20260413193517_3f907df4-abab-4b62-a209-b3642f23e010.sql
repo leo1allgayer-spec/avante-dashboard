@@ -1,0 +1,3 @@
+
+ALTER TABLE public.vendas ADD COLUMN IF NOT EXISTS servico text NOT NULL DEFAULT '';
+ALTER TABLE public.vendas ADD COLUMN IF NOT EXISTS origem text NOT NULL DEFAULT '';

@@ -1,0 +1,1 @@
+ALTER TABLE public.course_bookings ALTER COLUMN course_status SET DEFAULT 'a confirmar';

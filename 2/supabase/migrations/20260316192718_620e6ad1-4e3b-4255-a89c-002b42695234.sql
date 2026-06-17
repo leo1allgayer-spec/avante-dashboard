@@ -1,0 +1,1 @@
+ALTER TABLE public.daily_metrics ADD COLUMN faturamento_marcado numeric DEFAULT 0;

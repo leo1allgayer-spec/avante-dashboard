@@ -1,0 +1,1 @@
+ALTER TABLE public.criativos_vendas ADD COLUMN quantidade_cursos integer NOT NULL DEFAULT 1;

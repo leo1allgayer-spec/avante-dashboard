@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Deep Obsidian theme (Original design) */
+    --background: 222 23% 5%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 20% 9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 20% 9%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Primary color: Cyber Blue #3b82f6 (Original design) */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 222 18% 14%;
+    --secondary-foreground: 215 20% 65%;
+
+    --muted: 222 15% 18%;
+    --muted-foreground: 215 12% 45%;
+
+    /* Accent color: Violet #8b5cf6 */
+    --accent: 262 83% 58%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 222 15% 18%;
+    --input: 222 15% 20%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.875rem;
+
+    --sidebar-background: 222 20% 9%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 18% 14%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 15% 18%;
+    --sidebar-ring: 217 91% 60%;
+
+    /* Semantic */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 23% 5%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+
+    /* Chart palette - brand aligned */
+    --chart-1: 217 91% 60%;
+    --chart-2: 262 83% 58%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 84% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/70 backdrop-blur-lg border border-border/60 shadow-lg shadow-black/10;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300;
+  }
+
+  .glass-card-hover:hover {
+    @apply border-primary/25 shadow-xl shadow-primary/5;
+    transform: translateY(-2px);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 24px -6px hsl(270 70% 60% / 0.2);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 24px -6px hsl(174 75% 48% / 0.2);
+  }
+
+  .text-gradient-warm {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(270 70% 60%), hsl(310 60% 55%));
+  }
+
+  .text-gradient-cool {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(174 75% 48%), hsl(210 65% 55%));
+  }
+
+  .dot-pattern {
+    background-image: radial-gradient(hsl(var(--muted)) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}
+
+/* Custom Scrollbar Styles for premium dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.15);
+  border-radius: var(--radius-full);
+  border: 2px solid hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.4);
+}
+
+/* Firefox scrollbar support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.15) hsl(var(--background));
+}

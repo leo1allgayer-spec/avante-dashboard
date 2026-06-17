@@ -1,0 +1,1 @@
+ALTER TABLE public.pagamentos_variaveis ADD COLUMN tipo TEXT NOT NULL DEFAULT 'cliente';

@@ -1,0 +1,1 @@
+ALTER TABLE public.clients ADD COLUMN payment_status text NOT NULL DEFAULT 'a receber';

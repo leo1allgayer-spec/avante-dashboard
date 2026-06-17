@@ -1,0 +1,1 @@
+ALTER TABLE public.daily_metrics ADD COLUMN avaliacao_google integer DEFAULT 0;
