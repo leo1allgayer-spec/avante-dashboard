@@ -70,12 +70,6 @@ const Auth = () => {
   return (
     <PageTransition>
       <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden">
-        {/* Ambient glow background */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[120px] animate-pulse-glow" />
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-accent/8 rounded-full blur-[100px] animate-pulse-glow" style={{ animationDelay: "1s" }} />
-        </div>
-
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}

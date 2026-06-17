@@ -56,9 +56,6 @@ const ResetPassword = () => {
   return (
     <PageTransition>
       <div className="flex min-h-screen items-center justify-center bg-background p-4 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-[120px] animate-pulse-glow" />
-        </div>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
