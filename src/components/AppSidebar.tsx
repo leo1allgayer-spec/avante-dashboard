@@ -96,7 +96,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-2 pt-0 -mt-1">
+      <SidebarContent className="px-2 pt-0 -mt-1" data-lenis-prevent>
         <SidebarGroup>
           {!collapsed && (
             <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 font-semibold mb-1">
