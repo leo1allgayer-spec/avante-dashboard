@@ -33,29 +33,26 @@ import DashboardLayout from "@/components/DashboardLayout";
 
 export default function MetaPixelPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "campaigns" | "creatives" | "capi" | "settings">("overview");
-  const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(true);
+  const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false); // Sempre começa no modo Real para a Avante
   const [credentials, setCredentials] = useState<MetaCredentials>({
-    pixelId: "",
-    capiToken: "",
-    adAccountId: "",
+    pixelId: "3118022051838271",
+    capiToken: "EAAJuG2qVusgBRlFszNPndh8lKKF5f2ZBBTEjvg8qaZBfFYze0scZAC7gi3nPdsiMAfh0TTDJ6GeTxbZCfovTdUJyOHH4uYB5epODNBoCFzKYp5UnBrCqyxjXQcnjhxmNRfo0k1KLGuvzVAIwEBoLfXRUK1ksYW1hem2RWWPQ8tEBYfny9MpJERvVT75lIAZDZD",
+    adAccountId: "821406542700599",
   });
 
   const [realInsights, setRealInsights] = useState<any[] | null>(null);
   const [realLoading, setRealLoading] = useState(false);
   const [realError, setRealError] = useState<string | null>(null);
 
-  // 1. Carrega credenciais do localStorage na inicialização
+  // 1. Carrega credenciais do localStorage ou usa as da Avante por padrão
   useEffect(() => {
-    const savedPixel = localStorage.getItem("avante_meta_pixel_id") || "";
-    const savedCapi = localStorage.getItem("avante_meta_capi_token") || "";
-    const savedAdAccount = localStorage.getItem("avante_meta_ad_account_id") || "";
+    const savedPixel = localStorage.getItem("avante_meta_pixel_id") || "3118022051838271";
+    const savedCapi = localStorage.getItem("avante_meta_capi_token") || "EAAJuG2qVusgBRlFszNPndh8lKKF5f2ZBBTEjvg8qaZBfFYze0scZAC7gi3nPdsiMAfh0TTDJ6GeTxbZCfovTdUJyOHH4uYB5epODNBoCFzKYp5UnBrCqyxjXQcnjhxmNRfo0k1KLGuvzVAIwEBoLfXRUK1ksYW1hem2RWWPQ8tEBYfny9MpJERvVT75lIAZDZD";
+    const savedAdAccount = localStorage.getItem("avante_meta_ad_account_id") || "821406542700599";
 
     const creds = { pixelId: savedPixel, capiToken: savedCapi, adAccountId: savedAdAccount };
     setCredentials(creds);
-
-    if (savedPixel && savedCapi && savedAdAccount) {
-      setIsSimulatedMode(false); // Se já tem credenciais salvas, começa no modo real
-    }
+    setIsSimulatedMode(false);
   }, []);
 
   // 2. Busca dados reais se as credenciais estiverem disponíveis e o modo real estiver ativo
