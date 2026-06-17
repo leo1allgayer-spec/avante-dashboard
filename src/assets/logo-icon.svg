@@ -58,7 +58,7 @@
     <path d="M 120,50 L 120,80 L 105,80 L 105,50 Z" fill="url(#tip-gradient)" stroke="#e0ffff" stroke-width="1" />
     <path d="M 120,120 L 120,150 L 105,150 L 105,120 Z" fill="url(#tip-gradient)" stroke="#e0ffff" stroke-width="1" />
 
-    <!-- Tip 3D extrusions -->
+    <!-- 3D extrusion for the tips -->
     <path d="M 120,50 L 130,60 L 130,90 L 120,80 Z" fill="#00b3b3" />
     <path d="M 120,120 L 130,130 L 130,160 L 120,150 Z" fill="#00b3b3" />
 

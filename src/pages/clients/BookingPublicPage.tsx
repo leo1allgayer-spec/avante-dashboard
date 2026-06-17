@@ -9,7 +9,7 @@ import { ptBR } from "date-fns/locale";
 import {
   CalendarDays, Sun, CloudSun, ChevronLeft, ChevronRight, CheckCircle2, Loader2,
 } from "lucide-react";
-import avanteLogo from "@/assets/logo-full.png";
+import avanteLogo from "@/assets/logo-full.svg";
 
 const COURSES: { id: string; label: string; subtitle?: string }[] = [
   { id: "Curso Meta Ads", label: "Curso Tráfego Pago Meta Ads", subtitle: "Facebook e Instagram" },

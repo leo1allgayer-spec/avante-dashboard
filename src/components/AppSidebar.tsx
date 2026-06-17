@@ -27,8 +27,8 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import logoFull from "@/assets/logo-full.png";
-import logoIcon from "@/assets/logo-icon.png";
+import logoFull from "@/assets/logo-full.svg";
+import logoIcon from "@/assets/logo-icon.svg";
 
 import {
   Sidebar,
