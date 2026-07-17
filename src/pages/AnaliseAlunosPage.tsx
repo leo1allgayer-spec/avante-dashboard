@@ -1,10 +1,14 @@
-import { useSurveyResponses, useSurveyInsights } from "@/hooks/useSurveyInsights";
+import { useSurveyResponses, useSurveyInsights, useUpdateSurveyResponse, useDeleteSurveyResponse, type SurveyResponse } from "@/hooks/useSurveyInsights";
 import { useClients } from "@/hooks/useClients";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, Users, DollarSign, Star, ShieldCheck, Clock, Target, BarChart3, RefreshCw, Copy, ExternalLink, Loader2, ChevronDown, CalendarIcon } from "lucide-react";
+import { Brain, Users, DollarSign, Star, ShieldCheck, RefreshCw, Copy, ExternalLink, Loader2, ChevronDown, CalendarIcon, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import CountUp from "react-countup";
@@ -90,7 +94,19 @@ const fieldOrder = [
   "indicaria_alguem", "nota_indicacao",
 ];
 
-const AlunoExpandRow = ({ r, index }: { r: any; index: number }) => {
+const AlunoExpandRow = ({
+  r,
+  index,
+  onEdit,
+  onDelete,
+  isDeleting,
+}: {
+  r: SurveyResponse;
+  index: number;
+  onEdit: (r: SurveyResponse) => void;
+  onDelete: (r: SurveyResponse) => void;
+  isDeleting: boolean;
+}) => {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: "1px solid hsl(260, 18%, 14%)" }}>
@@ -105,7 +121,36 @@ const AlunoExpandRow = ({ r, index }: { r: any; index: number }) => {
           {r.consultor && <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full hidden md:inline">{r.consultor}</span>}
           {r.nota_whatsapp != null && <span className="text-[10px] text-warning hidden md:inline">⭐ {r.nota_whatsapp}/10</span>}
         </div>
-        <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-primary"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(r);
+            }}
+            aria-label={`Editar avaliação de ${r.nome}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            disabled={isDeleting}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(r);
+            }}
+            aria-label={`Excluir avaliação de ${r.nome}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+        </div>
       </button>
       <AnimatePresence>
         {open && (
@@ -143,11 +188,15 @@ const AnaliseAlunosPage = () => {
   const { data: responses, isLoading: loadingResponses } = useSurveyResponses();
   const { data: insights, isLoading: loadingInsights } = useSurveyInsights();
   const { data: clients, isLoading: loadingClients } = useClients();
+  const updateSurveyResponse = useUpdateSurveyResponse();
+  const deleteSurveyResponse = useDeleteSurveyResponse();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [editingResponse, setEditingResponse] = useState<SurveyResponse | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/survey-webhook`;
   const formUrl = `${window.location.origin}/pesquisa`;
@@ -177,6 +226,52 @@ const AnaliseAlunosPage = () => {
   }, [allData, dateFrom, dateTo]);
   const clientsData = clients || [];
   const total = data.length;
+
+  const openEditResponse = (response: SurveyResponse) => {
+    const nextForm: Record<string, string> = {};
+    fieldOrder.forEach((key) => {
+      const val = response[key as keyof SurveyResponse];
+      nextForm[key] = val === null || val === undefined ? "" : String(val);
+    });
+    setEditingResponse(response);
+    setEditForm(nextForm);
+  };
+
+  const handleSaveResponse = () => {
+    if (!editingResponse) return;
+    const payload = fieldOrder.reduce<Record<string, string | number | null>>((acc, key) => {
+      const value = editForm[key]?.trim() ?? "";
+      if (key === "nota_whatsapp" || key === "nota_indicacao") {
+        acc[key] = value === "" ? null : Number(value);
+      } else {
+        acc[key] = value === "" ? null : value;
+      }
+      return acc;
+    }, {});
+    if (!payload.nome) {
+      toast({ title: "Nome obrigatório", description: "Preencha o nome do aluno antes de salvar.", variant: "destructive" });
+      return;
+    }
+    updateSurveyResponse.mutate(
+      { id: editingResponse.id, ...payload },
+      {
+        onSuccess: () => {
+          toast({ title: "Avaliação atualizada!" });
+          setEditingResponse(null);
+          setEditForm({});
+        },
+        onError: (err) => toast({ title: "Erro ao atualizar", description: err.message, variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleDeleteResponse = (response: SurveyResponse) => {
+    if (!window.confirm(`Excluir a avaliação de ${response.nome}?`)) return;
+    deleteSurveyResponse.mutate(response.id, {
+      onSuccess: () => toast({ title: "Avaliação excluída" }),
+      onError: (err) => toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" }),
+    });
+  };
 
   // Faturamento from clients table
   const totalFaturamento = clientsData.reduce((s, r) => s + Number(r.valor || 0), 0);
@@ -280,6 +375,48 @@ const AnaliseAlunosPage = () => {
           </div>
         ) : (
           <motion.div variants={container} initial="hidden" animate="show" className="space-y-5">
+            <Dialog open={!!editingResponse} onOpenChange={(open) => { if (!open) setEditingResponse(null); }}>
+              <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto border-border/40 bg-card">
+                <DialogHeader>
+                  <DialogTitle>Editar avaliação</DialogTitle>
+                  <DialogDescription>Atualize os dados da resposta selecionada.</DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {fieldOrder.map((key) => {
+                    const isLong = ["dor_principal", "motivacao_fechar", "sugestao_atendimento", "valor_curso_opiniao"].includes(key);
+                    const isNumber = key === "nota_whatsapp" || key === "nota_indicacao";
+                    return (
+                      <div key={key} className={cn("space-y-1.5", isLong && "sm:col-span-2")}>
+                        <Label className="text-xs text-muted-foreground">{fieldLabels[key] || key}</Label>
+                        {isLong ? (
+                          <Textarea
+                            value={editForm[key] || ""}
+                            onChange={(e) => setEditForm((p) => ({ ...p, [key]: e.target.value }))}
+                            className="bg-secondary/30 border-border/30 min-h-20"
+                          />
+                        ) : (
+                          <Input
+                            type={isNumber ? "number" : "text"}
+                            min={isNumber ? 0 : undefined}
+                            max={isNumber ? 10 : undefined}
+                            value={editForm[key] || ""}
+                            onChange={(e) => setEditForm((p) => ({ ...p, [key]: e.target.value }))}
+                            className="bg-secondary/30 border-border/30"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setEditingResponse(null)}>Cancelar</Button>
+                  <Button onClick={handleSaveResponse} disabled={updateSurveyResponse.isPending}>
+                    {updateSurveyResponse.isPending ? "Salvando..." : "Salvar alterações"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {/* KPI Cards - 6 cards */}
             <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               <motion.div variants={item} className="rounded-2xl p-4" style={cardStyle}>
@@ -556,8 +693,15 @@ const AnaliseAlunosPage = () => {
                 📝 Lista Completa de Alunos ({data.length})
               </h3>
               <div className="space-y-1">
-                {data.map((r: any, i: number) => (
-                  <AlunoExpandRow key={r.id} r={r} index={i} />
+                {data.map((r: SurveyResponse, i: number) => (
+                  <AlunoExpandRow
+                    key={r.id}
+                    r={r}
+                    index={i}
+                    onEdit={openEditResponse}
+                    onDelete={handleDeleteResponse}
+                    isDeleting={deleteSurveyResponse.isPending}
+                  />
                 ))}
               </div>
               {data.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum aluno cadastrado</p>}

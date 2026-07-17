@@ -45,9 +45,23 @@ const TAXAS_ELO_AMEX: Record<number, number> = {
   7: 9.05, 8: 9.63, 9: 10.2, 10: 10.76, 11: 11.33, 12: 11.88,
 };
 
+const TAXAS_LINK_NOVAS: Record<number, number> = {
+  1: 4.2, 2: 6.09, 3: 7.01, 4: 7.91, 5: 8.8, 6: 9.67,
+  7: 12.59, 8: 13.42, 9: 14.25, 10: 15.06, 11: 15.87, 12: 16.66,
+};
+
+const TAXAS_MAQUININHA_VISA_NOVAS: Record<number, number> = {
+  1: 2.79, 2: 4.08, 3: 4.65, 4: 5.21, 5: 5.77, 6: 6.32,
+  7: 6.87, 8: 7.42, 9: 7.96, 10: 8.49, 11: 9.03, 12: 9.56,
+};
+
+type TaxProfile = "opcao1" | "opcao2";
+
 const PAGAMENTOS_COM_PARCELA = ["Infinity (Visa/Master)", "Elo/Amex", "Link Gateway"];
 
-const getTaxas = (pagamento: string): Record<number, number> => {
+const getTaxas = (pagamento: string, profile: TaxProfile): Record<number, number> => {
+  if (profile === "opcao2" && pagamento === "Link Gateway") return TAXAS_LINK_NOVAS;
+  if (profile === "opcao2" && pagamento === "Infinity (Visa/Master)") return TAXAS_MAQUININHA_VISA_NOVAS;
   if (pagamento === "Infinity (Visa/Master)") return TAXAS_INFINITY_VISA_MASTER;
   if (pagamento === "Elo/Amex") return TAXAS_ELO_AMEX;
   return TAXAS_CARTAO_GATEWAY; // Cartão and Link Gateway use same rates
@@ -91,11 +105,12 @@ const VendasPage = () => {
   const [pagamentoFilter, setPagamentoFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVenda, setEditingVenda] = useState<Venda | null>(null);
+  const [taxProfile, setTaxProfile] = useState<TaxProfile>("opcao1");
 
   const [form, setForm] = useState({ ...defaultForm });
 
   const temParcela = PAGAMENTOS_COM_PARCELA.includes(form.pagamento);
-  const taxasAtivas = getTaxas(form.pagamento);
+  const taxasAtivas = getTaxas(form.pagamento, taxProfile);
   const taxa = temParcela ? (taxasAtivas[form.parcelas] || 0) : 0;
   const valorComJuros = temParcela && form.parcelas >= 1
     ? +(form.valor * (1 - taxa / 100)).toFixed(2)
@@ -114,6 +129,28 @@ const VendasPage = () => {
       return true;
     });
   }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter]);
+
+  const getVendaValores = (v: Venda) => {
+    const parcelasNum = v.parcelas ? parseInt(v.parcelas) : 1;
+    const temParcelaVenda = PAGAMENTOS_COM_PARCELA.includes(v.pagamento) && !!v.parcelas && !isNaN(parcelasNum);
+
+    if (!temParcelaVenda) {
+      const valorLiquido = v.valor_com_juros ?? v.valor;
+      return {
+        valorLiquido,
+        comissao: v.comissao,
+        taxa: null as number | null,
+      };
+    }
+
+    const taxaVenda = getTaxas(v.pagamento, taxProfile)[parcelasNum] || 0;
+    const valorLiquido = +(Number(v.valor) * (1 - taxaVenda / 100)).toFixed(2);
+    return {
+      valorLiquido,
+      comissao: +(valorLiquido * 0.05).toFixed(2),
+      taxa: taxaVenda,
+    };
+  };
 
 
   const openNewDialog = () => {
@@ -379,6 +416,30 @@ const VendasPage = () => {
 
         <DateFilterBar mode={dateFilter.mode} onModeChange={dateFilter.setMode} label={dateFilter.label} onBack={dateFilter.goBack} onForward={dateFilter.goForward} />
 
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 rounded-lg border border-border/30 bg-secondary/20 px-3 py-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Tabela de taxas</p>
+            <p className="text-xs text-muted-foreground">Escolha a opção para recalcular os valores líquidos e comissões exibidos.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={taxProfile === "opcao1" ? "default" : "outline"}
+              onClick={() => setTaxProfile("opcao1")}
+            >
+              Opção 1
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={taxProfile === "opcao2" ? "default" : "outline"}
+              onClick={() => setTaxProfile("opcao2")}
+            >
+              Opção 2
+            </Button>
+          </div>
+        </div>
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -458,7 +519,9 @@ const VendasPage = () => {
                     <TableCell colSpan={12} className="text-center text-muted-foreground py-8">Nenhuma venda encontrada</TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((v) => (
+                  filtered.map((v) => {
+                    const valores = getVendaValores(v);
+                    return (
                     <TableRow key={v.id} className="border-border/20 hover:bg-secondary/20" style={{ background: "hsl(260, 22%, 7%)" }}>
                       <TableCell className="text-sm">{formatDate(v.data)}</TableCell>
                       <TableCell className="text-sm">{v.cliente}</TableCell>
@@ -471,9 +534,11 @@ const VendasPage = () => {
                           {v.pagamento}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-center text-muted-foreground">{v.parcelas || "—"}</TableCell>
-                      <TableCell className="text-sm text-right text-muted-foreground">{v.valor_com_juros ? formatBRL(v.valor_com_juros) : "—"}</TableCell>
-                      <TableCell className="text-sm text-right">{formatBRL(v.comissao)}</TableCell>
+                      <TableCell className="text-sm text-center text-muted-foreground">
+                        {v.parcelas ? `${parseInt(v.parcelas)}x (${valores.taxa ?? "—"}%)` : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-right text-muted-foreground">{formatBRL(valores.valorLiquido)}</TableCell>
+                      <TableCell className="text-sm text-right">{formatBRL(valores.comissao)}</TableCell>
                       <TableCell className="text-center">
                         <Badge
                           className="text-xs"
@@ -506,12 +571,13 @@ const VendasPage = () => {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
                 {filtered.length > 0 && (() => {
                   const totalValor = filtered.reduce((s, v) => s + Number(v.valor), 0);
-                  const totalLiquido = filtered.reduce((s, v) => s + (v.valor_com_juros ? Number(v.valor_com_juros) : Number(v.valor)), 0);
-                  const totalComissao = filtered.reduce((s, v) => s + Number(v.comissao), 0);
+                  const totalLiquido = filtered.reduce((s, v) => s + getVendaValores(v).valorLiquido, 0);
+                  const totalComissao = filtered.reduce((s, v) => s + getVendaValores(v).comissao, 0);
                   return (
                     <TableRow className="border-t-2 border-accent/30" style={{ background: "hsl(260, 22%, 11%)" }}>
                       <TableCell className="text-sm font-bold text-accent py-3">TOTAL</TableCell>

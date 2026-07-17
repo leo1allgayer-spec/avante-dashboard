@@ -23,11 +23,17 @@ const PESSOAS = [
   { label: "Lucas Pilger", match: ["lucas"] },
   { label: "Nicolas Patizlaff", match: ["nicolas"] },
   { label: "Andrei Hoppe", match: ["andrei"] },
+  { label: "Leonardo Webster", match: ["webster", "leonardo webster"] },
   { label: "Leonardo Allgayer", match: ["leo", "léo"] },
 ];
 
-const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonardo Allgayer"];
+const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonardo Allgayer", "Leonardo Webster"];
 const PESSOAS_COM_TABELA_META = ["Lucas Pilger", "Nicolas Patizlaff"];
+const PESSOAS_COM_TABELA_CURSOS_DADOS = ["Leonardo Allgayer"];
+const DIVISOR_COMISSAO_CURSOS_VENDIDOS = 4;
+const DIVISOR_COMISSAO_CURSOS_DADOS: Record<string, number> = {
+  "Leonardo Allgayer": 3,
+};
 
 const MESES_PT: Record<string, string> = {
   "01": "Janeiro", "02": "Fevereiro", "03": "Março", "04": "Abril",
@@ -98,6 +104,7 @@ const PagamentosPage = () => {
 
   const showCursosTable = PESSOAS_COM_TABELA_CURSOS.includes(pessoaFilter);
   const showMetaTable = PESSOAS_COM_TABELA_META.includes(pessoaFilter);
+  const showCursosDadosTable = PESSOAS_COM_TABELA_CURSOS_DADOS.includes(pessoaFilter);
 
   // --- Cursos Vendidos ---
   // Inclui:
@@ -143,7 +150,7 @@ const PagamentosPage = () => {
           cliente: v.cliente,
           produto: [v.produto, v.servico].filter(Boolean).join(" / ") || "—",
           valor_liquido: liquido,
-          comissao: +(liquido * 0.05).toFixed(2),
+          comissao: +((liquido * 0.05) / DIVISOR_COMISSAO_CURSOS_VENDIDOS).toFixed(2),
         };
       });
 
@@ -171,6 +178,46 @@ const PagamentosPage = () => {
   const totalComissaoCursos = useMemo(
     () => vendasCursos.reduce((s, v) => s + v.comissao, 0),
     [vendasCursos]
+  );
+
+  // --- Cursos Dados ---
+  type LinhaCursoDado = {
+    id: string;
+    data: string;
+    aluno: string;
+    tipo: string;
+    instrutor: string;
+    valor: number;
+    comissao: number;
+  };
+
+  const cursosDadosPessoa = useMemo<LinhaCursoDado[]>(() => {
+    if (!showCursosDadosTable) return [];
+    const selectedPessoa = PESSOAS.find((p) => p.label === pessoaFilter);
+    const matchTerms = selectedPessoa?.match || [];
+    const divisor = DIVISOR_COMISSAO_CURSOS_DADOS[pessoaFilter] || 1;
+
+    return cursosDados
+      .filter((c) => {
+        if (getMonthKey(c.data) !== mesFilter) return false;
+        if (!filterByDateRange(c.data, dateFrom, dateTo)) return false;
+        return matchPessoa(c.instrutor || "", matchTerms);
+      })
+      .map((c) => ({
+        id: c.id,
+        data: c.data,
+        aluno: c.nome_aluno,
+        tipo: c.tipo_curso || "Curso",
+        instrutor: c.instrutor,
+        valor: Number(c.comissao_extra || 0),
+        comissao: +(Number(c.comissao_extra || 0) / divisor).toFixed(2),
+      }))
+      .sort((a, b) => a.data.localeCompare(b.data));
+  }, [cursosDados, showCursosDadosTable, pessoaFilter, mesFilter, dateFrom, dateTo]);
+
+  const totalComissaoCursosDados = useMemo(
+    () => cursosDadosPessoa.reduce((s, c) => s + c.comissao, 0),
+    [cursosDadosPessoa]
   );
 
 
@@ -205,7 +252,7 @@ const PagamentosPage = () => {
     return items.reduce((s, p) => s + p.valor, 0);
   }, [pagVariaveis, pessoaFilter, mesFilter, filterDiaPagamento]);
 
-  const totalComissao = totalComissaoCursos + totalComissaoMeta + totalPagVariaveis;
+  const totalComissao = totalComissaoCursos + totalComissaoMeta + totalComissaoCursosDados + totalPagVariaveis;
 
   return (
     <DashboardLayout title="Pagamentos">
@@ -326,6 +373,7 @@ const PagamentosPage = () => {
                   <>
                     <div className="px-4 py-2 bg-muted/30 border-b border-border/30 flex items-center justify-end gap-4 text-xs">
                       <span>Comissão: <span className="text-emerald-400 font-semibold">{formatBRL(totalComissaoCursos)}</span></span>
+                      <span>Divisão: <span className="font-semibold">5% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS}</span></span>
                     </div>
                     <Table>
                       <TableHeader>
@@ -334,7 +382,7 @@ const PagamentosPage = () => {
                           <TableHead>Cliente</TableHead>
                           <TableHead>Produto / Serviço</TableHead>
                           <TableHead className="text-right">Valor Líquido</TableHead>
-                          <TableHead className="text-right">Comissão (5%)</TableHead>
+                          <TableHead className="text-right">Comissão (5% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS})</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -349,6 +397,55 @@ const PagamentosPage = () => {
                             <TableCell className="text-right text-sm font-semibold text-emerald-400">
                               {formatBRL(v.comissao)}
                             </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Cursos Dados */}
+          {showCursosDadosTable && (
+            <Card className="bg-card/80 backdrop-blur border-border/40">
+              <CardHeader>
+                <CardTitle className="text-base">Cursos Dados</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  </div>
+                ) : cursosDadosPessoa.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">Nenhum curso dado neste mês.</div>
+                ) : (
+                  <>
+                    <div className="px-4 py-2 bg-muted/30 border-b border-border/30 flex items-center justify-end gap-4 text-xs">
+                      <span>Comissão: <span className="text-emerald-400 font-semibold">{formatBRL(totalComissaoCursosDados)}</span></span>
+                      <span>Divisão: <span className="font-semibold">valor / {DIVISOR_COMISSAO_CURSOS_DADOS[pessoaFilter]}</span></span>
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data</TableHead>
+                          <TableHead>Aluno</TableHead>
+                          <TableHead>Tipo de Curso</TableHead>
+                          <TableHead>Instrutor</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                          <TableHead className="text-right">Comissão</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {cursosDadosPessoa.map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell className="text-sm">{formatDate(c.data)}</TableCell>
+                            <TableCell className="text-sm font-medium">{c.aluno}</TableCell>
+                            <TableCell className="text-sm">{c.tipo}</TableCell>
+                            <TableCell className="text-sm">{c.instrutor}</TableCell>
+                            <TableCell className="text-right text-sm font-semibold">{formatBRL(c.valor)}</TableCell>
+                            <TableCell className="text-right text-sm font-semibold text-emerald-400">{formatBRL(c.comissao)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
