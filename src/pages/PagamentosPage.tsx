@@ -22,7 +22,6 @@ import PagamentosVariaveis from "@/components/PagamentosVariaveis";
 const PESSOAS = [
   { label: "Lucas Pilger", match: ["lucas"] },
   { label: "Nicolas Patizlaff", match: ["nicolas"] },
-  { label: "Andrei Hoppe", match: ["andrei"] },
   { label: "Leonardo Webster", match: ["webster", "leonardo webster"] },
   { label: "Leonardo Allgayer", match: ["leo", "léo"] },
 ];
@@ -30,6 +29,7 @@ const PESSOAS = [
 const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonardo Allgayer", "Leonardo Webster"];
 const PESSOAS_COM_TABELA_META = ["Lucas Pilger", "Nicolas Patizlaff"];
 const PESSOAS_COM_TABELA_CURSOS_DADOS = ["Leonardo Allgayer"];
+const PERCENTUAL_COMISSAO_CURSOS_VENDIDOS = 0.15;
 const DIVISOR_COMISSAO_CURSOS_VENDIDOS = 4;
 const DIVISOR_COMISSAO_CURSOS_DADOS: Record<string, number> = {
   "Leonardo Allgayer": 3,
@@ -150,7 +150,7 @@ const PagamentosPage = () => {
           cliente: v.cliente,
           produto: [v.produto, v.servico].filter(Boolean).join(" / ") || "—",
           valor_liquido: liquido,
-          comissao: +((liquido * 0.05) / DIVISOR_COMISSAO_CURSOS_VENDIDOS).toFixed(2),
+          comissao: +((liquido * PERCENTUAL_COMISSAO_CURSOS_VENDIDOS) / DIVISOR_COMISSAO_CURSOS_VENDIDOS).toFixed(2),
         };
       });
 
@@ -373,7 +373,7 @@ const PagamentosPage = () => {
                   <>
                     <div className="px-4 py-2 bg-muted/30 border-b border-border/30 flex items-center justify-end gap-4 text-xs">
                       <span>Comissão: <span className="text-emerald-400 font-semibold">{formatBRL(totalComissaoCursos)}</span></span>
-                      <span>Divisão: <span className="font-semibold">5% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS}</span></span>
+                      <span>Divisão: <span className="font-semibold">15% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS}</span></span>
                     </div>
                     <Table>
                       <TableHeader>
@@ -382,7 +382,7 @@ const PagamentosPage = () => {
                           <TableHead>Cliente</TableHead>
                           <TableHead>Produto / Serviço</TableHead>
                           <TableHead className="text-right">Valor Líquido</TableHead>
-                          <TableHead className="text-right">Comissão (5% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS})</TableHead>
+                          <TableHead className="text-right">Comissão (15% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS})</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
