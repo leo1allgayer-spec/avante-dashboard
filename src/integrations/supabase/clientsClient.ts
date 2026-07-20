@@ -36,7 +36,7 @@ export const supabaseClients = createClient<Database>(SUPABASE_URL, SUPABASE_PUB
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'sb-clients-auth-token',
+    storageKey: 'sb-avante-auth-token',
   }
 });
 
