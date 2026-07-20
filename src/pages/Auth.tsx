@@ -9,6 +9,14 @@ import { useToast } from "@/hooks/use-toast";
 import logoFull from "@/assets/logo-full.svg";
 import PageTransition from "@/components/PageTransition";
 
+const PRODUCTION_APP_URL = "https://dashboard-avante.pages.dev";
+
+const getPasswordResetRedirectUrl = () => {
+  const isLocal = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const origin = isLocal ? window.location.origin : PRODUCTION_APP_URL;
+  return `${origin}/reset-password`;
+};
+
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -23,14 +31,24 @@ const Auth = () => {
       return;
     }
     setResetting(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
+    const redirectTo = getPasswordResetRedirectUrl();
+    const [metricsResult, clientsResult] = await Promise.all([
+      supabase.auth.resetPasswordForEmail(email, { redirectTo }),
+      supabaseClients.auth.resetPasswordForEmail(email, { redirectTo }),
+    ]);
     setResetting(false);
-    if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+
+    if (metricsResult.error && clientsResult.error) {
+      toast({
+        title: "Erro",
+        description: metricsResult.error.message || clientsResult.error.message,
+        variant: "destructive",
+      });
     } else {
-      toast({ title: "E-mail enviado!", description: "Verifique sua caixa de entrada para redefinir a senha." });
+      toast({
+        title: "E-mail enviado!",
+        description: "Verifique sua caixa de entrada e use o link mais recente para redefinir a senha.",
+      });
     }
   };
 

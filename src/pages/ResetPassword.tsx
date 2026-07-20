@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseClients } from "@/integrations/supabase/clientsClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,13 +15,24 @@ const ResetPassword = () => {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+  const [activeAuthClients, setActiveAuthClients] = useState<Array<"metrics" | "clients">>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
     // Supabase recovery link sets a session via the URL hash automatically.
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true);
+    Promise.all([
+      supabase.auth.getSession(),
+      supabaseClients.auth.getSession(),
+    ]).then(([metricsSession, clientsSession]) => {
+      const active: Array<"metrics" | "clients"> = [];
+      if (metricsSession.data.session) active.push("metrics");
+      if (clientsSession.data.session) active.push("clients");
+
+      if (active.length > 0) {
+        setActiveAuthClients(active);
+        setReady(true);
+      }
       else {
         toast({
           title: "Link inválido ou expirado",
@@ -42,13 +54,23 @@ const ResetPassword = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const updates = await Promise.all(
+      activeAuthClients.map((clientName) =>
+        clientName === "metrics"
+          ? supabase.auth.updateUser({ password })
+          : supabaseClients.auth.updateUser({ password })
+      )
+    );
     setLoading(false);
+    const error = updates.find((result) => result.error)?.error;
     if (error) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Senha redefinida!", description: "Faça login com sua nova senha." });
-      await supabase.auth.signOut();
+      await Promise.all([
+        supabase.auth.signOut(),
+        supabaseClients.auth.signOut(),
+      ]);
       navigate("/auth");
     }
   };
