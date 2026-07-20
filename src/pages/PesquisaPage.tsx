@@ -118,12 +118,18 @@ const initialForm: FormData = {
 const RadioGroup = ({ options, value, onChange, name }: { options: string[]; value: string; onChange: (v: string) => void; name: string }) => (
   <div className="space-y-2">
     {options.map((opt) => (
-      <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${value === opt ? "border-accent bg-accent/10 text-foreground" : "border-border/40 bg-secondary/30 text-muted-foreground hover:border-border"}`}>
+      <button
+        key={opt}
+        type="button"
+        name={name}
+        onClick={() => onChange(opt)}
+        className={`flex w-full items-center gap-3 p-3 rounded-xl border cursor-pointer text-left transition-all ${value === opt ? "border-accent bg-accent/10 text-foreground" : "border-border/40 bg-secondary/30 text-muted-foreground hover:border-border"}`}
+      >
         <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${value === opt ? "border-accent" : "border-muted-foreground/40"}`}>
           {value === opt && <div className="w-2 h-2 rounded-full bg-accent" />}
         </div>
         <span className="text-sm">{opt}</span>
-      </label>
+      </button>
     ))}
   </div>
 );
