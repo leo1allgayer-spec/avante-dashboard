@@ -2,10 +2,36 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://yhyuwmrwhnyxyyztzvqw.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloeXV3bXJ3aG55eHl5enR6dnF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTgxMTksImV4cCI6MjA4Nzc5NDExOX0.qb_2jNDqKxG6B2CgFK1wZXKKDgGnrFeLwbbbZzRCYks";
+const SUPABASE_URL = "https://ohhgmolvhgkdxakrrutg.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_T1epNcaipfPHOqWVjXbErg_q2cAqt-0";
+
+function isNewSupabaseApiKey(value: string): boolean {
+  return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
+}
+
+function createSupabaseFetch(supabaseKey: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(
+      typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined,
+    );
+
+    if (init?.headers) {
+      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    }
+
+    if (isNewSupabaseApiKey(supabaseKey) && headers.get('Authorization') === `Bearer ${supabaseKey}`) {
+      headers.delete('Authorization');
+    }
+
+    headers.set('apikey', supabaseKey);
+    return fetch(input, { ...init, headers });
+  };
+}
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: {
+    fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+  },
   auth: {
     storage: localStorage,
     persistSession: true,

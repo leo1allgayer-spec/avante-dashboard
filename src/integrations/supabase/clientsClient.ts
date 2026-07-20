@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './typesClients';
 
-const SUPABASE_URL = "https://qaxaryusxorwmyfbyyis.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_F8tb-1SXmHpk98yf9dmljA_SYOLCWB1";
+const SUPABASE_URL = "https://ohhgmolvhgkdxakrrutg.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_T1epNcaipfPHOqWVjXbErg_q2cAqt-0";
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
