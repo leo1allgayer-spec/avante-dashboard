@@ -32,22 +32,19 @@ const Auth = () => {
     }
     setResetting(true);
     const redirectTo = getPasswordResetRedirectUrl();
-    const [metricsResult, clientsResult] = await Promise.all([
-      supabase.auth.resetPasswordForEmail(email, { redirectTo }),
-      supabaseClients.auth.resetPasswordForEmail(email, { redirectTo }),
-    ]);
+    const { error } = await supabaseClients.auth.resetPasswordForEmail(email, { redirectTo });
     setResetting(false);
 
-    if (metricsResult.error && clientsResult.error) {
+    if (error) {
       toast({
         title: "Erro",
-        description: metricsResult.error.message || clientsResult.error.message,
+        description: error.message,
         variant: "destructive",
       });
     } else {
       toast({
         title: "E-mail enviado!",
-        description: "Verifique sua caixa de entrada e use o link mais recente para redefinir a senha.",
+        description: "Verifique sua caixa de entrada e use o link novo enviado pelo dashboard atual.",
       });
     }
   };
