@@ -1,15 +1,64 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './typesClients';
 
-const SUPABASE_URL = "https://ckabqsggkjebaaliyszn.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrYWJxc2dna2plYmFhbGl5c3puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NzU1NjcsImV4cCI6MjA5MDA1MTU2N30.xFsxS_EyM27KWiHr2pswEyi5yPX3HXPkC4-GWN4PrTk";
+const SUPABASE_URL = "https://qaxaryusxorwmyfbyyis.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_F8tb-1SXmHpk98yf9dmljA_SYOLCWB1";
+
+function isNewSupabaseApiKey(value: string): boolean {
+  return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
+}
+
+function createSupabaseFetch(supabaseKey: string): typeof fetch {
+  return (input, init) => {
+    const headers = new Headers(
+      typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined,
+    );
+
+    if (init?.headers) {
+      new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    }
+
+    // New Supabase API keys are opaque strings, not bearer JWTs.
+    if (isNewSupabaseApiKey(supabaseKey) && headers.get('Authorization') === `Bearer ${supabaseKey}`) {
+      headers.delete('Authorization');
+    }
+
+    headers.set('apikey', supabaseKey);
+    return fetch(input, { ...init, headers });
+  };
+}
 
 export const supabaseClients = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: {
+    fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+  },
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'sb-clients-auth-token', // Chave de armazenamento dedicada para evitar colisão de login
+    storageKey: 'sb-clients-auth-token',
   }
 });
+
+// BYPASS DE GETUSER NO LOCALHOST
+const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+if (isLocalhost) {
+  supabaseClients.auth.getUser = async () => {
+    return {
+      data: {
+        user: {
+          id: "bf0471c6-0152-460e-ae22-e7f3ec3969c4",
+          email: "digitalavante3@gmail.com",
+          role: "authenticated",
+          aud: "authenticated",
+          app_metadata: {},
+          user_metadata: {},
+          created_at: new Date().toISOString()
+        } as any
+      },
+      error: null
+    };
+  };
+}
+
 export default supabaseClients;

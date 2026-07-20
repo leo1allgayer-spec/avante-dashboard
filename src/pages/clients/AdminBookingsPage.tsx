@@ -30,10 +30,11 @@ import {
   Trash2, Loader2, LogOut, CalendarDays, Users, GraduationCap, ClipboardList, Ban,
   MessageSquare, Send, RefreshCw, Edit, Settings, Search,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { EditableCell } from "@/components/clients/EditableCell";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useAuth as useMainAuth } from "@/hooks/useAuth";
 
 const COURSES = [
   "Curso Meta Ads",
@@ -217,6 +218,13 @@ export default function AdminBookings() {
     await updateTemplate(id, { messageTemplate: editTemplateText });
     setEditingTemplate(null);
   };
+
+  const { signOut: signOutMain } = useMainAuth();
+
+  if (!session && !loading) {
+    signOutMain();
+    return null;
+  }
 
   if (loading) {
     return (

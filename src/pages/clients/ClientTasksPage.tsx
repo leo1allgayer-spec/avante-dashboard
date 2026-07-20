@@ -21,8 +21,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   LayoutDashboard, KanbanSquare, List, CalendarDays, Users2, Plus, Search, Loader2, ClipboardList, RefreshCw, GraduationCap,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useAuth as useMainAuth } from "@/hooks/useAuth";
 
 const Tasks = () => {
   const { session, signOut } = useAuth();
@@ -38,6 +39,13 @@ const Tasks = () => {
   const [filterPriority, setFilterPriority] = useState("");
 
   const loading = tasksLoading || membersLoading || meetingsLoading;
+
+  const { signOut: signOutMain } = useMainAuth();
+
+  if (!session && !loading) {
+    signOutMain();
+    return null;
+  }
 
   if (loading) {
     return (

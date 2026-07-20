@@ -136,6 +136,7 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete }
   // Filters
   const [filterParticipant, setFilterParticipant] = useState("");
   const [filterOutcome, setFilterOutcome] = useState("");
+  const [filterMonth, setFilterMonth] = useState("");
 
   // Week navigation
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
@@ -154,6 +155,12 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete }
       if (filterParticipant && !m.participants.includes(filterParticipant)) return false;
       if (filterOutcome === "positive" && m.outcome !== "positive") return false;
       if (filterOutcome === "negative" && m.outcome !== "negative") return false;
+      if (filterMonth) {
+        try {
+          const mMonth = format(parseISO(m.date), "yyyy-MM");
+          if (mMonth !== filterMonth) return false;
+        } catch {}
+      }
       return true;
     });
   };
@@ -161,12 +168,12 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete }
   const pendingMeetings = useMemo(() => {
     const filtered = applyFilters(meetings.filter((m) => m.status === "pending"));
     return filtered;
-  }, [meetings, filterParticipant, filterOutcome]);
+  }, [meetings, filterParticipant, filterOutcome, filterMonth]);
 
   const completedMeetings = useMemo(() => {
     const filtered = applyFilters(meetings.filter((m) => m.status === "completed"));
     return filtered.sort((a, b) => b.date.localeCompare(a.date));
-  }, [meetings, filterParticipant, filterOutcome]);
+  }, [meetings, filterParticipant, filterOutcome, filterMonth]);
 
   const meetingsByDay = useMemo(() => {
     const map = new Map<string, Meeting[]>();
@@ -259,6 +266,24 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete }
     return Array.from(set).sort();
   }, [members, meetings]);
 
+  const monthOptions = useMemo(() => {
+    const set = new Set<string>();
+    meetings.forEach((m) => {
+      try {
+        set.add(format(parseISO(m.date), "yyyy-MM"));
+      } catch {}
+    });
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [meetings]);
+
+  const formatMonthLabel = (value: string) => {
+    try {
+      return format(parseISO(`${value}-01`), "MMMM yyyy", { locale: ptBR });
+    } catch {
+      return value;
+    }
+  };
+
   const isToday = (day: Date) => isSameDay(day, new Date());
 
   return (
@@ -288,6 +313,17 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete }
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="positive">Positiva</SelectItem>
               <SelectItem value="negative">Negativa</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterMonth} onValueChange={(v) => setFilterMonth(v === "all" ? "" : v)}>
+            <SelectTrigger className="w-[150px] h-8 text-xs">
+              <SelectValue placeholder="Mês" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {monthOptions.map((m) => (
+                <SelectItem key={m} value={m}>{formatMonthLabel(m)}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button size="sm" onClick={openAdd}>

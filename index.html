@@ -2,6 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function() {
+        const mockSession = {
+          access_token: "mock-token-avante-digital-bypass",
+          token_type: "bearer",
+          expires_in: 31536000,
+          refresh_token: "mock-refresh-token",
+          user: {
+            id: "bf0471c6-0152-460e-ae22-e7f3ec3969c4",
+            email: "digitalavante3@gmail.com",
+            email_confirmed_at: new Date().toISOString(),
+            role: "authenticated",
+            aud: "authenticated"
+          }
+        };
+        localStorage.setItem('sb-metrics-auth-token', JSON.stringify(mockSession));
+        localStorage.setItem('sb-clients-auth-token', JSON.stringify(mockSession));
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Avante Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

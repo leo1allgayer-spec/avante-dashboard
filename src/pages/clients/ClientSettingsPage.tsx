@@ -4,13 +4,24 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useAuth } from "@/hooks/clients/useGestaoAuth";
+import { useAuth as useMainAuth } from "@/hooks/useAuth";
+import { Navigate } from "react-router-dom";
 
 const Settings = () => {
+  const { session } = useAuth();
   const { permissions, loading, updatePermission } = usePermissions();
 
   const handleToggle = (perm: UserPermission, field: "canAccessClients" | "canAccessTasks" | "canAccessBookings") => {
     updatePermission({ ...perm, [field]: !perm[field] });
   };
+
+  const { signOut: signOutMain } = useMainAuth();
+
+  if (!session && !loading) {
+    signOutMain();
+    return null;
+  }
 
   if (loading) {
     return (

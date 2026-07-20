@@ -126,14 +126,19 @@ export function AllCoursesSection() {
       return;
     }
     const courseName = COURSE_TYPE_TO_NAME[e.courseType];
-    if (courseName) {
-      await supabase
+    if (courseName && e.date) {
+      let q = supabase
         .from("course_bookings")
         .delete()
         .eq("course_name", courseName)
-        .eq("student_name", e.studentName)
-        .eq("date", e.date)
-        .eq("time", e.time);
+        .eq("date", e.date);
+      const filters: string[] = [];
+      if (e.email) filters.push(`email.eq.${e.email.trim().toLowerCase()}`);
+      if (e.contact) filters.push(`phone.eq.${e.contact.trim()}`);
+      if (e.studentName) filters.push(`student_name.eq.${e.studentName.trim()}`);
+      if (filters.length) q = q.or(filters.join(","));
+      const { error: delErr } = await q;
+      if (delErr) console.error("Erro ao excluir booking relacionado:", delErr);
     }
     toast.success("Aluno excluído");
     fetchAll();
@@ -241,20 +246,20 @@ export function AllCoursesSection() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}>
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold">{weekLabel}</h3>
-            <Button variant="ghost" size="sm" onClick={goToToday} className="text-xs">Hoje</Button>
+          <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 min-w-0">
+            <h3 className="text-sm sm:text-lg font-semibold truncate">{weekLabel}</h3>
+            <Button variant="ghost" size="sm" onClick={goToToday} className="text-xs h-7 px-2">Hoje</Button>
           </div>
-          <Button variant="outline" size="icon" onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}>
+          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3">
           {weekDays.map((day) => {
             const dateStr = format(day, "yyyy-MM-dd");
             const dayEnrollments = enrollmentsByDate[dateStr] || [];
@@ -267,23 +272,24 @@ export function AllCoursesSection() {
                 key={dateStr}
                 onClick={() => setSelectedDate(isSelected ? null : day)}
                 className={cn(
-                  "relative p-3 min-h-[90px] rounded-lg border text-left transition-colors flex flex-col",
+                  "relative p-1.5 sm:p-3 md:p-4 min-h-[64px] sm:min-h-[90px] md:min-h-[110px] rounded-lg border text-left transition-colors flex flex-col",
                   "hover:bg-accent/50",
                   isSelected && "ring-2 ring-primary bg-accent",
                   isToday && !isSelected && "border-primary bg-primary/5",
                   !isSelected && !isToday && "border-border"
                 )}
               >
-                <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                  {format(day, "EEE", { locale: ptBR })}
+                <span className="block text-[9px] sm:text-[10px] md:text-xs font-medium text-muted-foreground uppercase truncate">
+                  <span className="sm:hidden">{["D", "S", "T", "Q", "Q", "S", "S"][day.getDay()]}</span>
+                  <span className="hidden sm:inline">{format(day, "EEE", { locale: ptBR })}</span>
                 </span>
-                <span className={cn("text-lg font-semibold", isToday && "text-primary")}>
+                <span className={cn("text-sm sm:text-lg md:text-xl font-semibold", isToday && "text-primary")}>
                   {format(day, "dd")}
                 </span>
                 {hasEnrollments && (
-                  <div className="mt-auto flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-xs font-semibold text-primary">{dayEnrollments.length}</span>
+                  <div className="mt-auto flex items-center justify-center gap-0.5 md:gap-1">
+                    <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 text-primary" />
+                    <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-primary">{dayEnrollments.length}</span>
                   </div>
                 )}
               </button>
@@ -292,12 +298,12 @@ export function AllCoursesSection() {
         </div>
 
         {selectedDate && (
-          <div className="mt-4 border rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold capitalize">
+          <div className="mt-4 border rounded-lg p-2 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between mb-2 sm:mb-3 md:mb-4 gap-2">
+              <h4 className="text-sm sm:text-base md:text-lg font-semibold capitalize">
                 {format(selectedDate, "EEEE, dd/MM/yyyy", { locale: ptBR })}
               </h4>
-              <Button size="sm" variant="ghost" onClick={() => setSelectedDate(null)}>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0" onClick={() => setSelectedDate(null)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -306,31 +312,31 @@ export function AllCoursesSection() {
             ) : (
               <div className="space-y-2">
                 {selectedEnrollments.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between gap-2 p-3 rounded-md bg-muted/50 border">
-                    <div className="flex-1 grid grid-cols-2 md:grid-cols-7 gap-2 text-sm">
-                      <div>
-                        <span className="text-muted-foreground text-xs">Curso</span>
+                  <div key={e.id} className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 p-2 sm:p-3 md:p-4 rounded-md bg-muted/50 border">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[120px_1fr_1fr_1.5fr_1fr_80px_120px] gap-2 sm:gap-2 md:gap-4 text-xs sm:text-sm md:text-sm">
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Curso</span>
                         <div className="mt-0.5">
-                          <Badge variant="outline" className={cn("text-xs", COURSE_COLORS[e.courseType])}>
+                          <Badge variant="outline" className={cn("text-[10px] sm:text-xs md:text-xs", COURSE_COLORS[e.courseType])}>
                             {COURSE_LABELS[e.courseType] || e.courseType}
                           </Badge>
                         </div>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-xs">Aluno</span>
-                        <p className="font-medium">{e.studentName}</p>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Aluno</span>
+                        <p className="font-medium break-words md:leading-tight">{e.studentName}</p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-xs">Contato</span>
-                        <p>{e.contact || "—"}</p>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Contato</span>
+                        <p className="break-words md:leading-tight">{e.contact || "—"}</p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-xs">Email</span>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Email</span>
                         <p className="truncate">{e.email || "—"}</p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-xs">Instagram</span>
-                        <p>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Instagram</span>
+                        <p className="truncate">
                           {e.instagram ? (
                             <a
                               href={`https://instagram.com/${e.instagram.replace("@", "")}`}
@@ -343,15 +349,15 @@ export function AllCoursesSection() {
                           ) : "—"}
                         </p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-xs">Horário</span>
-                        <p>{e.time === "Manhã" ? "08:30" : e.time === "Tarde" ? "14:00" : e.time}</p>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Horário</span>
+                        <p className="truncate">{e.time === "Manhã" ? "08:30" : e.time === "Tarde" ? "14:00" : e.time}</p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground text-xs">Status</span>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Status</span>
                         <div className="mt-0.5">
                           {e.courseStatus ? (
-                            <Badge variant="outline" className={cn("text-xs capitalize", STATUS_COLORS[e.courseStatus] || "bg-muted text-muted-foreground")}>
+                            <Badge variant="outline" className={cn("text-[10px] sm:text-xs md:text-xs capitalize", STATUS_COLORS[e.courseStatus] || "bg-muted text-muted-foreground")}>
                               {e.courseStatus}
                             </Badge>
                           ) : (
@@ -360,11 +366,11 @@ export function AllCoursesSection() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(e)}>
+                    <div className="flex items-center justify-end sm:justify-start gap-1 shrink-0 ml-auto">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => openEdit(e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(e)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8 text-destructive" onClick={() => handleDelete(e)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>

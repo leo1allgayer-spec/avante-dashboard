@@ -106,7 +106,7 @@ const PagamentosPage = () => {
   const showMetaTable = PESSOAS_COM_TABELA_META.includes(pessoaFilter);
   const showCursosDadosTable = PESSOAS_COM_TABELA_CURSOS_DADOS.includes(pessoaFilter);
 
-  // --- Cursos Vendidos ---
+  // --- Comissão de Vendas ---
   // Inclui:
   // 1) vendas cujo vendedor bate com pessoa com tabela de cursos, OU
   //    cujo cliente foi cadastrado em cursos_dados por instrutor dessas pessoas;
@@ -356,11 +356,11 @@ const PagamentosPage = () => {
             </CardContent>
           </Card>
 
-          {/* Cursos Vendidos */}
+          {/* Comissão de Vendas */}
           {showCursosTable && (
             <Card className="bg-card/80 backdrop-blur border-border/40">
               <CardHeader>
-                <CardTitle className="text-base">Cursos Vendidos</CardTitle>
+                <CardTitle className="text-base">Comissão de Vendas</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 {isLoading ? (

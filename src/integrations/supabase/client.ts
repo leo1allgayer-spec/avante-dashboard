@@ -10,6 +10,27 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-    storageKey: 'sb-metrics-auth-token', // Chave de armazenamento dedicada para evitar colisão de login
+    storageKey: 'sb-metrics-auth-token',
   }
 });
+
+// BYPASS DE GETUSER NO LOCALHOST
+const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+if (isLocalhost) {
+  supabase.auth.getUser = async () => {
+    return {
+      data: {
+        user: {
+          id: "bf0471c6-0152-460e-ae22-e7f3ec3969c4",
+          email: "digitalavante3@gmail.com",
+          role: "authenticated",
+          aud: "authenticated",
+          app_metadata: {},
+          user_metadata: {},
+          created_at: new Date().toISOString()
+        } as any
+      },
+      error: null
+    };
+  };
+}

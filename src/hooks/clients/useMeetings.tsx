@@ -11,7 +11,10 @@ export function useMeetings() {
   const [loading, setLoading] = useState(true);
 
   const fetchMeetings = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setLoading(false);
+      return;
+    }
     const { data, error } = await supabase
       .from("meetings" as any)
       .select("*")

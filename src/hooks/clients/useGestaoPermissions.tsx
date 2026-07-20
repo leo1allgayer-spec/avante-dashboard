@@ -19,7 +19,10 @@ export function usePermissions() {
   const [loading, setLoading] = useState(true);
 
   const fetchPermissions = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setLoading(false);
+      return;
+    }
     const { data, error } = await supabase
       .from("user_permissions")
       .select("*")

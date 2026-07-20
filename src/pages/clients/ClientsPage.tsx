@@ -7,14 +7,16 @@ import { Users, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/clients/useGestaoAuth";
 import { useClients } from "@/hooks/clients/useGestaoClients";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useAuth as useMainAuth } from "@/hooks/useAuth";
 
 const Index = () => {
   const { session } = useAuth();
   const { clients, loading, addClient, updateClient, deleteClient } = useClients();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const { signOut: signOutMain } = useMainAuth();
 
   const selectedClient = clients.find((c) => c.id === selectedId);
 
@@ -22,6 +24,11 @@ const Index = () => {
     deleteClient(id);
     if (selectedId === id) setSelectedId(null);
   };
+
+  if (!session && !loading) {
+    signOutMain();
+    return null;
+  }
 
   if (loading) {
     return (
