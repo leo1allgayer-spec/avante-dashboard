@@ -4,9 +4,13 @@
     <meta charset="UTF-8" />
     <script>
       (function() {
-        const savedTheme = localStorage.getItem('avante-theme') || 'dark';
-        document.documentElement.classList.remove('light', 'dark');
-        document.documentElement.classList.add(savedTheme === 'light' ? 'light' : 'dark');
+        try {
+          const savedTheme = localStorage.getItem('avante-theme') || 'dark';
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(savedTheme === 'light' ? 'light' : 'dark');
+        } catch (error) {
+          document.documentElement.classList.add('dark');
+        }
 
         const mockSession = {
           access_token: "mock-token-avante-digital-bypass",

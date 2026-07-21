@@ -51,9 +51,10 @@ const DashboardLayout = ({ children, title, subtitle, actions }: DashboardLayout
                 onClick={toggleTheme}
                 title={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
                 aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
-                className="h-10 w-10 px-0"
+                className="h-10 px-3"
               >
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                <span className="hidden sm:inline">{theme === "dark" ? "Claro" : "Escuro"}</span>
               </Button>
             </div>
           </header>
