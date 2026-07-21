@@ -545,89 +545,90 @@ const CampanhasPage = () => {
               <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">Performance por Campanha</h3>
               <span className="text-xs text-muted-foreground">{campaignRows.length} campanhas encontradas</span>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/40 text-left">
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Campanha</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gasto</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliques</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CTR</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CPC</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Leads</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversas</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Custo/Conversa</th>
-                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Orcamento</th>
-                    <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acoes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaignRows.map((campaign) => {
-                    const st = statusMap[campaign.status] || { label: campaign.status, variant: "outline" as const };
-                    const campaignCostPerConversation = campaign.conversations > 0 ? campaign.spend / campaign.conversations : 0;
-                    const canToggle = campaign.status === "ACTIVE" || campaign.status === "PAUSED";
-                    const statusLoading = actionLoading === `${campaign.id}:status`;
-                    const budgetLoading = actionLoading === `${campaign.id}:budget`;
-                    return (
-                      <tr key={campaign.id} className="border-b border-border/20 transition-colors hover:bg-secondary/30">
-                        <td className="max-w-[240px] truncate py-3 pr-4 font-medium text-foreground">{campaign.name}</td>
-                        <td className="py-3 pr-4"><Badge variant={st.variant}>{st.label}</Badge></td>
-                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(campaign.spend)}</td>
-                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatNumber(campaign.clicks)}</td>
-                        <td className="py-3 pr-4 text-right text-muted-foreground">{campaign.ctr.toFixed(2)}%</td>
-                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(campaign.cpc)}</td>
-                        <td className="py-3 pr-4 text-right font-medium text-foreground">{formatNumber(campaign.leads)}</td>
-                        <td className="py-3 pr-4 text-right font-medium text-foreground">{formatNumber(campaign.conversations)}</td>
-                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(campaignCostPerConversation)}</td>
-                        <td className="py-3 pr-4 text-right text-muted-foreground">
-                          {campaign.dailyBudget > 0 ? `${formatCurrency(campaign.dailyBudget)}/dia` : campaign.lifetimeBudget > 0 ? `${formatCurrency(campaign.lifetimeBudget)} total` : "-"}
-                        </td>
-                        <td className="py-3">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={!canToggle || !!actionLoading}
-                              onClick={() => updateCampaignStatus(campaign)}
-                              className="h-8 px-3"
-                            >
-                              {statusLoading ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : campaign.status === "ACTIVE" ? (
-                                <PauseCircle className="h-3.5 w-3.5" />
-                              ) : (
-                                <PlayCircle className="h-3.5 w-3.5" />
-                              )}
-                              {campaign.status === "ACTIVE" ? "Pausar" : "Ativar"}
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={!!actionLoading}
-                              onClick={() => updateCampaignBudget(campaign)}
-                              className="h-8 px-3"
-                            >
-                              {budgetLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WalletCards className="h-3.5 w-3.5" />}
-                              Orcamento
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={detailsLoading}
-                              onClick={() => openCampaignDetails(campaign)}
-                              className="h-8 px-3"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              Ver
-                            </Button>
+            <div className="space-y-3">
+              {campaignRows.map((campaign) => {
+                const st = statusMap[campaign.status] || { label: campaign.status, variant: "outline" as const };
+                const campaignCostPerConversation = campaign.conversations > 0 ? campaign.spend / campaign.conversations : 0;
+                const canToggle = campaign.status === "ACTIVE" || campaign.status === "PAUSED";
+                const statusLoading = actionLoading === `${campaign.id}:status`;
+                const budgetLoading = actionLoading === `${campaign.id}:budget`;
+                const budgetLabel = campaign.dailyBudget > 0
+                  ? `${formatCurrency(campaign.dailyBudget)}/dia`
+                  : campaign.lifetimeBudget > 0
+                    ? `${formatCurrency(campaign.lifetimeBudget)} total`
+                    : "-";
+
+                return (
+                  <div key={campaign.id} className="rounded-lg border border-border/30 bg-secondary/10 p-4 transition-colors hover:bg-secondary/20">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(220px,1.5fr)_minmax(0,2.4fr)_auto] lg:items-center">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="min-w-0 truncate text-sm font-semibold text-foreground">{campaign.name}</p>
+                          <Badge variant={st.variant}>{st.label}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">Orcamento: {budgetLabel}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+                        {[
+                          ["Gasto", formatCurrency(campaign.spend)],
+                          ["Cliques", formatNumber(campaign.clicks)],
+                          ["CTR", `${campaign.ctr.toFixed(2)}%`],
+                          ["CPC", formatCurrency(campaign.cpc)],
+                          ["Leads", formatNumber(campaign.leads)],
+                          ["Conversas", formatNumber(campaign.conversations)],
+                          ["Custo/Conv.", formatCurrency(campaignCostPerConversation)],
+                          ["Alcance", formatNumber(campaign.reach)],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-md bg-background/40 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+                            <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!canToggle || !!actionLoading}
+                          onClick={() => updateCampaignStatus(campaign)}
+                          className="h-8 px-3"
+                        >
+                          {statusLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : campaign.status === "ACTIVE" ? (
+                            <PauseCircle className="h-3.5 w-3.5" />
+                          ) : (
+                            <PlayCircle className="h-3.5 w-3.5" />
+                          )}
+                          {campaign.status === "ACTIVE" ? "Pausar" : "Ativar"}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={!!actionLoading}
+                          onClick={() => updateCampaignBudget(campaign)}
+                          className="h-8 px-3"
+                        >
+                          {budgetLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WalletCards className="h-3.5 w-3.5" />}
+                          Orcamento
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={detailsLoading}
+                          onClick={() => openCampaignDetails(campaign)}
+                          className="h-8 px-3"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Ver
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </motion.div>
         )}
