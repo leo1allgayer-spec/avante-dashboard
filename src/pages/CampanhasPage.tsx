@@ -596,17 +596,17 @@ const CampanhasPage = () => {
 
                 return (
                   <div key={campaign.id} className={`rounded-lg border p-4 transition-colors hover:bg-secondary/20 ${statusStyle.card}`}>
-                    <div className="grid gap-4 lg:grid-cols-[minmax(220px,1.5fr)_minmax(0,2.4fr)_auto] lg:items-center">
-                      <div className="min-w-0">
+                    <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.7fr)_auto] xl:items-center">
+                      <div className="min-w-0 xl:max-w-[360px]">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
-                          <p className="min-w-0 truncate text-sm font-semibold text-foreground">{campaign.name}</p>
+                          <p className="min-w-0 break-words text-sm font-semibold leading-snug text-foreground">{campaign.name}</p>
                           <Badge variant={st.variant} className={statusStyle.badge}>{st.label}</Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">Orcamento: {budgetLabel}</p>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                         {[
                           ["Gasto", formatCurrency(campaign.spend)],
                           ["Cliques", formatNumber(campaign.clicks)],
@@ -617,14 +617,14 @@ const CampanhasPage = () => {
                           ["Custo/Conv.", formatCurrency(campaignCostPerConversation)],
                           ["Alcance", formatNumber(campaign.reach)],
                         ].map(([label, value]) => (
-                          <div key={label} className="rounded-md bg-background/40 px-3 py-2">
+                          <div key={label} className="min-w-0 rounded-md bg-background/45 px-3 py-2.5">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-                            <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
+                            <p className="mt-1 break-words text-sm font-semibold leading-tight text-foreground">{value}</p>
                           </div>
                         ))}
                       </div>
 
-                      <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+                      <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
                         <Button
                           variant="outline"
                           size="sm"
