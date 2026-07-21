@@ -76,6 +76,7 @@ const fieldLabels: Record<string, string> = {
   tempo_atendimento: "Tempo de atendimento",
   atendimento_rapido: "Atendimento rápido",
   nota_whatsapp: "Nota WhatsApp",
+  nota_curso: "Nota do curso",
   forma_atendimento: "Forma de atendimento",
   motivacao_fechar: "Motivação para fechar",
   valor_curso_opiniao: "Opinião sobre o valor",
@@ -89,7 +90,7 @@ const fieldOrder = [
   "data_curso", "consultor", "como_conheceu", "tempo_para_fechar",
   "conversou_outras_escolas", "objetivo_principal", "segmento",
   "fator_determinante", "dor_principal", "tempo_atendimento",
-  "atendimento_rapido", "nota_whatsapp", "forma_atendimento",
+  "atendimento_rapido", "nota_whatsapp", "nota_curso", "forma_atendimento",
   "motivacao_fechar", "valor_curso_opiniao", "sugestao_atendimento",
   "indicaria_alguem", "nota_indicacao",
 ];
@@ -241,7 +242,7 @@ const AnaliseAlunosPage = () => {
     if (!editingResponse) return;
     const payload = fieldOrder.reduce<Record<string, string | number | null>>((acc, key) => {
       const value = editForm[key]?.trim() ?? "";
-      if (key === "nota_whatsapp" || key === "nota_indicacao") {
+      if (key === "nota_whatsapp" || key === "nota_curso" || key === "nota_indicacao") {
         acc[key] = value === "" ? null : Number(value);
       } else {
         acc[key] = value === "" ? null : value;
@@ -384,7 +385,7 @@ const AnaliseAlunosPage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {fieldOrder.map((key) => {
                     const isLong = ["dor_principal", "motivacao_fechar", "sugestao_atendimento", "valor_curso_opiniao"].includes(key);
-                    const isNumber = key === "nota_whatsapp" || key === "nota_indicacao";
+                    const isNumber = key === "nota_whatsapp" || key === "nota_curso" || key === "nota_indicacao";
                     return (
                       <div key={key} className={cn("space-y-1.5", isLong && "sm:col-span-2")}>
                         <Label className="text-xs text-muted-foreground">{fieldLabels[key] || key}</Label>

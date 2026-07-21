@@ -69,6 +69,7 @@ type FormData = {
   tempo_atendimento: string;
   atendimento_rapido: string;
   nota_whatsapp: number;
+  nota_curso: number;
   forma_atendimento: string;
   motivacao_fechar: string;
   valor_curso_opiniao: string;
@@ -98,6 +99,7 @@ const initialForm: FormData = {
   tempo_atendimento: "",
   atendimento_rapido: "",
   nota_whatsapp: 8,
+  nota_curso: 8,
   forma_atendimento: "",
   motivacao_fechar: "",
   valor_curso_opiniao: "",
@@ -232,6 +234,7 @@ const PesquisaPage = () => {
         tempo_atendimento: form.tempo_atendimento || null,
         atendimento_rapido: form.atendimento_rapido || null,
         nota_whatsapp: form.nota_whatsapp,
+        nota_curso: form.nota_curso,
         forma_atendimento: form.forma_atendimento || null,
         motivacao_fechar: form.motivacao_fechar || null,
         valor_curso_opiniao: form.valor_curso_opiniao || null,
@@ -378,6 +381,10 @@ const PesquisaPage = () => {
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-2 block">De 0 a 10, quanto você gostou do atendimento no WhatsApp? *</Label>
                 <SliderScore value={form.nota_whatsapp} onChange={(v) => set("nota_whatsapp", v)} label="Nota WhatsApp" />
+              </div>
+              <div>
+                <Label className="text-sm font-semibold text-foreground mb-2 block">De 0 a 10, qual nota voce da para o curso? *</Label>
+                <SliderScore value={form.nota_curso} onChange={(v) => set("nota_curso", v)} label="Nota Curso" />
               </div>
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-2 block">Nosso atendimento é feito com áudios e textos. Gostou dessa forma? *</Label>

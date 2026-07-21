@@ -458,6 +458,7 @@ export type Database = {
           instagram: string | null
           motivacao_fechar: string | null
           nome: string
+          nota_curso: number | null
           nota_indicacao: number | null
           nota_whatsapp: number | null
           objetivo_principal: string | null
@@ -489,6 +490,7 @@ export type Database = {
           instagram?: string | null
           motivacao_fechar?: string | null
           nome: string
+          nota_curso?: number | null
           nota_indicacao?: number | null
           nota_whatsapp?: number | null
           objetivo_principal?: string | null
@@ -520,6 +522,7 @@ export type Database = {
           instagram?: string | null
           motivacao_fechar?: string | null
           nome?: string
+          nota_curso?: number | null
           nota_indicacao?: number | null
           nota_whatsapp?: number | null
           objetivo_principal?: string | null
