@@ -25,6 +25,11 @@ export interface DailyMetrics {
   meta_negocio_local: number;
   meta_crm: number;
   meta_upsell: number;
+  super_meta_cursos: number;
+  super_meta_site: number;
+  super_meta_negocio_local: number;
+  super_meta_crm: number;
+  super_meta_upsell: number;
   valor_cursos: number;
   valor_site: number;
   valor_negocio_local: number;

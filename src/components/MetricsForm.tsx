@@ -29,10 +29,15 @@ const sections = [
     title: "Metas por Categoria — Quantidade",
     fields: [
       { key: "meta_cursos", label: "Cursos", prefix: "" },
+      { key: "super_meta_cursos", label: "Super Cursos", prefix: "" },
       { key: "meta_site", label: "Site", prefix: "" },
+      { key: "super_meta_site", label: "Super Site", prefix: "" },
       { key: "meta_negocio_local", label: "Negócio Local", prefix: "" },
+      { key: "super_meta_negocio_local", label: "Super Negocio Local", prefix: "" },
       { key: "meta_crm", label: "CRM", prefix: "" },
+      { key: "super_meta_crm", label: "Super CRM", prefix: "" },
       { key: "meta_upsell", label: "Upsell", prefix: "" },
+      { key: "super_meta_upsell", label: "Super Upsell", prefix: "" },
     ],
   },
   {
@@ -86,6 +91,11 @@ const createEmptyForm = (data?: DailyMetrics | null) => ({
   meta_negocio_local: data?.meta_negocio_local || 0,
   meta_crm: data?.meta_crm || 0,
   meta_upsell: data?.meta_upsell || 0,
+  super_meta_cursos: data?.super_meta_cursos || 0,
+  super_meta_site: data?.super_meta_site || 0,
+  super_meta_negocio_local: data?.super_meta_negocio_local || 0,
+  super_meta_crm: data?.super_meta_crm || 0,
+  super_meta_upsell: data?.super_meta_upsell || 0,
   valor_cursos: data?.valor_cursos || 0,
   valor_site: data?.valor_site || 0,
   valor_negocio_local: data?.valor_negocio_local || 0,
@@ -303,3 +313,4 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
 };
 
 export default MetricsForm;
+

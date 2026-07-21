@@ -268,8 +268,13 @@ export type Database = {
           meta_site: number | null
           meta_upsell: number | null
           roas: number | null
+          super_meta_crm: number | null
+          super_meta_cursos: number | null
           super_meta_diaria: number | null
           super_meta_mensal: number | null
+          super_meta_negocio_local: number | null
+          super_meta_site: number | null
+          super_meta_upsell: number | null
           updated_at: string
           user_id: string
           valor_crm: number | null
@@ -303,8 +308,13 @@ export type Database = {
           meta_site?: number | null
           meta_upsell?: number | null
           roas?: number | null
+          super_meta_crm?: number | null
+          super_meta_cursos?: number | null
           super_meta_diaria?: number | null
           super_meta_mensal?: number | null
+          super_meta_negocio_local?: number | null
+          super_meta_site?: number | null
+          super_meta_upsell?: number | null
           updated_at?: string
           user_id: string
           valor_crm?: number | null
@@ -338,8 +348,13 @@ export type Database = {
           meta_site?: number | null
           meta_upsell?: number | null
           roas?: number | null
+          super_meta_crm?: number | null
+          super_meta_cursos?: number | null
           super_meta_diaria?: number | null
           super_meta_mensal?: number | null
+          super_meta_negocio_local?: number | null
+          super_meta_site?: number | null
+          super_meta_upsell?: number | null
           updated_at?: string
           user_id?: string
           valor_crm?: number | null
