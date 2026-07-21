@@ -108,7 +108,7 @@ begin
 
   if v_slot_id is null then
     insert into public.course_slots (course_name, date, time, max_students)
-    values (p_course_name, p_date, p_shift, 5)
+    values (p_course_name, p_date::date, p_shift, 5)
     returning id into v_slot_id;
   end if;
 
@@ -145,7 +145,7 @@ begin
     v_clean_phone,
     coalesce(trim(p_instagram), ''),
     coalesce(nullif(trim(p_certificate_name), ''), v_clean_name),
-    p_date,
+    p_date::date,
     p_shift,
     'confirmed'
   );
