@@ -88,6 +88,33 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
   ARCHIVED: { label: "Arquivada", variant: "outline" },
 };
 
+function getStatusStyle(status?: string) {
+  if (status === "ACTIVE") {
+    return {
+      card: "border-emerald-400/45 bg-emerald-500/10 shadow-[inset_3px_0_0_rgba(52,211,153,0.95)]",
+      child: "border-emerald-400/35 bg-emerald-500/8 shadow-[inset_3px_0_0_rgba(52,211,153,0.75)]",
+      badge: "border-emerald-400/50 bg-emerald-500/20 text-emerald-200",
+      dot: "bg-emerald-400",
+    };
+  }
+
+  if (status === "PAUSED" || status === "ADSET_PAUSED" || status === "CAMPAIGN_PAUSED") {
+    return {
+      card: "border-amber-400/45 bg-amber-500/10 shadow-[inset_3px_0_0_rgba(251,191,36,0.95)]",
+      child: "border-amber-400/35 bg-amber-500/8 shadow-[inset_3px_0_0_rgba(251,191,36,0.75)]",
+      badge: "border-amber-400/50 bg-amber-500/20 text-amber-200",
+      dot: "bg-amber-400",
+    };
+  }
+
+  return {
+    card: "border-border/30 bg-secondary/10",
+    child: "border-border/20 bg-background/30",
+    badge: "border-border/50 bg-secondary text-muted-foreground",
+    dot: "bg-muted-foreground",
+  };
+}
+
 const presetLabels: Record<MetaAdsFilters["datePreset"], string> = {
   today: "Hoje",
   yesterday: "Ontem",
@@ -556,6 +583,7 @@ const CampanhasPage = () => {
             <div className="space-y-3">
               {campaignRows.map((campaign) => {
                 const st = statusMap[campaign.status] || { label: campaign.status, variant: "outline" as const };
+                const statusStyle = getStatusStyle(campaign.status);
                 const campaignCostPerConversation = campaign.conversations > 0 ? campaign.spend / campaign.conversations : 0;
                 const canToggle = campaign.status === "ACTIVE" || campaign.status === "PAUSED";
                 const statusLoading = actionLoading === `${campaign.id}:status`;
@@ -567,12 +595,13 @@ const CampanhasPage = () => {
                     : "-";
 
                 return (
-                  <div key={campaign.id} className="rounded-lg border border-border/30 bg-secondary/10 p-4 transition-colors hover:bg-secondary/20">
+                  <div key={campaign.id} className={`rounded-lg border p-4 transition-colors hover:bg-secondary/20 ${statusStyle.card}`}>
                     <div className="grid gap-4 lg:grid-cols-[minmax(220px,1.5fr)_minmax(0,2.4fr)_auto] lg:items-center">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
+                          <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
                           <p className="min-w-0 truncate text-sm font-semibold text-foreground">{campaign.name}</p>
-                          <Badge variant={st.variant}>{st.label}</Badge>
+                          <Badge variant={st.variant} className={statusStyle.badge}>{st.label}</Badge>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">Orcamento: {budgetLabel}</p>
                       </div>
@@ -653,13 +682,17 @@ const CampanhasPage = () => {
             <div className="space-y-2">
               {filteredCampaigns.map((campaign) => {
                 const st = statusMap[campaign.status] || { label: campaign.status, variant: "outline" as const };
+                const statusStyle = getStatusStyle(campaign.status);
                 return (
                   <div key={campaign.id} className="flex items-center justify-between rounded-md px-3 py-2 transition-colors hover:bg-secondary/30">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{campaign.name}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
+                        <p className="truncate text-sm font-medium text-foreground">{campaign.name}</p>
+                      </div>
                       <p className="text-[11px] text-muted-foreground">{campaign.objective?.replace(/_/g, " ") || "-"}</p>
                     </div>
-                    <Badge variant={st.variant} className="ml-3 shrink-0">{st.label}</Badge>
+                    <Badge variant={st.variant} className={`ml-3 shrink-0 ${statusStyle.badge}`}>{st.label}</Badge>
                   </div>
                 );
               })}
@@ -695,14 +728,16 @@ const CampanhasPage = () => {
                     {campaignDetails.adsets.map((adset) => {
                       const insight = firstInsight(adset);
                       const st = statusMap[adset.effective_status || adset.status] || { label: adset.effective_status || adset.status || "-", variant: "outline" as const };
+                      const statusStyle = getStatusStyle(adset.effective_status || adset.status);
                       const ads = adsByAdset.get(adset.id) || [];
                       return (
-                        <div key={adset.id} className="rounded-lg border border-border/40 bg-secondary/10 p-4">
+                        <div key={adset.id} className={`rounded-lg border p-4 ${statusStyle.card}`}>
                           <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.5fr)_minmax(0,2fr)] lg:items-center">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
+                                <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
                                 <p className="truncate text-sm font-semibold text-foreground">{adset.name}</p>
-                                <Badge variant={st.variant}>{st.label}</Badge>
+                                <Badge variant={st.variant} className={statusStyle.badge}>{st.label}</Badge>
                               </div>
                               <p className="mt-1 text-xs text-muted-foreground">Orcamento: {itemBudget(adset)}</p>
                             </div>
@@ -726,12 +761,14 @@ const CampanhasPage = () => {
                             {ads.map((ad) => {
                               const adInsight = firstInsight(ad);
                               const adStatus = statusMap[ad.effective_status || ad.status] || { label: ad.effective_status || ad.status || "-", variant: "outline" as const };
+                              const adStatusStyle = getStatusStyle(ad.effective_status || ad.status);
                               return (
-                                <div key={ad.id} className="grid gap-3 rounded-md border border-border/20 bg-background/30 px-3 py-3 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center">
+                                <div key={ad.id} className={`grid gap-3 rounded-md border px-3 py-3 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center ${adStatusStyle.child}`}>
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
+                                      <span className={`h-2 w-2 rounded-full ${adStatusStyle.dot}`} />
                                       <p className="truncate text-sm font-medium text-foreground">{ad.name}</p>
-                                      <Badge variant={adStatus.variant}>{adStatus.label}</Badge>
+                                      <Badge variant={adStatus.variant} className={adStatusStyle.badge}>{adStatus.label}</Badge>
                                     </div>
                                   </div>
                                   <div className="grid grid-cols-3 gap-2 text-right">
@@ -769,12 +806,14 @@ const CampanhasPage = () => {
                           {(adsByAdset.get("sem-conjunto") || []).map((ad) => {
                           const insight = firstInsight(ad);
                           const st = statusMap[ad.effective_status || ad.status] || { label: ad.effective_status || ad.status || "-", variant: "outline" as const };
+                          const statusStyle = getStatusStyle(ad.effective_status || ad.status);
                           return (
-                            <div key={ad.id} className="grid gap-3 rounded-md border border-border/20 bg-background/30 px-3 py-3 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center">
+                            <div key={ad.id} className={`grid gap-3 rounded-md border px-3 py-3 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center ${statusStyle.child}`}>
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`h-2 w-2 rounded-full ${statusStyle.dot}`} />
                                   <p className="truncate text-sm font-medium text-foreground">{ad.name}</p>
-                                  <Badge variant={st.variant}>{st.label}</Badge>
+                                  <Badge variant={st.variant} className={statusStyle.badge}>{st.label}</Badge>
                                 </div>
                               </div>
                               <div className="grid grid-cols-3 gap-2 text-right">
