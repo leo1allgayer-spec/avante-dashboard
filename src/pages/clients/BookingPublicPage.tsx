@@ -16,6 +16,7 @@ const COURSES: { id: string; label: string; subtitle?: string }[] = [
   { id: "Curso Meta Ads Avançado", label: "Curso Tráfego Pago Meta Ads PRO+", subtitle: "Facebook e Instagram" },
   { id: "Curso Google Ads", label: "Curso Tráfego Pago Google Ads" },
   { id: "Curso Social Media", label: "Curso Social Media" },
+  { id: "Curso Canva", label: "Curso Canva" },
   { id: "Curso Inteligência Artificial", label: "Curso Inteligência Artificial" },
   { id: "Curso Captação e Edição de Vídeo", label: "Curso Captação e Edição de Vídeo" },
 ];
