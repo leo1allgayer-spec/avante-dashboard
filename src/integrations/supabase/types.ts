@@ -275,6 +275,11 @@ export type Database = {
           super_meta_negocio_local: number | null
           super_meta_site: number | null
           super_meta_upsell: number | null
+          super_valor_crm: number | null
+          super_valor_cursos: number | null
+          super_valor_negocio_local: number | null
+          super_valor_site: number | null
+          super_valor_upsell: number | null
           updated_at: string
           user_id: string
           valor_crm: number | null
@@ -315,6 +320,11 @@ export type Database = {
           super_meta_negocio_local?: number | null
           super_meta_site?: number | null
           super_meta_upsell?: number | null
+          super_valor_crm?: number | null
+          super_valor_cursos?: number | null
+          super_valor_negocio_local?: number | null
+          super_valor_site?: number | null
+          super_valor_upsell?: number | null
           updated_at?: string
           user_id: string
           valor_crm?: number | null
@@ -355,6 +365,11 @@ export type Database = {
           super_meta_negocio_local?: number | null
           super_meta_site?: number | null
           super_meta_upsell?: number | null
+          super_valor_crm?: number | null
+          super_valor_cursos?: number | null
+          super_valor_negocio_local?: number | null
+          super_valor_site?: number | null
+          super_valor_upsell?: number | null
           updated_at?: string
           user_id?: string
           valor_crm?: number | null

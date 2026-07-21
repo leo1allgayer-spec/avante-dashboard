@@ -44,10 +44,15 @@ const sections = [
     title: "Metas por Categoria — Valor Mensal",
     fields: [
       { key: "valor_cursos", label: "Cursos", prefix: "R$" },
+      { key: "super_valor_cursos", label: "Super Cursos", prefix: "R$" },
       { key: "valor_site", label: "Site", prefix: "R$" },
+      { key: "super_valor_site", label: "Super Site", prefix: "R$" },
       { key: "valor_negocio_local", label: "Negócio Local", prefix: "R$" },
+      { key: "super_valor_negocio_local", label: "Super Negocio Local", prefix: "R$" },
       { key: "valor_crm", label: "CRM", prefix: "R$" },
+      { key: "super_valor_crm", label: "Super CRM", prefix: "R$" },
       { key: "valor_upsell", label: "Upsell", prefix: "R$" },
+      { key: "super_valor_upsell", label: "Super Upsell", prefix: "R$" },
     ],
   },
   {
@@ -101,6 +106,11 @@ const createEmptyForm = (data?: DailyMetrics | null) => ({
   valor_negocio_local: data?.valor_negocio_local || 0,
   valor_crm: data?.valor_crm || 0,
   valor_upsell: data?.valor_upsell || 0,
+  super_valor_cursos: data?.super_valor_cursos || 0,
+  super_valor_site: data?.super_valor_site || 0,
+  super_valor_negocio_local: data?.super_valor_negocio_local || 0,
+  super_valor_crm: data?.super_valor_crm || 0,
+  super_valor_upsell: data?.super_valor_upsell || 0,
   super_meta_mensal: data?.super_meta_mensal || 0,
   super_meta_diaria: data?.super_meta_diaria || 0,
   avaliacao_google: data?.avaliacao_google || 0,
@@ -313,4 +323,5 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
 };
 
 export default MetricsForm;
+
 

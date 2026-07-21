@@ -35,6 +35,11 @@ export interface DailyMetrics {
   valor_negocio_local: number;
   valor_crm: number;
   valor_upsell: number;
+  super_valor_cursos: number;
+  super_valor_site: number;
+  super_valor_negocio_local: number;
+  super_valor_crm: number;
+  super_valor_upsell: number;
   super_meta_mensal: number;
   super_meta_diaria: number;
   avaliacao_google: number;
