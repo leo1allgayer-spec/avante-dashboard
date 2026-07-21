@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { DailyMetrics } from "./useMetrics";
+import { formatLocalDate } from "./useMetrics";
 import type { Venda } from "./useVendas";
 import type { CursoDado } from "./useCursosDados";
 
@@ -19,7 +20,7 @@ function getWeekRange(date: Date) {
 }
 
 function fmt(d: Date) {
-  return d.toISOString().split("T")[0];
+  return formatLocalDate(d);
 }
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];

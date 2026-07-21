@@ -35,17 +35,42 @@ export interface DailyMetrics {
   avaliacao_google: number;
 }
 
+export function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function useTodayMetrics() {
   return useQuery({
     queryKey: ["daily-metrics", "today"],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
-      const today = new Date().toISOString().split("T")[0];
+      const today = formatLocalDate(new Date());
       const { data, error } = await supabase
         .from("daily_metrics")
         .select("*")
         .eq("date", today)
+        .maybeSingle();
+      if (error) throw error;
+      return data as DailyMetrics | null;
+    },
+  });
+}
+
+export function useMetricsByDate(date: string) {
+  return useQuery({
+    queryKey: ["daily-metrics", "by-date", date],
+    enabled: Boolean(date),
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("daily_metrics")
+        .select("*")
+        .eq("date", date)
         .maybeSingle();
       if (error) throw error;
       return data as DailyMetrics | null;
@@ -63,8 +88,8 @@ export function useMonthMetrics(year?: number, month?: number) {
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-      const startOfMonth = new Date(y, m, 1).toISOString().split("T")[0];
-      const endOfMonth = new Date(y, m + 1, 0).toISOString().split("T")[0];
+      const startOfMonth = formatLocalDate(new Date(y, m, 1));
+      const endOfMonth = formatLocalDate(new Date(y, m + 1, 0));
       const { data, error } = await supabase
         .from("daily_metrics")
         .select("*")
@@ -118,6 +143,9 @@ export function useUpsertMetrics() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["filtered-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["month-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["planilha-metrics"] });
     },
   });
 }
@@ -131,6 +159,9 @@ export function useDeleteMetrics() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["filtered-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["month-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["planilha-metrics"] });
     },
   });
 }

@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 
+import { formatLocalDate } from "./useMetrics";
+
 export type FilterMode = "dia" | "semana" | "mes";
 
 function getWeekRange(date: Date) {
@@ -14,7 +16,7 @@ function getWeekRange(date: Date) {
 }
 
 function fmt(d: Date) {
-  return d.toISOString().split("T")[0];
+  return formatLocalDate(d);
 }
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
