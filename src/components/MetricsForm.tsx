@@ -18,7 +18,7 @@ const sections = [
     title: "Metas",
     fields: [
       { key: "meta_mensal_prevista", label: "Meta Mensal", prefix: "R$" },
-      { key: "super_meta_mensal", label: "Super Meta Mensal", prefix: "R$" },
+      { key: "super_meta_mensal", label: "Super Meta", prefix: "R$" },
       { key: "meta_diaria_prevista", label: "Meta Diária", prefix: "R$" },
       { key: "super_meta_diaria", label: "Super Meta Diária", prefix: "R$" },
       { key: "meta_mensal_realizada", label: "Meta Mensal Realizada", prefix: "R$" },
@@ -43,15 +43,6 @@ const sections = [
       { key: "valor_negocio_local", label: "Negócio Local", prefix: "R$" },
       { key: "valor_crm", label: "CRM", prefix: "R$" },
       { key: "valor_upsell", label: "Upsell", prefix: "R$" },
-    ],
-  },
-  {
-    title: "Receita",
-    fields: [
-      { key: "faturamento_marcado", label: "Fat. Marcado", prefix: "R$" },
-      { key: "faturamento_dia", label: "Faturamento do Dia", prefix: "R$" },
-      { key: "curso_marcado", label: "Cursos Marcados", prefix: "" },
-      { key: "curso_feito", label: "Cursos Feitos", prefix: "" },
     ],
   },
   {
@@ -191,8 +182,9 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
         </button>
       </DialogTrigger>
       <DialogContent
-        className="max-h-[88vh] overflow-y-auto sm:max-w-lg p-0 gap-0 border-border/40"
+        className="max-h-[88vh] overflow-hidden sm:max-w-lg p-0 gap-0 border-border/40"
         style={{ background: "hsl(260, 25%, 7%)" }}
+        onWheel={(e) => e.stopPropagation()}
       >
         <div className="p-6 pb-2">
           <DialogHeader>
@@ -205,7 +197,7 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
           </DialogHeader>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-5">
+        <form onSubmit={handleSubmit} className="px-6 pb-6 pr-4 space-y-5 max-h-[calc(88vh-110px)] overflow-y-auto overscroll-contain">
           <div className="rounded-xl border border-border/30 bg-secondary/20 p-3 space-y-3">
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
               <div className="space-y-1.5">
