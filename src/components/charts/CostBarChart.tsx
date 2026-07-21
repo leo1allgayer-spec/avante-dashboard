@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useMonthMetrics } from "@/hooks/useMetrics";
+import type { DailyMetrics } from "@/hooks/useMetrics";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell, Legend,
@@ -24,6 +25,7 @@ interface CostBarChartProps {
   custoLead: number;
   custoMql: number;
   cac: number;
+  monthData?: DailyMetrics[];
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -44,8 +46,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const CostBarChart = ({ custoLead, custoMql, cac }: CostBarChartProps) => {
-  const { data: monthData } = useMonthMetrics();
+const CostBarChart = ({ custoLead, custoMql, cac, monthData: providedMonthData }: CostBarChartProps) => {
+  const { data: fallbackMonthData } = useMonthMetrics();
+  const monthData = providedMonthData ?? fallbackMonthData;
 
   // Historical evolution of costs
   const historyData = (monthData || []).slice(-10).map((d) => ({

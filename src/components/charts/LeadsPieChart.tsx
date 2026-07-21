@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useMonthMetrics } from "@/hooks/useMetrics";
+import type { DailyMetrics } from "@/hooks/useMetrics";
 import {
   ComposedChart, Area, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid,
@@ -8,6 +9,7 @@ import {
 interface LeadsPieChartProps {
   leads: number;
   leadsMql: number;
+  monthData?: DailyMetrics[];
 }
 
 const tooltipStyle = {
@@ -46,8 +48,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const LeadsPieChart = ({ leads, leadsMql }: LeadsPieChartProps) => {
-  const { data: monthData } = useMonthMetrics();
+const LeadsPieChart = ({ leads, leadsMql, monthData: providedMonthData }: LeadsPieChartProps) => {
+  const { data: fallbackMonthData } = useMonthMetrics();
+  const monthData = providedMonthData ?? fallbackMonthData;
 
   const chartData = (monthData || []).map((d) => ({
     date: new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit" }),

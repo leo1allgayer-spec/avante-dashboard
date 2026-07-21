@@ -96,17 +96,17 @@ const Dashboard = () => {
   // Cursos feitos from cursos_dados table (real course registrations)
   const totalCursoFeito = cursosDados.length;
   // Cursos marcados from vendas (products sold = courses booked)
-  const totalCursoMarcado = vendasData.filter(v => v.produto && v.produto.length > 0).length;
+  const totalCursoMarcado = approvedVendas.filter(v => v.produto && v.produto.length > 0).length;
 
-  // Vendas totals
-  const vendasTotal = vendasData.reduce((s, v) => s + Number(v.valor), 0);
-  const vendasComissao = vendasData.reduce((s, v) => s + Number(v.comissao), 0);
+  // Vendas totals: only approved sales affect the overview totals.
+  const vendasTotal = approvedVendas.reduce((s, v) => s + Number(v.valor), 0);
+  const vendasComissao = approvedVendas.reduce((s, v) => s + Number(v.comissao), 0);
 
   const SERVICOS = ["Tráfego", "Captação", "Site", "Upsell", "CRM"];
   const serviceStats = useMemo(() => {
     const stats: Record<string, { count: number; valor: number }> = {};
     for (const s of SERVICOS) stats[s] = { count: 0, valor: 0 };
-    for (const v of vendasData) {
+    for (const v of approvedVendas) {
       const key = v.servico && SERVICOS.includes(v.servico) ? v.servico : null;
       if (key) {
         stats[key].count++;
@@ -115,7 +115,7 @@ const Dashboard = () => {
     }
     const servicosTotal = SERVICOS.reduce((s, k) => s + stats[k].valor, 0);
     return { byService: stats, total: servicosTotal };
-  }, [vendasData]);
+  }, [approvedVendas]);
 
   const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
   const metaMensal = latestDay?.meta_mensal_prevista || today?.meta_mensal_prevista || 0;
@@ -133,15 +133,16 @@ const Dashboard = () => {
   // ROAS por categoria
   const roasValues = useMemo(() => {
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
-    for (const v of vendasData) {
+    for (const v of approvedVendas) {
       if (v.servico && v.servico in servicoByType) {
         servicoByType[v.servico] += Number(v.valor);
       }
     }
-    const fatTotal = monthRealized + totalFatMarcado + serviceStats.total;
+    const faturamentoSemServicos = Math.max(monthRealized - serviceStats.total, 0) + totalFatMarcado;
+    const fatTotal = faturamentoSemServicos + serviceStats.total;
     return {
       geral: totalAds > 0 ? fatTotal / totalAds : 0,
-      faturamento: totalAds > 0 ? (monthRealized + totalFatMarcado) / totalAds : 0,
+      faturamento: totalAds > 0 ? faturamentoSemServicos / totalAds : 0,
       servicos: totalAds > 0 ? serviceStats.total / totalAds : 0,
       trafego: totalAds > 0 ? servicoByType["Tráfego"] / totalAds : 0,
       captacao: totalAds > 0 ? servicoByType["Captação"] / totalAds : 0,
@@ -149,7 +150,7 @@ const Dashboard = () => {
       upsell: totalAds > 0 ? servicoByType["Upsell"] / totalAds : 0,
       crm: totalAds > 0 ? servicoByType["CRM"] / totalAds : 0,
     };
-  }, [monthRealized, totalFatMarcado, serviceStats, totalAds, vendasData]);
+  }, [monthRealized, totalFatMarcado, serviceStats, totalAds, approvedVendas]);
 
   const roasLabels: Record<string, string> = {
     geral: "Geral",
@@ -166,21 +167,25 @@ const Dashboard = () => {
     if (roasFilter.length === 0) return 0;
     if (roasFilter.includes("geral")) return roasValues.geral;
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
-    for (const v of vendasData) {
+    for (const v of approvedVendas) {
       if (v.servico && v.servico in servicoByType) {
         servicoByType[v.servico] += Number(v.valor);
       }
     }
+    const faturamentoSemServicos = Math.max(monthRealized - serviceStats.total, 0) + totalFatMarcado;
     let numerator = 0;
-    if (roasFilter.includes("faturamento")) numerator += monthRealized + totalFatMarcado;
-    if (roasFilter.includes("servicos")) numerator += serviceStats.total;
-    if (roasFilter.includes("trafego")) numerator += servicoByType["Tráfego"];
-    if (roasFilter.includes("captacao")) numerator += servicoByType["Captação"];
-    if (roasFilter.includes("site")) numerator += servicoByType["Site"];
-    if (roasFilter.includes("upsell")) numerator += servicoByType["Upsell"];
-    if (roasFilter.includes("crm")) numerator += servicoByType["CRM"];
+    if (roasFilter.includes("faturamento")) numerator += faturamentoSemServicos;
+    if (roasFilter.includes("servicos")) {
+      numerator += serviceStats.total;
+    } else {
+      if (roasFilter.includes("trafego")) numerator += servicoByType["Tráfego"];
+      if (roasFilter.includes("captacao")) numerator += servicoByType["Captação"];
+      if (roasFilter.includes("site")) numerator += servicoByType["Site"];
+      if (roasFilter.includes("upsell")) numerator += servicoByType["Upsell"];
+      if (roasFilter.includes("crm")) numerator += servicoByType["CRM"];
+    }
     return totalAds > 0 ? numerator / totalAds : 0;
-  }, [roasFilter, roasValues, vendasData, monthRealized, totalFatMarcado, serviceStats, totalAds]);
+  }, [roasFilter, roasValues, approvedVendas, monthRealized, totalFatMarcado, serviceStats, totalAds]);
 
   const handleSync = () => {
     syncSheets.mutate(undefined, {
@@ -427,12 +432,12 @@ const Dashboard = () => {
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
               <div className="flex items-center gap-2 mb-3">
                 <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Vendas ({vendasData.length})</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Vendas ({approvedVendas.length})</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
                 <CountUp end={vendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
-              <p className="text-xs text-muted-foreground/40 mt-1">{vendasData.length} vendas · Com. {formatCurrency(vendasComissao)}</p>
+              <p className="text-xs text-muted-foreground/40 mt-1">{approvedVendas.length} aprovadas · Com. {formatCurrency(vendasComissao)}</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
@@ -540,15 +545,15 @@ const Dashboard = () => {
 
           {/* ROW 3: Charts */}
           <div className="grid gap-3 sm:gap-5 grid-cols-1 lg:grid-cols-2">
-            <motion.div variants={item}><RevenueChart /></motion.div>
+            <motion.div variants={item}><RevenueChart monthData={monthData} /></motion.div>
             <motion.div variants={item}>
-              <LeadsPieChart leads={totalLeads} leadsMql={totalMql} />
+              <LeadsPieChart leads={totalLeads} leadsMql={totalMql} monthData={monthData} />
             </motion.div>
           </div>
 
           <div className="grid gap-3 sm:gap-5 grid-cols-1 lg:grid-cols-2">
             <motion.div variants={item}>
-              <CostBarChart custoLead={avgCpl} custoMql={latestDay?.custo_por_lead_mql || 0} cac={avgCac} />
+              <CostBarChart custoLead={avgCpl} custoMql={latestDay?.custo_por_lead_mql || 0} cac={avgCac} monthData={monthData} />
             </motion.div>
             <motion.div variants={item}>
               <LeadsFunnelChart monthData={monthData} />

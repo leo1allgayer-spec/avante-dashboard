@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useMonthMetrics } from "@/hooks/useMetrics";
+import type { DailyMetrics } from "@/hooks/useMetrics";
 import {
   ComposedChart, Area, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Legend, ReferenceLine,
@@ -38,8 +39,13 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const RevenueChart = () => {
-  const { data: monthData } = useMonthMetrics();
+interface RevenueChartProps {
+  monthData?: DailyMetrics[];
+}
+
+const RevenueChart = ({ monthData: providedMonthData }: RevenueChartProps = {}) => {
+  const { data: fallbackMonthData } = useMonthMetrics();
+  const monthData = providedMonthData ?? fallbackMonthData;
 
   const chartData = (monthData || []).map((d, i, arr) => {
     const acumulado = arr.slice(0, i + 1).reduce((s, x) => s + Number(x.faturamento_dia), 0);
