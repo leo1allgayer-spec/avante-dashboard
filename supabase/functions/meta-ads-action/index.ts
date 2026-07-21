@@ -19,6 +19,25 @@ function buildUrl(path: string, token: string) {
   return url.toString();
 }
 
+function buildGetUrl(path: string, params: Record<string, string>, token: string) {
+  const url = new URL(`https://graph.facebook.com/${Deno.env.get("META_API_VERSION") || DEFAULT_VERSION}/${path}`);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  url.searchParams.set("access_token", token);
+  return url.toString();
+}
+
+async function getMeta(path: string, params: Record<string, string>, token: string) {
+  const response = await fetch(buildGetUrl(path, params, token));
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || payload?.error) {
+    const details = payload?.error?.message || `HTTP ${response.status}`;
+    throw new Error(`Meta Ads: ${details}`);
+  }
+
+  return payload;
+}
+
 async function postMeta(path: string, body: Record<string, string>, token: string) {
   const response = await fetch(buildUrl(path, token), {
     method: "POST",
@@ -59,6 +78,40 @@ function budgetToCents(value: unknown) {
   return String(Math.round(budget * 100));
 }
 
+async function getCampaignDetails(campaignId: string, token: string) {
+  const insightFields = "spend,impressions,clicks,cpc,ctr,reach,actions,cost_per_action_type";
+  const adSetsResponse = await getMeta(`${campaignId}/adsets`, {
+    fields: [
+      "id",
+      "name",
+      "status",
+      "effective_status",
+      "daily_budget",
+      "lifetime_budget",
+      `insights.date_preset(this_month){${insightFields}}`,
+    ].join(","),
+    limit: "100",
+  }, token);
+
+  const adsResponse = await getMeta(`${campaignId}/ads`, {
+    fields: [
+      "id",
+      "name",
+      "status",
+      "effective_status",
+      "adset_id",
+      "adset{name}",
+      `insights.date_preset(this_month){${insightFields}}`,
+    ].join(","),
+    limit: "100",
+  }, token);
+
+  return {
+    adsets: adSetsResponse.data || [],
+    ads: adsResponse.data || [],
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -68,6 +121,13 @@ Deno.serve(async (req) => {
     const token = getRequiredEnv("META_ACCESS_TOKEN");
     const body = await req.json().catch(() => ({}));
     const campaignId = normalizeCampaignId(body.campaignId);
+
+    if (body.action === "get_campaign_details") {
+      const result = await getCampaignDetails(campaignId, token);
+      return new Response(JSON.stringify({ success: true, ...result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (body.action === "set_campaign_status") {
       const status = normalizeStatus(body.status);

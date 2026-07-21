@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -48,6 +55,25 @@ import {
 } from "recharts";
 
 type CampaignStatusFilter = "all" | "ACTIVE" | "PAUSED" | "ARCHIVED" | "DELETED";
+type CampaignDetails = {
+  adsets: Array<Record<string, any>>;
+  ads: Array<Record<string, any>>;
+};
+type CampaignRow = {
+  id: string;
+  name: string;
+  status: string;
+  dailyBudget: number;
+  lifetimeBudget: number;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  leads: number;
+  conversations: number;
+  reach: number;
+};
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 const formatNumber = (v: number) => new Intl.NumberFormat("pt-BR").format(v);
@@ -128,6 +154,10 @@ const CampanhasPage = () => {
   const [statusFilter, setStatusFilter] = useState<CampaignStatusFilter>("all");
   const [campaignSearch, setCampaignSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<CampaignRow | null>(null);
+  const [campaignDetails, setCampaignDetails] = useState<CampaignDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   const metaFilters = useMemo<MetaAdsFilters>(() => ({
     datePreset,
@@ -311,6 +341,44 @@ const CampanhasPage = () => {
       },
       "Orcamento atualizado",
     );
+  };
+
+  const openCampaignDetails = async (campaign: CampaignRow) => {
+    setSelectedCampaign(campaign);
+    setCampaignDetails(null);
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("meta-ads-action", {
+        body: {
+          action: "get_campaign_details",
+          campaignId: campaign.id,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setCampaignDetails({
+        adsets: data?.adsets || [],
+        ads: data?.ads || [],
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao carregar detalhes",
+        description: error instanceof Error ? error.message : "Nao foi possivel buscar conjuntos e anuncios.",
+        variant: "destructive",
+      });
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const firstInsight = (item: Record<string, any>) => item?.insights?.data?.[0] || {};
+  const itemBudget = (item: Record<string, any>) => {
+    const dailyBudget = budgetFromCents(item.daily_budget);
+    const lifetimeBudget = budgetFromCents(item.lifetime_budget);
+    if (dailyBudget > 0) return `${formatCurrency(dailyBudget)}/dia`;
+    if (lifetimeBudget > 0) return `${formatCurrency(lifetimeBudget)} total`;
+    return "-";
   };
 
   return (
@@ -543,6 +611,16 @@ const CampanhasPage = () => {
                               {budgetLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WalletCards className="h-3.5 w-3.5" />}
                               Orcamento
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={detailsLoading}
+                              onClick={() => openCampaignDetails(campaign)}
+                              className="h-8 px-3"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Ver
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -579,6 +657,112 @@ const CampanhasPage = () => {
             </div>
           </motion.div>
         )}
+
+        <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <DialogContent className="max-h-[88vh] max-w-5xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedCampaign?.name || "Detalhes da campanha"}</DialogTitle>
+              <DialogDescription>
+                Conjuntos de anuncios e anuncios vinculados a campanha selecionada.
+              </DialogDescription>
+            </DialogHeader>
+
+            {detailsLoading && (
+              <div className="flex items-center gap-2 rounded-lg border border-border/40 p-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando detalhes da Meta...
+              </div>
+            )}
+
+            {!detailsLoading && campaignDetails && (
+              <div className="space-y-6">
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-foreground">Conjuntos de anuncios</h4>
+                    <span className="text-xs text-muted-foreground">{campaignDetails.adsets.length} itens</span>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-border/40">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/40 text-left">
+                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Nome</th>
+                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Status</th>
+                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Orcamento</th>
+                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Gasto</th>
+                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Cliques</th>
+                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Conversas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campaignDetails.adsets.map((adset) => {
+                          const insight = firstInsight(adset);
+                          const st = statusMap[adset.effective_status || adset.status] || { label: adset.effective_status || adset.status || "-", variant: "outline" as const };
+                          return (
+                            <tr key={adset.id} className="border-b border-border/20">
+                              <td className="max-w-[280px] truncate p-3 font-medium text-foreground">{adset.name}</td>
+                              <td className="p-3"><Badge variant={st.variant}>{st.label}</Badge></td>
+                              <td className="p-3 text-right text-muted-foreground">{itemBudget(adset)}</td>
+                              <td className="p-3 text-right text-muted-foreground">{formatCurrency(numberValue(insight.spend))}</td>
+                              <td className="p-3 text-right text-muted-foreground">{formatNumber(numberValue(insight.clicks))}</td>
+                              <td className="p-3 text-right font-medium text-foreground">{formatNumber(getConversationsFromActions(insight.actions))}</td>
+                            </tr>
+                          );
+                        })}
+                        {campaignDetails.adsets.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="p-4 text-center text-sm text-muted-foreground">Nenhum conjunto encontrado.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-foreground">Anuncios</h4>
+                    <span className="text-xs text-muted-foreground">{campaignDetails.ads.length} itens</span>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-border/40">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border/40 text-left">
+                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Anuncio</th>
+                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Conjunto</th>
+                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Status</th>
+                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Gasto</th>
+                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Cliques</th>
+                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Conversas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campaignDetails.ads.map((ad) => {
+                          const insight = firstInsight(ad);
+                          const st = statusMap[ad.effective_status || ad.status] || { label: ad.effective_status || ad.status || "-", variant: "outline" as const };
+                          return (
+                            <tr key={ad.id} className="border-b border-border/20">
+                              <td className="max-w-[240px] truncate p-3 font-medium text-foreground">{ad.name}</td>
+                              <td className="max-w-[220px] truncate p-3 text-muted-foreground">{ad.adset?.name || "-"}</td>
+                              <td className="p-3"><Badge variant={st.variant}>{st.label}</Badge></td>
+                              <td className="p-3 text-right text-muted-foreground">{formatCurrency(numberValue(insight.spend))}</td>
+                              <td className="p-3 text-right text-muted-foreground">{formatNumber(numberValue(insight.clicks))}</td>
+                              <td className="p-3 text-right font-medium text-foreground">{formatNumber(getConversationsFromActions(insight.actions))}</td>
+                            </tr>
+                          );
+                        })}
+                        {campaignDetails.ads.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="p-4 text-center text-sm text-muted-foreground">Nenhum anuncio encontrado.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </DashboardLayout>
     </PageTransition>
   );
