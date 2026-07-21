@@ -54,11 +54,19 @@ export interface MetaAdsData {
   campaignInsights: MetaCampaignInsight[];
 }
 
-export function useMetaAds() {
+export interface MetaAdsFilters {
+  datePreset: "today" | "yesterday" | "last_7d" | "last_30d" | "this_month" | "custom";
+  since?: string;
+  until?: string;
+}
+
+export function useMetaAds(filters: MetaAdsFilters = { datePreset: "this_month" }) {
   return useQuery<MetaAdsData>({
-    queryKey: ["meta-ads"],
+    queryKey: ["meta-ads", filters],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("meta-ads");
+      const { data, error } = await supabase.functions.invoke("meta-ads", {
+        body: filters,
+      });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
       return data as MetaAdsData;

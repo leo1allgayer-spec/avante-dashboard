@@ -19,6 +19,7 @@ type MetaListResponse<T> = {
 type GraphParams = Record<string, string | number | boolean | undefined>;
 
 const DEFAULT_VERSION = "v25.0";
+const ALLOWED_PRESETS = new Set(["today", "yesterday", "last_7d", "last_30d", "this_month"]);
 
 function getRequiredEnv(name: string) {
   const value = Deno.env.get(name)?.trim();
@@ -73,14 +74,37 @@ async function getSingleInsight<T>(url: string): Promise<T | null> {
   return payload.data?.[0] || null;
 }
 
+function normalizeDateInput(value: unknown) {
+  if (typeof value !== "string") return "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+}
+
+function buildDateParams(body: any): GraphParams {
+  const datePreset = typeof body?.datePreset === "string" ? body.datePreset : "this_month";
+  const since = normalizeDateInput(body?.since);
+  const until = normalizeDateInput(body?.until);
+
+  if (datePreset === "custom" && since && until) {
+    return {
+      time_range: JSON.stringify({ since, until }),
+    };
+  }
+
+  return {
+    date_preset: ALLOWED_PRESETS.has(datePreset) ? datePreset : "this_month",
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    const body = await req.json().catch(() => ({}));
     const accessToken = getRequiredEnv("META_ACCESS_TOKEN");
     const adAccountId = normalizeAdAccountId(getRequiredEnv("META_AD_ACCOUNT_ID"));
+    const dateParams = buildDateParams(body);
 
     const insightFields = [
       "spend",
@@ -106,12 +130,12 @@ Deno.serve(async (req) => {
 
     const accountInsightsUrl = buildUrl(`${adAccountId}/insights`, {
       fields: insightFields,
-      date_preset: "this_month",
+      ...dateParams,
     }, accessToken);
 
     const dailyInsightsUrl = buildUrl(`${adAccountId}/insights`, {
       fields: insightFields,
-      date_preset: "last_30d",
+      ...dateParams,
       time_increment: 1,
       limit: 100,
     }, accessToken);
@@ -119,7 +143,7 @@ Deno.serve(async (req) => {
     const campaignInsightsUrl = buildUrl(`${adAccountId}/insights`, {
       fields: `campaign_name,campaign_id,${insightFields}`,
       level: "campaign",
-      date_preset: "this_month",
+      ...dateParams,
       limit: 100,
     }, accessToken);
 

@@ -1,14 +1,48 @@
+import { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import StaggerContainer, { StaggerItem } from "@/components/StaggerAnimation";
 import MetricCard from "@/components/MetricCard";
 import MetricsForm from "@/components/MetricsForm";
-import { useTodayMetrics, useMonthMetrics } from "@/hooks/useMetrics";
-import { useMetaAds } from "@/hooks/useMetaAds";
-import { motion } from "framer-motion";
-import { Megaphone, MousePointerClick, BarChart3, TrendingUp, Eye, DollarSign, Target, Users, Loader2 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, Area, AreaChart } from "recharts";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useTodayMetrics, useMonthMetrics } from "@/hooks/useMetrics";
+import { MetaAdsFilters, useMetaAds } from "@/hooks/useMetaAds";
+import { motion } from "framer-motion";
+import {
+  BarChart3,
+  CalendarDays,
+  DollarSign,
+  Eye,
+  Loader2,
+  Megaphone,
+  MessageCircle,
+  MousePointerClick,
+  RefreshCw,
+  Search,
+  Target,
+  TrendingUp,
+  Users,
+} from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+type CampaignStatusFilter = "all" | "ACTIVE" | "PAUSED" | "ARCHIVED" | "DELETED";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 const formatNumber = (v: number) => new Intl.NumberFormat("pt-BR").format(v);
@@ -16,75 +50,270 @@ const tooltipStyle = { backgroundColor: "hsl(220, 18%, 10%)", border: "1px solid
 const axisStyle = { fontSize: 11, fill: "hsl(220, 10%, 45%)" };
 const grid = "hsl(220, 14%, 14%)";
 
-const getLeadsFromActions = (actions?: Array<{ action_type: string; value: string }>) => {
-  if (!actions) return 0;
-  const lead = actions.find(a => a.action_type === "lead" || a.action_type === "onsite_conversion.lead_grouped" || a.action_type === "offsite_conversion.fb_pixel_lead");
-  return lead ? Number(lead.value) : 0;
-};
-
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   ACTIVE: { label: "Ativa", variant: "default" },
   PAUSED: { label: "Pausada", variant: "secondary" },
-  DELETED: { label: "Excluída", variant: "destructive" },
+  DELETED: { label: "Excluida", variant: "destructive" },
   ARCHIVED: { label: "Arquivada", variant: "outline" },
 };
+
+const presetLabels: Record<MetaAdsFilters["datePreset"], string> = {
+  today: "Hoje",
+  yesterday: "Ontem",
+  last_7d: "7 dias",
+  last_30d: "30 dias",
+  this_month: "Este mes",
+  custom: "Personalizado",
+};
+
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getMonthStart() {
+  const date = new Date();
+  date.setDate(1);
+  return formatLocalDate(date);
+}
+
+function numberValue(value?: string) {
+  return Number(value || 0);
+}
+
+function getActionValue(actions: Array<{ action_type: string; value: string }> | undefined, matcher: (actionType: string) => boolean) {
+  if (!actions) return 0;
+  return actions.reduce((total, action) => {
+    const actionType = action.action_type.toLowerCase();
+    return matcher(actionType) ? total + numberValue(action.value) : total;
+  }, 0);
+}
+
+function getLeadsFromActions(actions?: Array<{ action_type: string; value: string }>) {
+  return getActionValue(actions, (actionType) =>
+    actionType === "lead" ||
+    actionType === "onsite_conversion.lead_grouped" ||
+    actionType === "offsite_conversion.fb_pixel_lead"
+  );
+}
+
+function getConversationsFromActions(actions?: Array<{ action_type: string; value: string }>) {
+  return getActionValue(actions, (actionType) =>
+    actionType.includes("messaging_conversation") ||
+    actionType.includes("conversation_started") ||
+    actionType.includes("whatsapp") ||
+    (actionType.includes("messaging") && actionType.includes("conversation"))
+  );
+}
 
 const CampanhasPage = () => {
   const { data: today } = useTodayMetrics();
   const { data: monthData } = useMonthMetrics();
-  const { data: metaData, isLoading: metaLoading, error: metaError } = useMetaAds();
+  const [datePreset, setDatePreset] = useState<MetaAdsFilters["datePreset"]>("this_month");
+  const [since, setSince] = useState(getMonthStart());
+  const [until, setUntil] = useState(formatLocalDate(new Date()));
+  const [statusFilter, setStatusFilter] = useState<CampaignStatusFilter>("all");
+  const [campaignSearch, setCampaignSearch] = useState("");
 
-  const insights = metaData?.accountInsights;
-  const totalSpend = insights ? Number(insights.spend) : 0;
-  const totalImpressions = insights ? Number(insights.impressions) : 0;
-  const totalClicks = insights ? Number(insights.clicks) : 0;
-  const avgCPC = insights ? Number(insights.cpc) : 0;
-  const avgCTR = insights ? Number(insights.ctr) : 0;
-  const totalReach = insights ? Number(insights.reach) : 0;
-  const totalLeads = insights ? getLeadsFromActions(insights.actions) : 0;
-  const costPerLead = totalLeads > 0 ? totalSpend / totalLeads : 0;
+  const metaFilters = useMemo<MetaAdsFilters>(() => ({
+    datePreset,
+    since,
+    until,
+  }), [datePreset, since, until]);
 
-  // Daily chart data from Meta
-  const dailyChart = (metaData?.dailyInsights || []).map(d => ({
-    date: new Date(d.date_start).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-    gasto: Number(d.spend),
-    cliques: Number(d.clicks),
-    impressoes: Number(d.impressions),
-    ctr: Number(d.ctr),
+  const { data: metaData, isLoading: metaLoading, error: metaError, refetch, isFetching } = useMetaAds(metaFilters);
+
+  const campaignStatusById = useMemo(() => {
+    const status = new Map<string, string>();
+    (metaData?.campaigns || []).forEach((campaign) => status.set(campaign.id, campaign.status));
+    return status;
+  }, [metaData?.campaigns]);
+
+  const normalizedSearch = campaignSearch.trim().toLowerCase();
+
+  const campaignRows = useMemo(() => {
+    return (metaData?.campaignInsights || [])
+      .map((campaign) => {
+        const status = campaignStatusById.get(campaign.campaign_id) || "UNKNOWN";
+        return {
+          id: campaign.campaign_id,
+          name: campaign.campaign_name,
+          status,
+          spend: numberValue(campaign.spend),
+          impressions: numberValue(campaign.impressions),
+          clicks: numberValue(campaign.clicks),
+          ctr: numberValue(campaign.ctr),
+          cpc: numberValue(campaign.cpc),
+          leads: getLeadsFromActions(campaign.actions),
+          conversations: getConversationsFromActions(campaign.actions),
+          reach: numberValue(campaign.reach),
+        };
+      })
+      .filter((campaign) => statusFilter === "all" || campaign.status === statusFilter)
+      .filter((campaign) => !normalizedSearch || campaign.name.toLowerCase().includes(normalizedSearch))
+      .sort((a, b) => b.spend - a.spend);
+  }, [campaignStatusById, metaData?.campaignInsights, normalizedSearch, statusFilter]);
+
+  const filteredCampaigns = useMemo(() => {
+    return (metaData?.campaigns || [])
+      .filter((campaign) => statusFilter === "all" || campaign.status === statusFilter)
+      .filter((campaign) => !normalizedSearch || campaign.name.toLowerCase().includes(normalizedSearch));
+  }, [metaData?.campaigns, normalizedSearch, statusFilter]);
+
+  const displayedMetaTotals = useMemo(() => {
+    if (statusFilter !== "all" || normalizedSearch) {
+      const spend = campaignRows.reduce((total, campaign) => total + campaign.spend, 0);
+      const impressions = campaignRows.reduce((total, campaign) => total + campaign.impressions, 0);
+      const clicks = campaignRows.reduce((total, campaign) => total + campaign.clicks, 0);
+      const reach = campaignRows.reduce((total, campaign) => total + campaign.reach, 0);
+      const leads = campaignRows.reduce((total, campaign) => total + campaign.leads, 0);
+      const conversations = campaignRows.reduce((total, campaign) => total + campaign.conversations, 0);
+
+      return {
+        spend,
+        impressions,
+        clicks,
+        reach,
+        leads,
+        conversations,
+        cpc: clicks > 0 ? spend / clicks : 0,
+        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      };
+    }
+
+    const insights = metaData?.accountInsights;
+    return {
+      spend: insights ? numberValue(insights.spend) : 0,
+      impressions: insights ? numberValue(insights.impressions) : 0,
+      clicks: insights ? numberValue(insights.clicks) : 0,
+      reach: insights ? numberValue(insights.reach) : 0,
+      leads: insights ? getLeadsFromActions(insights.actions) : 0,
+      conversations: insights ? getConversationsFromActions(insights.actions) : 0,
+      cpc: insights ? numberValue(insights.cpc) : 0,
+      ctr: insights ? numberValue(insights.ctr) : 0,
+    };
+  }, [campaignRows, metaData?.accountInsights, normalizedSearch, statusFilter]);
+
+  const costPerLead = displayedMetaTotals.leads > 0 ? displayedMetaTotals.spend / displayedMetaTotals.leads : 0;
+  const costPerConversation = displayedMetaTotals.conversations > 0 ? displayedMetaTotals.spend / displayedMetaTotals.conversations : 0;
+
+  const dailyChart = (metaData?.dailyInsights || []).map((day) => ({
+    date: new Date(`${day.date_start}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+    gasto: numberValue(day.spend),
+    cliques: numberValue(day.clicks),
+    impressoes: numberValue(day.impressions),
+    ctr: numberValue(day.ctr),
+    conversas: getConversationsFromActions(day.actions),
   }));
 
-  // Campaign performance table
-  const campaignRows = (metaData?.campaignInsights || []).map(c => ({
-    name: c.campaign_name,
-    spend: Number(c.spend),
-    impressions: Number(c.impressions),
-    clicks: Number(c.clicks),
-    ctr: Number(c.ctr),
-    cpc: Number(c.cpc),
-    leads: getLeadsFromActions(c.actions),
-    reach: Number(c.reach),
-  })).sort((a, b) => b.spend - a.spend);
-
-  // Fallback data from local metrics
   const totalInvest = (monthData || []).reduce((s, d) => s + Number(d.custo_por_lead) * Number(d.leads), 0);
   const totalRevenue = (monthData || []).reduce((s, d) => s + Number(d.faturamento_dia), 0);
   const roi = totalInvest > 0 ? ((totalRevenue - totalInvest) / totalInvest * 100) : 0;
 
   const hasMetaData = !!metaData && !metaError;
 
+  const setQuickPeriod = (preset: MetaAdsFilters["datePreset"]) => {
+    setDatePreset(preset);
+    if (preset !== "custom") {
+      setSince(getMonthStart());
+      setUntil(formatLocalDate(new Date()));
+    }
+  };
+
   return (
     <PageTransition>
-      <DashboardLayout title="Campanhas" subtitle="Gestão de mídia paga e investimentos — Meta Ads" actions={<MetricsForm currentData={today} />}>
+      <DashboardLayout title="Campanhas" subtitle="Gestao de midia paga e investimentos - Meta Ads" actions={<MetricsForm currentData={today} />}>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card-hover rounded-lg p-4"
+        >
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CalendarDays className="h-4 w-4 text-primary" />
+                Filtros da Meta Ads
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Periodo: {presetLabels[datePreset]} {datePreset === "custom" ? `(${since} a ${until})` : ""}
+              </p>
+            </div>
 
-        {/* Meta Ads KPIs */}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[180px_150px_150px_180px_220px_auto] xl:flex xl:items-end">
+              <Select value={datePreset} onValueChange={(value) => setQuickPeriod(value as MetaAdsFilters["datePreset"])}>
+                <SelectTrigger className="h-10 min-w-[170px]">
+                  <SelectValue placeholder="Periodo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="yesterday">Ontem</SelectItem>
+                  <SelectItem value="last_7d">Ultimos 7 dias</SelectItem>
+                  <SelectItem value="last_30d">Ultimos 30 dias</SelectItem>
+                  <SelectItem value="this_month">Este mes</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Input
+                type="date"
+                value={since}
+                onChange={(event) => {
+                  setSince(event.target.value);
+                  setDatePreset("custom");
+                }}
+                className="h-10"
+              />
+              <Input
+                type="date"
+                value={until}
+                onChange={(event) => {
+                  setUntil(event.target.value);
+                  setDatePreset("custom");
+                }}
+                className="h-10"
+              />
+
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as CampaignStatusFilter)}>
+                <SelectTrigger className="h-10 min-w-[170px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas campanhas</SelectItem>
+                  <SelectItem value="ACTIVE">Ativas</SelectItem>
+                  <SelectItem value="PAUSED">Pausadas</SelectItem>
+                  <SelectItem value="ARCHIVED">Arquivadas</SelectItem>
+                  <SelectItem value="DELETED">Excluidas</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={campaignSearch}
+                  onChange={(event) => setCampaignSearch(event.target.value)}
+                  placeholder="Buscar campanha"
+                  className="h-10 pl-9"
+                />
+              </div>
+
+              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="h-10">
+                {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Atualizar
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+
         {metaLoading && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Carregando dados da Meta Ads...
           </div>
         )}
 
         {metaError && (
-          <div className="glass-card-hover rounded-lg p-4 border-destructive/30 mb-4">
+          <div className="glass-card-hover rounded-lg border-destructive/30 p-4">
             <p className="text-sm text-destructive">Erro ao carregar dados da Meta: {(metaError as Error).message}</p>
           </div>
         )}
@@ -92,34 +321,37 @@ const CampanhasPage = () => {
         {hasMetaData && (
           <>
             <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StaggerItem><MetricCard title="Gasto Total (Meta)" value={formatCurrency(totalSpend)} icon={<DollarSign className="h-5 w-5" />} variant="warning" /></StaggerItem>
-              <StaggerItem><MetricCard title="Impressões" value={formatNumber(totalImpressions)} icon={<Eye className="h-5 w-5" />} variant="primary" /></StaggerItem>
-              <StaggerItem><MetricCard title="Cliques" value={formatNumber(totalClicks)} icon={<MousePointerClick className="h-5 w-5" />} variant="accent" /></StaggerItem>
-              <StaggerItem><MetricCard title="CTR" value={`${avgCTR.toFixed(2)}%`} icon={<TrendingUp className="h-5 w-5" />} variant="success" /></StaggerItem>
+              <StaggerItem><MetricCard title="Gasto Total (Meta)" value={formatCurrency(displayedMetaTotals.spend)} icon={<DollarSign className="h-5 w-5" />} variant="warning" /></StaggerItem>
+              <StaggerItem><MetricCard title="Impressoes" value={formatNumber(displayedMetaTotals.impressions)} icon={<Eye className="h-5 w-5" />} variant="primary" /></StaggerItem>
+              <StaggerItem><MetricCard title="Cliques" value={formatNumber(displayedMetaTotals.clicks)} icon={<MousePointerClick className="h-5 w-5" />} variant="accent" /></StaggerItem>
+              <StaggerItem><MetricCard title="CTR" value={`${displayedMetaTotals.ctr.toFixed(2)}%`} icon={<TrendingUp className="h-5 w-5" />} variant="success" /></StaggerItem>
             </StaggerContainer>
 
             <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StaggerItem><MetricCard title="CPC Médio" value={formatCurrency(avgCPC)} icon={<BarChart3 className="h-5 w-5" />} variant="primary" /></StaggerItem>
-              <StaggerItem><MetricCard title="Alcance" value={formatNumber(totalReach)} icon={<Users className="h-5 w-5" />} variant="accent" /></StaggerItem>
-              <StaggerItem><MetricCard title="Leads (Meta)" value={formatNumber(totalLeads)} icon={<Target className="h-5 w-5" />} variant="success" /></StaggerItem>
+              <StaggerItem><MetricCard title="CPC Medio" value={formatCurrency(displayedMetaTotals.cpc)} icon={<BarChart3 className="h-5 w-5" />} variant="primary" /></StaggerItem>
+              <StaggerItem><MetricCard title="Alcance" value={formatNumber(displayedMetaTotals.reach)} icon={<Users className="h-5 w-5" />} variant="accent" /></StaggerItem>
+              <StaggerItem><MetricCard title="Leads (Meta)" value={formatNumber(displayedMetaTotals.leads)} icon={<Target className="h-5 w-5" />} variant="success" /></StaggerItem>
               <StaggerItem><MetricCard title="Custo por Lead" value={formatCurrency(costPerLead)} icon={<DollarSign className="h-5 w-5" />} variant={costPerLead > 50 ? "warning" : "success"} /></StaggerItem>
+            </StaggerContainer>
+
+            <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StaggerItem><MetricCard title="Conversas" value={formatNumber(displayedMetaTotals.conversations)} icon={<MessageCircle className="h-5 w-5" />} variant="primary" /></StaggerItem>
+              <StaggerItem><MetricCard title="Custo por Conversa" value={formatCurrency(costPerConversation)} icon={<MessageCircle className="h-5 w-5" />} variant={costPerConversation > 20 ? "warning" : "success"} /></StaggerItem>
+              <StaggerItem><MetricCard title="Investimento (local)" value={formatCurrency(totalInvest)} icon={<Megaphone className="h-5 w-5" />} variant="primary" /></StaggerItem>
+              <StaggerItem><MetricCard title="ROAS Hoje" value={`${(today?.roas || 0).toFixed(2)}x`} icon={<MousePointerClick className="h-5 w-5" />} variant="success" /></StaggerItem>
             </StaggerContainer>
           </>
         )}
 
-        {/* Métricas locais */}
         <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StaggerItem><MetricCard title="Investimento (local)" value={formatCurrency(totalInvest)} icon={<Megaphone className="h-5 w-5" />} variant="primary" /></StaggerItem>
           <StaggerItem><MetricCard title="Retorno Total" value={formatCurrency(totalRevenue)} icon={<TrendingUp className="h-5 w-5" />} variant="accent" /></StaggerItem>
-          <StaggerItem><MetricCard title="ROI" value={`${roi.toFixed(1)}%`} icon={<BarChart3 className="h-5 w-5" />} variant={roi > 0 ? "success" : "warning"} /></StaggerItem>
-          <StaggerItem><MetricCard title="ROAS Hoje" value={`${(today?.roas || 0).toFixed(2)}x`} icon={<MousePointerClick className="h-5 w-5" />} variant="success" /></StaggerItem>
+          <StaggerItem><MetricCard title="ROI Local" value={`${roi.toFixed(1)}%`} icon={<BarChart3 className="h-5 w-5" />} variant={roi > 0 ? "success" : "warning"} /></StaggerItem>
         </StaggerContainer>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          {/* Daily spend chart from Meta */}
           {hasMetaData && dailyChart.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass-card-hover rounded-lg p-5">
-              <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Gasto Diário — Meta Ads</h3>
+              <h3 className="mb-3 font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gasto Diario - Meta Ads</h3>
               <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={dailyChart}>
                   <CartesianGrid strokeDasharray="3 3" stroke={grid} />
@@ -132,70 +364,84 @@ const CampanhasPage = () => {
             </motion.div>
           )}
 
-          {/* Daily clicks chart */}
           {hasMetaData && dailyChart.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card-hover rounded-lg p-5">
-              <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Cliques Diários — Meta Ads</h3>
+              <h3 className="mb-3 font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversas Diarias - Meta Ads</h3>
               <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={dailyChart}>
                   <CartesianGrid strokeDasharray="3 3" stroke={grid} />
                   <XAxis dataKey="date" tick={axisStyle} axisLine={{ stroke: grid }} />
                   <YAxis tick={axisStyle} axisLine={{ stroke: grid }} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => formatNumber(v)} />
-                  <Area type="monotone" dataKey="cliques" fill="hsl(210, 70%, 50%)" fillOpacity={0.15} stroke="hsl(210, 70%, 50%)" strokeWidth={2} name="Cliques" />
+                  <Area type="monotone" dataKey="conversas" fill="hsl(160, 70%, 45%)" fillOpacity={0.15} stroke="hsl(160, 70%, 45%)" strokeWidth={2} name="Conversas" />
                 </AreaChart>
               </ResponsiveContainer>
             </motion.div>
           )}
         </div>
 
-        {/* Campaign performance table */}
         {hasMetaData && campaignRows.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="glass-card-hover rounded-lg p-5">
-            <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Performance por Campanha</h3>
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">Performance por Campanha</h3>
+              <span className="text-xs text-muted-foreground">{campaignRows.length} campanhas encontradas</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/40 text-left">
                     <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Campanha</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Gasto</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Impressões</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Cliques</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">CTR</th>
-                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">CPC</th>
-                    <th className="pb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Leads</th>
+                    <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gasto</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cliques</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CTR</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CPC</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Leads</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversas</th>
+                    <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Custo/Conversa</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {campaignRows.map((c, i) => (
-                    <tr key={i} className="border-b border-border/20 hover:bg-secondary/30 transition-colors">
-                      <td className="py-3 pr-4 font-medium text-foreground max-w-[200px] truncate">{c.name}</td>
-                      <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(c.spend)}</td>
-                      <td className="py-3 pr-4 text-right text-muted-foreground">{formatNumber(c.impressions)}</td>
-                      <td className="py-3 pr-4 text-right text-muted-foreground">{formatNumber(c.clicks)}</td>
-                      <td className="py-3 pr-4 text-right text-muted-foreground">{c.ctr.toFixed(2)}%</td>
-                      <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(c.cpc)}</td>
-                      <td className="py-3 text-right font-medium text-foreground">{c.leads}</td>
-                    </tr>
-                  ))}
+                  {campaignRows.map((campaign) => {
+                    const st = statusMap[campaign.status] || { label: campaign.status, variant: "outline" as const };
+                    const campaignCostPerConversation = campaign.conversations > 0 ? campaign.spend / campaign.conversations : 0;
+                    return (
+                      <tr key={campaign.id} className="border-b border-border/20 transition-colors hover:bg-secondary/30">
+                        <td className="max-w-[240px] truncate py-3 pr-4 font-medium text-foreground">{campaign.name}</td>
+                        <td className="py-3 pr-4"><Badge variant={st.variant}>{st.label}</Badge></td>
+                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(campaign.spend)}</td>
+                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatNumber(campaign.clicks)}</td>
+                        <td className="py-3 pr-4 text-right text-muted-foreground">{campaign.ctr.toFixed(2)}%</td>
+                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(campaign.cpc)}</td>
+                        <td className="py-3 pr-4 text-right font-medium text-foreground">{formatNumber(campaign.leads)}</td>
+                        <td className="py-3 pr-4 text-right font-medium text-foreground">{formatNumber(campaign.conversations)}</td>
+                        <td className="py-3 text-right text-muted-foreground">{formatCurrency(campaignCostPerConversation)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </motion.div>
         )}
 
-        {/* Campaign list with status */}
-        {hasMetaData && (metaData?.campaigns || []).length > 0 && (
+        {hasMetaData && campaignRows.length === 0 && (
+          <div className="glass-card-hover rounded-lg p-5 text-sm text-muted-foreground">
+            Nenhuma campanha encontrada com os filtros selecionados.
+          </div>
+        )}
+
+        {hasMetaData && filteredCampaigns.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="glass-card-hover rounded-lg p-5">
-            <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Campanhas Ativas</h3>
+            <h3 className="mb-4 font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lista de Campanhas</h3>
             <div className="space-y-2">
-              {(metaData?.campaigns || []).map((c) => {
-                const st = statusMap[c.status] || { label: c.status, variant: "outline" as const };
+              {filteredCampaigns.map((campaign) => {
+                const st = statusMap[campaign.status] || { label: campaign.status, variant: "outline" as const };
                 return (
-                  <div key={c.id} className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-secondary/30 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{c.objective?.replace(/_/g, " ") || "—"}</p>
+                  <div key={campaign.id} className="flex items-center justify-between rounded-md px-3 py-2 transition-colors hover:bg-secondary/30">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{campaign.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{campaign.objective?.replace(/_/g, " ") || "-"}</p>
                     </div>
                     <Badge variant={st.variant} className="ml-3 shrink-0">{st.label}</Badge>
                   </div>
