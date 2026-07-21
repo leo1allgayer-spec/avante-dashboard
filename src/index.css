@@ -79,6 +79,88 @@ html.lenis, html.lenis body {
     --chart-4: 38 92% 50%;
     --chart-5: 0 84% 60%;
   }
+
+  .dark {
+    --background: 222 23% 5%;
+    --foreground: 210 40% 98%;
+    --card: 222 20% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 20% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 18% 14%;
+    --secondary-foreground: 215 20% 65%;
+    --muted: 222 15% 18%;
+    --muted-foreground: 215 12% 45%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 15% 18%;
+    --input: 222 15% 20%;
+    --ring: 217 91% 60%;
+    --sidebar-background: 222 20% 9%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 18% 14%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 222 15% 18%;
+    --sidebar-ring: 217 91% 60%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 23% 5%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --chart-1: 217 91% 60%;
+    --chart-2: 262 83% 58%;
+    --chart-3: 142 71% 45%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 84% 60%;
+  }
+
+  .light {
+    --background: 215 28% 96%;
+    --foreground: 222 35% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 35% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 35% 10%;
+    --primary: 217 91% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 216 28% 92%;
+    --secondary-foreground: 218 18% 34%;
+    --muted: 216 24% 90%;
+    --muted-foreground: 218 12% 42%;
+    --accent: 262 78% 56%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 24% 84%;
+    --input: 216 24% 86%;
+    --ring: 217 91% 55%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 218 18% 34%;
+    --sidebar-primary: 217 91% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 216 28% 92%;
+    --sidebar-accent-foreground: 222 35% 10%;
+    --sidebar-border: 216 24% 84%;
+    --sidebar-ring: 217 91% 55%;
+    --success: 142 70% 36%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 46%;
+    --warning-foreground: 222 35% 10%;
+    --info: 217 91% 55%;
+    --info-foreground: 0 0% 100%;
+    --chart-1: 217 91% 55%;
+    --chart-2: 262 78% 56%;
+    --chart-3: 142 70% 36%;
+    --chart-4: 38 92% 46%;
+    --chart-5: 0 72% 50%;
+  }
 }
 
 @layer base {

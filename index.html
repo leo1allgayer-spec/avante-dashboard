@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <script>
       (function() {
+        const savedTheme = localStorage.getItem('avante-theme') || 'dark';
+        document.documentElement.classList.remove('light', 'dark');
+        document.documentElement.classList.add(savedTheme === 'light' ? 'light' : 'dark');
+
         const mockSession = {
           access_token: "mock-token-avante-digital-bypass",
           token_type: "bearer",

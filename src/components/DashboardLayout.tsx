@@ -1,7 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { PanelLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Moon, PanelLeft, Sun } from "lucide-react";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -11,6 +12,19 @@ interface DashboardLayoutProps {
 }
 
 const DashboardLayout = ({ children, title, subtitle, actions }: DashboardLayoutProps) => {
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window === "undefined") return "dark";
+    return localStorage.getItem("avante-theme") === "light" ? "light" : "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.remove("light", "dark");
+    document.documentElement.classList.add(theme);
+    localStorage.setItem("avante-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((current) => current === "dark" ? "light" : "dark");
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -28,7 +42,20 @@ const DashboardLayout = ({ children, title, subtitle, actions }: DashboardLayout
                 {subtitle && <p className="text-xs text-muted-foreground leading-tight mt-0.5">{subtitle}</p>}
               </div>
             </div>
-            {actions && <div className="flex items-center gap-3">{actions}</div>}
+            <div className="flex items-center gap-3">
+              {actions}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={toggleTheme}
+                title={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+                aria-label={theme === "dark" ? "Mudar para tema claro" : "Mudar para tema escuro"}
+                className="h-10 w-10 px-0"
+              >
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+            </div>
           </header>
 
           {/* Dot pattern background */}
