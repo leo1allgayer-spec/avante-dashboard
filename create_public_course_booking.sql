@@ -71,7 +71,7 @@ begin
     select exists (
       select 1
       from public.meta_ads_exceptions
-      where date = p_date
+      where date::text = p_date
         and (shift = p_shift or shift is null)
     ) into v_has_exception;
 
@@ -80,7 +80,7 @@ begin
       into v_sibling_count
       from public.course_bookings
       where course_name = v_sibling_course
-        and date = p_date
+        and date::text = p_date
         and time = p_shift
         and status = 'confirmed'
         and coalesce(course_status, '') <> 'cancelado';
@@ -89,7 +89,7 @@ begin
       into v_sibling_slot_count
       from public.course_slots
       where course_name = v_sibling_course
-        and date = p_date
+        and date::text = p_date
         and time = p_shift;
 
       if v_sibling_count > 0 or v_sibling_slot_count > 0 then
@@ -102,7 +102,7 @@ begin
   into v_slot_id
   from public.course_slots
   where course_name = p_course_name
-    and date = p_date
+    and date::text = p_date
     and time = p_shift
   limit 1;
 
