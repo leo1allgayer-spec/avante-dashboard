@@ -24,6 +24,14 @@ const COURSES: { id: string; label: string; subtitle?: string }[] = [
 const MAX_STUDENTS = 5;
 const DAYS_AHEAD = 60;
 
+const getSupabaseErrorMessage = (error: unknown) => {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  const maybeError = error as { message?: string; details?: string; hint?: string };
+  return maybeError.message || maybeError.details || maybeError.hint || "";
+};
+
 const normalizeShift = (time: string) => {
   if (time === "Manhã" || time === "08:30") return "Manhã";
   if (time === "Tarde" || time === "14:00") return "Tarde";
@@ -198,23 +206,61 @@ export default function BookingPublic() {
     if (!validate() || !selectedShift) return;
     setSubmitting(true);
 
+    const bookingPayload = {
+      courseName: selectedCourse,
+      date: selectedShift.date,
+      shift: selectedShift.shift,
+      studentName: form.name.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      instagram: form.instagram.trim(),
+      certificateName: form.certificateName.trim() || form.name.trim(),
+    };
+
     try {
-      const { data, error } = await supabase.functions.invoke("create-booking", {
-        body: {
-          courseName: selectedCourse,
-          date: selectedShift.date,
-          shift: selectedShift.shift,
-          studentName: form.name.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim(),
-          instagram: form.instagram.trim(),
-          certificateName: form.certificateName.trim() || form.name.trim(),
-        },
+      const { data: rpcData, error: rpcError } = await supabase.rpc("create_public_course_booking", {
+        p_course_name: bookingPayload.courseName,
+        p_date: bookingPayload.date,
+        p_shift: bookingPayload.shift,
+        p_student_name: bookingPayload.studentName,
+        p_email: bookingPayload.email,
+        p_phone: bookingPayload.phone,
+        p_instagram: bookingPayload.instagram,
+        p_certificate_name: bookingPayload.certificateName,
       });
 
-      if (error || !data?.bookingId) {
-        const msg = data?.error || "Erro ao agendar. Tente novamente.";
-        alert(msg);
+      let bookingId = (rpcData as any)?.bookingId || (rpcData as any)?.booking_id;
+
+      if (rpcError || !bookingId) {
+        const rpcMessage = getSupabaseErrorMessage(rpcError);
+        const rpcMissing = rpcMessage.includes("create_public_course_booking");
+
+        if (!rpcMissing && rpcMessage) {
+          alert(rpcMessage);
+          setSubmitting(false);
+          return;
+        }
+
+        const { data, error } = await supabase.functions.invoke("create-booking", {
+          body: bookingPayload,
+        });
+
+        bookingId = data?.bookingId;
+
+        if (error || !bookingId) {
+          const edgeMessage = data?.error || getSupabaseErrorMessage(error);
+          const msg = edgeMessage
+            ? `Erro ao agendar: ${edgeMessage}`
+            : "Erro ao agendar. A função de agendamento ainda não está configurada no Supabase novo.";
+          console.error("Booking submit failed:", { rpcError, edgeError: error, data });
+          alert(msg);
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      if (!bookingId) {
+        alert("Erro ao agendar. Nenhum código de agendamento foi retornado.");
         setSubmitting(false);
         return;
       }
@@ -225,7 +271,7 @@ export default function BookingPublic() {
       // Trigger WhatsApp confirmation message
       try {
         await supabase.functions.invoke("whatsapp-trigger", {
-          body: { bookingId: data.bookingId },
+          body: { bookingId },
         });
       } catch (e) {
         console.error("WhatsApp trigger error:", e);
@@ -235,7 +281,8 @@ export default function BookingPublic() {
       setStep("done");
     } catch (e) {
       console.error("Booking error:", e);
-      alert("Erro ao agendar. Tente novamente.");
+      const message = getSupabaseErrorMessage(e);
+      alert(message ? `Erro ao agendar: ${message}` : "Erro ao agendar. Tente novamente.");
       setSubmitting(false);
     }
   };
