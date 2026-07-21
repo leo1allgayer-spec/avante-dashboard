@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { useTodayMetrics, useMonthMetrics } from "@/hooks/useMetrics";
 import { MetaAdsFilters, useMetaAds } from "@/hooks/useMetaAds";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -26,11 +28,14 @@ import {
   Megaphone,
   MessageCircle,
   MousePointerClick,
+  PauseCircle,
+  PlayCircle,
   RefreshCw,
   Search,
   Target,
   TrendingUp,
   Users,
+  WalletCards,
 } from "lucide-react";
 import {
   Area,
@@ -83,6 +88,11 @@ function numberValue(value?: string) {
   return Number(value || 0);
 }
 
+function budgetFromCents(value?: string) {
+  const budget = Number(value || 0);
+  return budget > 0 ? budget / 100 : 0;
+}
+
 function getActionValue(actions: Array<{ action_type: string; value: string }> | undefined, matcher: (actionType: string) => boolean) {
   if (!actions) return 0;
   return actions.reduce((total, action) => {
@@ -109,6 +119,7 @@ function getConversationsFromActions(actions?: Array<{ action_type: string; valu
 }
 
 const CampanhasPage = () => {
+  const { toast } = useToast();
   const { data: today } = useTodayMetrics();
   const { data: monthData } = useMonthMetrics();
   const [datePreset, setDatePreset] = useState<MetaAdsFilters["datePreset"]>("this_month");
@@ -116,6 +127,7 @@ const CampanhasPage = () => {
   const [until, setUntil] = useState(formatLocalDate(new Date()));
   const [statusFilter, setStatusFilter] = useState<CampaignStatusFilter>("all");
   const [campaignSearch, setCampaignSearch] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const metaFilters = useMemo<MetaAdsFilters>(() => ({
     datePreset,
@@ -125,10 +137,18 @@ const CampanhasPage = () => {
 
   const { data: metaData, isLoading: metaLoading, error: metaError, refetch, isFetching } = useMetaAds(metaFilters);
 
-  const campaignStatusById = useMemo(() => {
-    const status = new Map<string, string>();
-    (metaData?.campaigns || []).forEach((campaign) => status.set(campaign.id, campaign.status));
-    return status;
+  const campaignDetailsById = useMemo(() => {
+    const details = new Map<string, {
+      status: string;
+      dailyBudget: number;
+      lifetimeBudget: number;
+    }>();
+    (metaData?.campaigns || []).forEach((campaign) => details.set(campaign.id, {
+      status: campaign.status,
+      dailyBudget: budgetFromCents(campaign.daily_budget),
+      lifetimeBudget: budgetFromCents(campaign.lifetime_budget),
+    }));
+    return details;
   }, [metaData?.campaigns]);
 
   const normalizedSearch = campaignSearch.trim().toLowerCase();
@@ -136,11 +156,13 @@ const CampanhasPage = () => {
   const campaignRows = useMemo(() => {
     return (metaData?.campaignInsights || [])
       .map((campaign) => {
-        const status = campaignStatusById.get(campaign.campaign_id) || "UNKNOWN";
+        const details = campaignDetailsById.get(campaign.campaign_id);
         return {
           id: campaign.campaign_id,
           name: campaign.campaign_name,
-          status,
+          status: details?.status || "UNKNOWN",
+          dailyBudget: details?.dailyBudget || 0,
+          lifetimeBudget: details?.lifetimeBudget || 0,
           spend: numberValue(campaign.spend),
           impressions: numberValue(campaign.impressions),
           clicks: numberValue(campaign.clicks),
@@ -154,7 +176,7 @@ const CampanhasPage = () => {
       .filter((campaign) => statusFilter === "all" || campaign.status === statusFilter)
       .filter((campaign) => !normalizedSearch || campaign.name.toLowerCase().includes(normalizedSearch))
       .sort((a, b) => b.spend - a.spend);
-  }, [campaignStatusById, metaData?.campaignInsights, normalizedSearch, statusFilter]);
+  }, [campaignDetailsById, metaData?.campaignInsights, normalizedSearch, statusFilter]);
 
   const filteredCampaigns = useMemo(() => {
     return (metaData?.campaigns || [])
@@ -220,6 +242,75 @@ const CampanhasPage = () => {
       setSince(getMonthStart());
       setUntil(formatLocalDate(new Date()));
     }
+  };
+
+  const runCampaignAction = async (
+    loadingKey: string,
+    payload: Record<string, string | number>,
+    successTitle: string,
+  ) => {
+    setActionLoading(loadingKey);
+    try {
+      const { data, error } = await supabase.functions.invoke("meta-ads-action", {
+        body: payload,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: successTitle });
+      await refetch();
+    } catch (error) {
+      toast({
+        title: "Erro ao alterar campanha",
+        description: error instanceof Error ? error.message : "A Meta recusou a alteracao.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const updateCampaignStatus = async (campaign: { id: string; name: string; status: string }) => {
+    const nextStatus = campaign.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
+    const label = nextStatus === "ACTIVE" ? "ativar" : "pausar";
+    const confirmed = window.confirm(`Deseja ${label} a campanha "${campaign.name}"?`);
+    if (!confirmed) return;
+
+    await runCampaignAction(
+      `${campaign.id}:status`,
+      {
+        action: "set_campaign_status",
+        campaignId: campaign.id,
+        status: nextStatus,
+      },
+      nextStatus === "ACTIVE" ? "Campanha ativada" : "Campanha pausada",
+    );
+  };
+
+  const updateCampaignBudget = async (campaign: { id: string; name: string; dailyBudget: number }) => {
+    const value = window.prompt(
+      `Novo orcamento diario para "${campaign.name}" em R$:`,
+      campaign.dailyBudget > 0 ? campaign.dailyBudget.toFixed(2).replace(".", ",") : "",
+    );
+    if (!value) return;
+
+    const dailyBudget = Number(value.replace(/\./g, "").replace(",", "."));
+    if (!Number.isFinite(dailyBudget) || dailyBudget <= 0) {
+      toast({ title: "Orcamento invalido", description: "Informe um valor maior que zero.", variant: "destructive" });
+      return;
+    }
+
+    const confirmed = window.confirm(`Confirmar orcamento diario de ${formatCurrency(dailyBudget)} para "${campaign.name}"?`);
+    if (!confirmed) return;
+
+    await runCampaignAction(
+      `${campaign.id}:budget`,
+      {
+        action: "set_campaign_daily_budget",
+        campaignId: campaign.id,
+        dailyBudget,
+      },
+      "Orcamento atualizado",
+    );
   };
 
   return (
@@ -398,13 +489,18 @@ const CampanhasPage = () => {
                     <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">CPC</th>
                     <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Leads</th>
                     <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversas</th>
-                    <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Custo/Conversa</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Custo/Conversa</th>
+                    <th className="pb-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Orcamento</th>
+                    <th className="pb-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acoes</th>
                   </tr>
                 </thead>
                 <tbody>
                   {campaignRows.map((campaign) => {
                     const st = statusMap[campaign.status] || { label: campaign.status, variant: "outline" as const };
                     const campaignCostPerConversation = campaign.conversations > 0 ? campaign.spend / campaign.conversations : 0;
+                    const canToggle = campaign.status === "ACTIVE" || campaign.status === "PAUSED";
+                    const statusLoading = actionLoading === `${campaign.id}:status`;
+                    const budgetLoading = actionLoading === `${campaign.id}:budget`;
                     return (
                       <tr key={campaign.id} className="border-b border-border/20 transition-colors hover:bg-secondary/30">
                         <td className="max-w-[240px] truncate py-3 pr-4 font-medium text-foreground">{campaign.name}</td>
@@ -415,7 +511,40 @@ const CampanhasPage = () => {
                         <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(campaign.cpc)}</td>
                         <td className="py-3 pr-4 text-right font-medium text-foreground">{formatNumber(campaign.leads)}</td>
                         <td className="py-3 pr-4 text-right font-medium text-foreground">{formatNumber(campaign.conversations)}</td>
-                        <td className="py-3 text-right text-muted-foreground">{formatCurrency(campaignCostPerConversation)}</td>
+                        <td className="py-3 pr-4 text-right text-muted-foreground">{formatCurrency(campaignCostPerConversation)}</td>
+                        <td className="py-3 pr-4 text-right text-muted-foreground">
+                          {campaign.dailyBudget > 0 ? `${formatCurrency(campaign.dailyBudget)}/dia` : campaign.lifetimeBudget > 0 ? `${formatCurrency(campaign.lifetimeBudget)} total` : "-"}
+                        </td>
+                        <td className="py-3">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!canToggle || !!actionLoading}
+                              onClick={() => updateCampaignStatus(campaign)}
+                              className="h-8 px-3"
+                            >
+                              {statusLoading ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : campaign.status === "ACTIVE" ? (
+                                <PauseCircle className="h-3.5 w-3.5" />
+                              ) : (
+                                <PlayCircle className="h-3.5 w-3.5" />
+                              )}
+                              {campaign.status === "ACTIVE" ? "Pausar" : "Ativar"}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={!!actionLoading}
+                              onClick={() => updateCampaignBudget(campaign)}
+                              className="h-8 px-3"
+                            >
+                              {budgetLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WalletCards className="h-3.5 w-3.5" />}
+                              Orcamento
+                            </Button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
