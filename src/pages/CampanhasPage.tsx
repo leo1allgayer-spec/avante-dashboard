@@ -380,6 +380,14 @@ const CampanhasPage = () => {
     if (lifetimeBudget > 0) return `${formatCurrency(lifetimeBudget)} total`;
     return "-";
   };
+  const adsByAdset = useMemo(() => {
+    const grouped = new Map<string, Array<Record<string, any>>>();
+    (campaignDetails?.ads || []).forEach((ad) => {
+      const key = ad.adset_id || "sem-conjunto";
+      grouped.set(key, [...(grouped.get(key) || []), ad]);
+    });
+    return grouped;
+  }, [campaignDetails?.ads]);
 
   return (
     <PageTransition>
@@ -679,85 +687,122 @@ const CampanhasPage = () => {
               <div className="space-y-6">
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-foreground">Conjuntos de anuncios</h4>
-                    <span className="text-xs text-muted-foreground">{campaignDetails.adsets.length} itens</span>
+                    <h4 className="text-sm font-semibold text-foreground">Conjuntos e anuncios</h4>
+                    <span className="text-xs text-muted-foreground">{campaignDetails.adsets.length} conjuntos · {campaignDetails.ads.length} anuncios</span>
                   </div>
-                  <div className="overflow-x-auto rounded-lg border border-border/40">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/40 text-left">
-                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Nome</th>
-                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Orcamento</th>
-                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Gasto</th>
-                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Cliques</th>
-                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Conversas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {campaignDetails.adsets.map((adset) => {
-                          const insight = firstInsight(adset);
-                          const st = statusMap[adset.effective_status || adset.status] || { label: adset.effective_status || adset.status || "-", variant: "outline" as const };
-                          return (
-                            <tr key={adset.id} className="border-b border-border/20">
-                              <td className="max-w-[280px] truncate p-3 font-medium text-foreground">{adset.name}</td>
-                              <td className="p-3"><Badge variant={st.variant}>{st.label}</Badge></td>
-                              <td className="p-3 text-right text-muted-foreground">{itemBudget(adset)}</td>
-                              <td className="p-3 text-right text-muted-foreground">{formatCurrency(numberValue(insight.spend))}</td>
-                              <td className="p-3 text-right text-muted-foreground">{formatNumber(numberValue(insight.clicks))}</td>
-                              <td className="p-3 text-right font-medium text-foreground">{formatNumber(getConversationsFromActions(insight.actions))}</td>
-                            </tr>
-                          );
-                        })}
-                        {campaignDetails.adsets.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="p-4 text-center text-sm text-muted-foreground">Nenhum conjunto encontrado.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
 
-                <section>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-foreground">Anuncios</h4>
-                    <span className="text-xs text-muted-foreground">{campaignDetails.ads.length} itens</span>
-                  </div>
-                  <div className="overflow-x-auto rounded-lg border border-border/40">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/40 text-left">
-                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Anuncio</th>
-                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Conjunto</th>
-                          <th className="p-3 text-xs uppercase tracking-wider text-muted-foreground">Status</th>
-                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Gasto</th>
-                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Cliques</th>
-                          <th className="p-3 text-right text-xs uppercase tracking-wider text-muted-foreground">Conversas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {campaignDetails.ads.map((ad) => {
+                  <div className="space-y-4">
+                    {campaignDetails.adsets.map((adset) => {
+                      const insight = firstInsight(adset);
+                      const st = statusMap[adset.effective_status || adset.status] || { label: adset.effective_status || adset.status || "-", variant: "outline" as const };
+                      const ads = adsByAdset.get(adset.id) || [];
+                      return (
+                        <div key={adset.id} className="rounded-lg border border-border/40 bg-secondary/10 p-4">
+                          <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.5fr)_minmax(0,2fr)] lg:items-center">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-sm font-semibold text-foreground">{adset.name}</p>
+                                <Badge variant={st.variant}>{st.label}</Badge>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">Orcamento: {itemBudget(adset)}</p>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                              {[
+                                ["Gasto", formatCurrency(numberValue(insight.spend))],
+                                ["Cliques", formatNumber(numberValue(insight.clicks))],
+                                ["Conversas", formatNumber(getConversationsFromActions(insight.actions))],
+                                ["Anuncios", formatNumber(ads.length)],
+                              ].map(([label, value]) => (
+                                <div key={label} className="rounded-md bg-background/40 px-3 py-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+                                  <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mt-4 space-y-2">
+                            {ads.map((ad) => {
+                              const adInsight = firstInsight(ad);
+                              const adStatus = statusMap[ad.effective_status || ad.status] || { label: ad.effective_status || ad.status || "-", variant: "outline" as const };
+                              return (
+                                <div key={ad.id} className="grid gap-3 rounded-md border border-border/20 bg-background/30 px-3 py-3 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="truncate text-sm font-medium text-foreground">{ad.name}</p>
+                                      <Badge variant={adStatus.variant}>{adStatus.label}</Badge>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-2 text-right">
+                                    <div>
+                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Gasto</p>
+                                      <p className="text-sm font-semibold text-foreground">{formatCurrency(numberValue(adInsight.spend))}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cliques</p>
+                                      <p className="text-sm font-semibold text-foreground">{formatNumber(numberValue(adInsight.clicks))}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Conversas</p>
+                                      <p className="text-sm font-semibold text-foreground">{formatNumber(getConversationsFromActions(adInsight.actions))}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {ads.length === 0 && (
+                              <div className="rounded-md border border-dashed border-border/40 px-3 py-3 text-sm text-muted-foreground">
+                                Nenhum anuncio encontrado nesse conjunto.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {(adsByAdset.get("sem-conjunto") || []).length > 0 && (
+                      <div className="rounded-lg border border-border/40 bg-secondary/10 p-4">
+                        <p className="mb-3 text-sm font-semibold text-foreground">Anuncios sem conjunto identificado</p>
+                        <div className="space-y-2">
+                          {(adsByAdset.get("sem-conjunto") || []).map((ad) => {
                           const insight = firstInsight(ad);
                           const st = statusMap[ad.effective_status || ad.status] || { label: ad.effective_status || ad.status || "-", variant: "outline" as const };
                           return (
-                            <tr key={ad.id} className="border-b border-border/20">
-                              <td className="max-w-[240px] truncate p-3 font-medium text-foreground">{ad.name}</td>
-                              <td className="max-w-[220px] truncate p-3 text-muted-foreground">{ad.adset?.name || "-"}</td>
-                              <td className="p-3"><Badge variant={st.variant}>{st.label}</Badge></td>
-                              <td className="p-3 text-right text-muted-foreground">{formatCurrency(numberValue(insight.spend))}</td>
-                              <td className="p-3 text-right text-muted-foreground">{formatNumber(numberValue(insight.clicks))}</td>
-                              <td className="p-3 text-right font-medium text-foreground">{formatNumber(getConversationsFromActions(insight.actions))}</td>
-                            </tr>
+                            <div key={ad.id} className="grid gap-3 rounded-md border border-border/20 bg-background/30 px-3 py-3 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="truncate text-sm font-medium text-foreground">{ad.name}</p>
+                                  <Badge variant={st.variant}>{st.label}</Badge>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-right">
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Gasto</p>
+                                  <p className="text-sm font-semibold text-foreground">{formatCurrency(numberValue(insight.spend))}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cliques</p>
+                                  <p className="text-sm font-semibold text-foreground">{formatNumber(numberValue(insight.clicks))}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Conversas</p>
+                                  <p className="text-sm font-semibold text-foreground">{formatNumber(getConversationsFromActions(insight.actions))}</p>
+                                </div>
+                              </div>
+                            </div>
                           );
-                        })}
-                        {campaignDetails.ads.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="p-4 text-center text-sm text-muted-foreground">Nenhum anuncio encontrado.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {campaignDetails.adsets.length === 0 && campaignDetails.ads.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-border/40 p-5 text-center text-sm text-muted-foreground">
+                        Nenhum conjunto ou anuncio encontrado.
+                      </div>
+                    )}
                   </div>
                 </section>
               </div>
