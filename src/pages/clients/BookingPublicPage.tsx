@@ -284,31 +284,28 @@ export default function BookingPublic() {
   const shiftsForSelectedDate = selectedDate ? (availableDatesMap[selectedDate] || []) : [];
 
   return (
-    <div className="min-h-screen relative flex flex-col overflow-hidden" style={{ background: 'hsl(260, 20%, 6%)' }}>
-      {/* Purple smoke effects */}
-      <div className="pointer-events-none absolute inset-0 z-0">
-        <div className="absolute -top-20 -left-32 w-[500px] h-[500px] rounded-full opacity-30 blur-[120px]" style={{ background: 'radial-gradient(circle, hsl(270,60%,40%) 0%, transparent 70%)' }} />
-        <div className="absolute top-1/3 -right-40 w-[400px] h-[400px] rounded-full opacity-20 blur-[100px]" style={{ background: 'radial-gradient(circle, hsl(280,70%,50%) 0%, transparent 70%)' }} />
-        <div className="absolute -bottom-20 left-1/4 w-[350px] h-[350px] rounded-full opacity-15 blur-[100px]" style={{ background: 'radial-gradient(circle, hsl(260,50%,35%) 0%, transparent 70%)' }} />
-        <div className="absolute top-10 right-1/4 w-[200px] h-[300px] rounded-full opacity-10 blur-[80px]" style={{ background: 'radial-gradient(circle, hsl(290,60%,45%) 0%, transparent 70%)' }} />
-      </div>
-      <div className="flex-1 flex items-start justify-center px-4 py-8 sm:py-12 relative z-10">
-        <div className="w-full max-w-2xl">
+    <div className="min-h-screen bg-background text-foreground dot-pattern">
+      <div className="min-h-screen bg-background/85">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-8">
           {/* Header */}
-          <div className="text-center mb-10">
-            <img src={avanteLogo} alt="Avante Digital" className="h-20 mx-auto mb-6" />
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-              <span className="text-foreground">Agende seu </span>
-              <span className="italic text-[hsl(320,80%,65%)]">Curso</span>
-            </h1>
-            <p className="text-muted-foreground mt-3 text-sm sm:text-base">
+          <div className="mb-6 rounded-2xl border border-border/60 bg-card/70 p-5 shadow-lg shadow-black/10 backdrop-blur-lg sm:p-6">
+            <div className="mb-4 flex items-center gap-3">
+              <img src={avanteLogo} alt="Avante Digital" className="h-12 w-auto object-contain" />
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60">Avante Digital</p>
+                <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-4xl">
+                  Agende seu Curso
+                </h1>
+              </div>
+            </div>
+            <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
               Escolha o curso, selecione uma data e turno disponíveis.
             </p>
           </div>
 
           {/* Step indicators */}
           {step !== "done" && (
-            <div className="flex items-center justify-center gap-2 mb-8">
+            <div className="mb-6 grid grid-cols-3 gap-2">
               {[
                 { key: "course", label: "Curso" },
                 { key: "date", label: "Data" },
@@ -319,18 +316,21 @@ export default function BookingPublic() {
                 const isActive = step === s.key;
                 const isPast = current > i;
                 return (
-                  <div key={s.key} className="flex items-center gap-2">
-                    <div className="flex flex-col items-center gap-1">
-                      <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                        isActive ? "bg-[hsl(280,80%,65%)] text-white" :
-                        isPast ? "bg-[hsl(280,80%,65%)]/20 text-[hsl(280,80%,65%)]" :
-                        "bg-muted text-muted-foreground"
+                  <div key={s.key} className={`rounded-2xl border p-3 transition-colors ${
+                    isActive ? "border-primary/35 bg-primary/10" :
+                    isPast ? "border-success/25 bg-success/10" :
+                    "border-border/50 bg-card/60"
+                  }`}>
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-semibold transition-colors ${
+                        isActive ? "bg-primary text-primary-foreground" :
+                        isPast ? "bg-success text-success-foreground" :
+                        "bg-secondary text-muted-foreground"
                       }`}>
                         {i + 1}
                       </div>
-                      <span className="text-[10px] text-muted-foreground">{s.label}</span>
+                      <span className="text-[10px] font-medium text-muted-foreground">{s.label}</span>
                     </div>
-                    {i < 2 && <div className="w-8 h-0.5 bg-border mb-4" />}
                   </div>
                 );
               })}
@@ -339,26 +339,26 @@ export default function BookingPublic() {
 
           {/* Step 1: Choose course */}
           {step === "course" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {COURSES.map(c => (
                 <Card
                   key={c.id}
-                  className="cursor-pointer border-[hsl(260,15%,18%)] bg-[hsl(260,15%,10%)] hover:border-[hsl(280,60%,50%)]/50 hover:shadow-lg hover:shadow-[hsl(280,60%,50%)]/5 transition-all group"
+                  className="group cursor-pointer overflow-hidden rounded-2xl border-border/60 bg-card/70 shadow-lg shadow-black/10 backdrop-blur-lg transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-primary/5"
                   onClick={() => handleSelectCourse(c.id)}
                 >
-                  <CardContent className="p-4 flex items-center justify-between">
+                  <CardContent className="flex items-center justify-between p-4 sm:p-5">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-[hsl(280,60%,50%)]/15 flex items-center justify-center">
-                        <CalendarDays className="h-5 w-5 text-[hsl(280,60%,50%)]" />
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <CalendarDays className="h-5 w-5" />
                       </div>
                       <div className="flex flex-col">
-                        <span className="font-medium text-sm leading-tight">{c.label}</span>
+                        <span className="text-sm font-semibold leading-tight text-foreground">{c.label}</span>
                         {c.subtitle && (
-                          <span className="text-[11px] font-light text-muted-foreground mt-0.5">{c.subtitle}</span>
+                          <span className="mt-0.5 text-[11px] text-muted-foreground">{c.subtitle}</span>
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-[hsl(280,60%,50%)] transition-colors" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
                   </CardContent>
                 </Card>
               ))}
@@ -368,13 +368,13 @@ export default function BookingPublic() {
           {/* Step 2: Choose date and shift */}
           {step === "date" && (
             <div className="space-y-4">
-              <Button variant="ghost" size="sm" onClick={goBack}>
+              <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground">
                 <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
               </Button>
 
-              <div className="bg-[hsl(280,60%,50%)]/10 border border-[hsl(280,60%,50%)]/20 rounded-lg px-4 py-3">
+              <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-[hsl(280,60%,50%)]" />
+                  <CalendarDays className="h-4 w-4 text-primary" />
                   <span className="font-semibold text-sm">{selectedCourse}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Selecione uma data e turno disponíveis</p>
@@ -385,23 +385,23 @@ export default function BookingPublic() {
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : Object.keys(availableDatesMap).length === 0 ? (
-                <Card>
+                <Card className="rounded-2xl border-border/60 bg-card/70">
                   <CardContent className="p-8 text-center text-muted-foreground">
                     Nenhuma data disponível no momento para este curso.
                   </CardContent>
                 </Card>
               ) : (
-                <Card>
-                  <CardContent className="p-4 space-y-4">
+                <Card className="rounded-2xl border-border/60 bg-card/70 shadow-lg shadow-black/10 backdrop-blur-lg">
+                  <CardContent className="space-y-4 p-4 sm:p-5">
                     {/* Month navigation */}
                     <div className="flex items-center justify-between">
-                      <Button variant="outline" size="icon" className="h-8 w-8" disabled={isSameMonth(calendarMonth, new Date())} onClick={() => setCalendarMonth(m => subMonths(m, 1))}>
+                      <Button variant="outline" size="icon" className="h-9 w-9" disabled={isSameMonth(calendarMonth, new Date())} onClick={() => setCalendarMonth(m => subMonths(m, 1))}>
                         <ChevronLeft className="h-4 w-4" />
                       </Button>
-                      <span className="text-sm font-semibold capitalize">
+                      <span className="font-display text-sm font-semibold capitalize text-foreground">
                         {format(calendarMonth, "MMMM yyyy", { locale: ptBR })}
                       </span>
-                      <Button variant="outline" size="icon" className="h-8 w-8" disabled={isSameMonth(calendarMonth, addMonths(new Date(), 2))} onClick={() => setCalendarMonth(m => addMonths(m, 1))}>
+                      <Button variant="outline" size="icon" className="h-9 w-9" disabled={isSameMonth(calendarMonth, addMonths(new Date(), 2))} onClick={() => setCalendarMonth(m => addMonths(m, 1))}>
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
@@ -428,11 +428,11 @@ export default function BookingPublic() {
                             type="button"
                             disabled={!inMonth || !hasShifts || isPast}
                             onClick={() => setSelectedDate(isSelected ? null : dateStr)}
-                            className={`aspect-square rounded-lg text-sm flex items-center justify-center transition-all ${
-                              !inMonth ? "text-muted-foreground/30" :
-                              isSelected ? "bg-primary text-primary-foreground font-bold ring-2 ring-primary/30" :
-                              hasShifts && !isPast ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 font-medium cursor-pointer" :
-                              "text-muted-foreground/50"
+                            className={`aspect-square rounded-xl text-sm transition-all ${
+                              !inMonth ? "text-muted-foreground/20" :
+                              isSelected ? "bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20" :
+                              hasShifts && !isPast ? "border border-success/25 bg-success/10 text-success hover:bg-success/20 font-medium cursor-pointer" :
+                              "bg-secondary/20 text-muted-foreground/40"
                             }`}
                           >
                             {format(day, "d")}
@@ -449,7 +449,7 @@ export default function BookingPublic() {
 
                     {/* Shift selection for selected date */}
                     {selectedDate && shiftsForSelectedDate.length > 0 && (
-                      <div className="border-t pt-4 space-y-2">
+                      <div className="border-t border-border/50 pt-4 space-y-2">
                         <p className="text-sm font-medium capitalize">
                           {formatDate(selectedDate)}
                         </p>
@@ -485,14 +485,14 @@ export default function BookingPublic() {
           {/* Step 3: Form */}
           {step === "form" && selectedShift && (
             <div className="space-y-4">
-              <Button variant="ghost" size="sm" onClick={goBack}>
+              <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground">
                 <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
               </Button>
 
-              <Card className="border-primary/20 bg-primary/5">
+              <Card className="rounded-2xl border-primary/20 bg-primary/10">
                 <CardContent className="p-4">
                   <div className="text-xs text-muted-foreground mb-1">Você está agendando:</div>
-                  <div className="font-semibold">{selectedCourse}</div>
+                  <div className="font-semibold text-foreground">{selectedCourse}</div>
                   <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1.5">
                       <CalendarDays className="h-3.5 w-3.5" />
@@ -506,8 +506,8 @@ export default function BookingPublic() {
                 </CardContent>
               </Card>
 
-              <div className="space-y-3">
-                <div>
+              <div className="grid gap-4 rounded-2xl border border-border/60 bg-card/70 p-4 shadow-lg shadow-black/10 backdrop-blur-lg sm:grid-cols-2 sm:p-5">
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium">Nome completo <span className="text-destructive">*</span></label>
                   <Input
                     value={form.name}
@@ -517,7 +517,7 @@ export default function BookingPublic() {
                   />
                   {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium">E-mail <span className="text-destructive">*</span></label>
                   <Input
                     type="email"
@@ -528,7 +528,7 @@ export default function BookingPublic() {
                   />
                   {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium">Telefone <span className="text-destructive">*</span></label>
                   <Input
                     value={form.phone}
@@ -545,7 +545,7 @@ export default function BookingPublic() {
                   <p className="text-xs text-muted-foreground mt-1">Formato: 55 + DDD + número (ex: 5551999999999)</p>
                   {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
                 </div>
-                <div>
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium">Instagram</label>
                   <Input
                     value={form.instagram}
@@ -554,7 +554,7 @@ export default function BookingPublic() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">Opcional</p>
                 </div>
-                <div>
+                <div className="space-y-1.5 sm:col-span-2">
                   <label className="text-sm font-medium">Nome para o certificado</label>
                   <Input
                     value={form.certificateName}
@@ -566,7 +566,7 @@ export default function BookingPublic() {
               </div>
 
               <Button
-                className="w-full"
+                className="h-11 w-full"
                 size="lg"
                 onClick={handleSubmit}
                 disabled={submitting}
@@ -579,10 +579,10 @@ export default function BookingPublic() {
 
           {/* Loading step */}
           {step === "loading" && (
-            <Card className="border-primary/30">
-              <CardContent className="p-8 text-center space-y-4">
-                <Loader2 className="h-16 w-16 text-primary mx-auto animate-spin" />
-                <h2 className="text-xl font-bold">Processando seu agendamento...</h2>
+            <Card className="rounded-2xl border-primary/30 bg-card/70 shadow-lg shadow-black/10 backdrop-blur-lg">
+              <CardContent className="space-y-4 p-8 text-center">
+                <Loader2 className="mx-auto h-14 w-14 animate-spin text-primary" />
+                <h2 className="font-display text-xl font-bold">Processando seu agendamento...</h2>
                 <p className="text-muted-foreground">Aguarde um momento enquanto confirmamos sua vaga.</p>
               </CardContent>
             </Card>
@@ -590,15 +590,17 @@ export default function BookingPublic() {
 
           {/* Step 4: Confirmation */}
           {step === "done" && (
-            <Card className="border-primary/30">
-              <CardContent className="p-8 text-center space-y-4">
-                <CheckCircle2 className="h-16 w-16 text-primary mx-auto" />
-                <h2 className="text-2xl font-bold">Agendamento Confirmado!</h2>
+            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70 shadow-lg shadow-black/10 backdrop-blur-lg">
+              <CardContent className="space-y-4 p-8 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success">
+                  <CheckCircle2 className="h-9 w-9" />
+                </div>
+                <h2 className="font-display text-2xl font-bold">Agendamento Confirmado!</h2>
                 <p className="text-muted-foreground">
                   Sua vaga no <strong>{selectedCourse}</strong> foi reservada com sucesso.
                 </p>
                 {selectedShift && (
-                  <div className="flex justify-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1.5">
                       <CalendarDays className="h-3.5 w-3.5" />
                       <span className="capitalize">{formatDate(selectedShift.date)}</span>
@@ -619,7 +621,7 @@ export default function BookingPublic() {
       </div>
 
       {/* Footer */}
-      <footer className="py-4 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-border/30 py-4 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} Avante Digital
       </footer>
     </div>
