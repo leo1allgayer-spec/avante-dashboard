@@ -41,6 +41,7 @@ const COURSES = [
   "Curso Meta Ads Avançado",
   "Curso Google Ads",
   "Curso Social Media",
+  "Curso Canva",
   "Curso Inteligência Artificial",
   "Curso Captação e Edição de Vídeo",
 ];
