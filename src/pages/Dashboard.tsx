@@ -295,8 +295,7 @@ const Dashboard = () => {
             {/* Hero: Faturamento */}
             <motion.div
               variants={item}
-              className="col-span-2 md:col-span-7 md:row-span-2 rounded-2xl relative overflow-hidden min-h-[180px]"
-              style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}
+              className="col-span-2 md:col-span-7 md:row-span-2 rounded-2xl relative overflow-hidden min-h-[180px] dashboard-card"
             >
               <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full opacity-[0.07] blur-[80px] pointer-events-none bg-accent" />
               <div className="relative z-10 h-full flex flex-col justify-between p-4 sm:p-6">
@@ -346,8 +345,7 @@ const Dashboard = () => {
 
             {/* Faturamento Feito */}
             <motion.div variants={item}
-              className="col-span-1 md:col-span-5 rounded-2xl p-4 sm:p-5 relative overflow-hidden min-h-[110px]"
-              style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}
+              className="col-span-1 md:col-span-5 rounded-2xl p-4 sm:p-5 relative overflow-hidden min-h-[110px] dashboard-card"
             >
               <div className="flex items-center gap-2">
                 <DollarSign className="h-3.5 w-3.5 text-muted-foreground/50" />
@@ -360,8 +358,7 @@ const Dashboard = () => {
 
             {/* ROAS with filter */}
             <motion.div variants={item}
-              className="col-span-2 md:col-span-5 rounded-2xl p-4 sm:p-5 relative overflow-hidden min-h-[180px]"
-              style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}
+              className="col-span-2 md:col-span-5 rounded-2xl p-4 sm:p-5 relative overflow-hidden min-h-[180px] dashboard-card"
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -409,7 +406,7 @@ const Dashboard = () => {
 
           {/* ROW 1.5: Faturamento Feito, Marcado, Vendas */}
           <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="h-3.5 w-3.5 text-accent/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Fat. Feito</p>
@@ -419,7 +416,7 @@ const Dashboard = () => {
               </p>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="h-3.5 w-3.5 text-muted-foreground/50" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Fat. Marcado</p>
@@ -429,7 +426,7 @@ const Dashboard = () => {
               </p>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Vendas ({approvedVendas.length})</p>
@@ -440,7 +437,7 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground/40 mt-1">{approvedVendas.length} aprovadas · Com. {formatCurrency(vendasComissao)}</p>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <DollarSign className="h-3.5 w-3.5 text-accent/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Investido (ADS)</p>
@@ -453,7 +450,7 @@ const Dashboard = () => {
 
           {/* ROW 1.6: Serviços */}
           <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(175, 60%, 20%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card dashboard-card-accent">
               <div className="flex items-center gap-2 mb-3">
                 <Briefcase className="h-3.5 w-3.5 text-accent/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Total Serviços</p>
@@ -465,7 +462,7 @@ const Dashboard = () => {
             {SERVICOS.map((s) => {
               const st = serviceStats.byService[s];
               return (
-                <motion.div key={s} variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+                <motion.div key={s} variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
                   <div className="flex items-center gap-2 mb-3">
                     <Briefcase className="h-3.5 w-3.5 text-muted-foreground/50" />
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">{s}</p>
@@ -481,7 +478,7 @@ const Dashboard = () => {
 
 
           <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-6">
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 relative" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 relative dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <Target className="h-3.5 w-3.5 text-accent/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Dias ativos</p>
@@ -492,7 +489,7 @@ const Dashboard = () => {
               <p className="text-xs text-muted-foreground/40 mt-1.5">de {monthData.length} dias</p>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <Users className="h-3.5 w-3.5 text-muted-foreground/50" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Leads</p>
@@ -502,7 +499,7 @@ const Dashboard = () => {
               </p>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <UserCheck className="h-3.5 w-3.5 text-accent/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">MQL</p>
@@ -513,7 +510,7 @@ const Dashboard = () => {
               {convRate > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">conversão: {convRate.toFixed(1)}%</p>}
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <DollarSign className="h-3.5 w-3.5 text-muted-foreground/50" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">CAC Médio</p>
@@ -522,7 +519,7 @@ const Dashboard = () => {
               <div className="flex gap-3 mt-2 text-[10px] text-muted-foreground/40"><span>CPL {formatCurrency(avgCpl)}</span></div>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <ClipboardCheck className="h-3.5 w-3.5 text-accent/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Cursos Marcados</p>
@@ -532,7 +529,7 @@ const Dashboard = () => {
               </p>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5" style={{ background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" }}>
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <GraduationCap className="h-3.5 w-3.5 text-success/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Cursos Feitos</p>

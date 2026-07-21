@@ -214,6 +214,25 @@ html.lenis, html.lenis body {
     background-image: radial-gradient(hsl(var(--muted)) 1px, transparent 1px);
     background-size: 24px 24px;
   }
+
+  .dashboard-card {
+    background: hsl(var(--card) / 0.82);
+    border: 1px solid hsl(var(--border) / 0.78);
+    box-shadow: 0 16px 36px -28px hsl(222 35% 8% / 0.35);
+  }
+
+  .dashboard-card-accent {
+    border-color: hsl(var(--accent) / 0.35);
+  }
+
+  .dark .dashboard-card {
+    background: hsl(260 22% 9%);
+    border-color: hsl(260 18% 14%);
+  }
+
+  .dark .dashboard-card-accent {
+    border-color: hsl(175 60% 20%);
+  }
 }
 
 /* Custom Scrollbar Styles for premium dark mode */
