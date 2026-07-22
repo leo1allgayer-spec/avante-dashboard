@@ -15,6 +15,13 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
+const normalizeText = (value?: string | null) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
 /** Count weekdays Mon-Sat in a given month/year */
 function countWorkingDays(year: number, month: number) {
   const lastDay = new Date(year, month + 1, 0).getDate();
@@ -70,11 +77,21 @@ const MetasPage = () => {
           meta_negocio_local: Math.max(Number(existing.meta_negocio_local || 0), Number(d.meta_negocio_local || 0)),
           meta_crm: Math.max(Number(existing.meta_crm || 0), Number(d.meta_crm || 0)),
           meta_upsell: Math.max(Number(existing.meta_upsell || 0), Number(d.meta_upsell || 0)),
+          super_meta_cursos: Math.max(Number(existing.super_meta_cursos || 0), Number(d.super_meta_cursos || 0)),
+          super_meta_site: Math.max(Number(existing.super_meta_site || 0), Number(d.super_meta_site || 0)),
+          super_meta_negocio_local: Math.max(Number(existing.super_meta_negocio_local || 0), Number(d.super_meta_negocio_local || 0)),
+          super_meta_crm: Math.max(Number(existing.super_meta_crm || 0), Number(d.super_meta_crm || 0)),
+          super_meta_upsell: Math.max(Number(existing.super_meta_upsell || 0), Number(d.super_meta_upsell || 0)),
           valor_cursos: Math.max(Number(existing.valor_cursos || 0), Number(d.valor_cursos || 0)),
           valor_site: Math.max(Number(existing.valor_site || 0), Number(d.valor_site || 0)),
           valor_negocio_local: Math.max(Number(existing.valor_negocio_local || 0), Number(d.valor_negocio_local || 0)),
           valor_crm: Math.max(Number(existing.valor_crm || 0), Number(d.valor_crm || 0)),
           valor_upsell: Math.max(Number(existing.valor_upsell || 0), Number(d.valor_upsell || 0)),
+          super_valor_cursos: Math.max(Number(existing.super_valor_cursos || 0), Number(d.super_valor_cursos || 0)),
+          super_valor_site: Math.max(Number(existing.super_valor_site || 0), Number(d.super_valor_site || 0)),
+          super_valor_negocio_local: Math.max(Number(existing.super_valor_negocio_local || 0), Number(d.super_valor_negocio_local || 0)),
+          super_valor_crm: Math.max(Number(existing.super_valor_crm || 0), Number(d.super_valor_crm || 0)),
+          super_valor_upsell: Math.max(Number(existing.super_valor_upsell || 0), Number(d.super_valor_upsell || 0)),
         });
       }
     });
@@ -116,11 +133,21 @@ const MetasPage = () => {
   const svcMetaNL = svcSource.find((d) => Number(d.meta_negocio_local) > 0)?.meta_negocio_local || today?.meta_negocio_local || 0;
   const svcMetaCRM = svcSource.find((d) => Number(d.meta_crm) > 0)?.meta_crm || today?.meta_crm || 0;
   const svcMetaUpsell = svcSource.find((d) => Number(d.meta_upsell) > 0)?.meta_upsell || today?.meta_upsell || 0;
+  const svcSuperMetaCursos = svcSource.find((d) => Number(d.super_meta_cursos) > 0)?.super_meta_cursos || today?.super_meta_cursos || 0;
+  const svcSuperMetaSite = svcSource.find((d) => Number(d.super_meta_site) > 0)?.super_meta_site || today?.super_meta_site || 0;
+  const svcSuperMetaNL = svcSource.find((d) => Number(d.super_meta_negocio_local) > 0)?.super_meta_negocio_local || today?.super_meta_negocio_local || 0;
+  const svcSuperMetaCRM = svcSource.find((d) => Number(d.super_meta_crm) > 0)?.super_meta_crm || today?.super_meta_crm || 0;
+  const svcSuperMetaUpsell = svcSource.find((d) => Number(d.super_meta_upsell) > 0)?.super_meta_upsell || today?.super_meta_upsell || 0;
   const svcValCursos = svcSource.find((d) => Number(d.valor_cursos) > 0)?.valor_cursos || today?.valor_cursos || 0;
   const svcValSite = svcSource.find((d) => Number(d.valor_site) > 0)?.valor_site || today?.valor_site || 0;
   const svcValNL = svcSource.find((d) => Number(d.valor_negocio_local) > 0)?.valor_negocio_local || today?.valor_negocio_local || 0;
   const svcValCRM = svcSource.find((d) => Number(d.valor_crm) > 0)?.valor_crm || today?.valor_crm || 0;
   const svcValUpsell = svcSource.find((d) => Number(d.valor_upsell) > 0)?.valor_upsell || today?.valor_upsell || 0;
+  const svcSuperValCursos = svcSource.find((d) => Number(d.super_valor_cursos) > 0)?.super_valor_cursos || today?.super_valor_cursos || 0;
+  const svcSuperValSite = svcSource.find((d) => Number(d.super_valor_site) > 0)?.super_valor_site || today?.super_valor_site || 0;
+  const svcSuperValNL = svcSource.find((d) => Number(d.super_valor_negocio_local) > 0)?.super_valor_negocio_local || today?.super_valor_negocio_local || 0;
+  const svcSuperValCRM = svcSource.find((d) => Number(d.super_valor_crm) > 0)?.super_valor_crm || today?.super_valor_crm || 0;
+  const svcSuperValUpsell = svcSource.find((d) => Number(d.super_valor_upsell) > 0)?.super_valor_upsell || today?.super_valor_upsell || 0;
 
   const calcData = useMemo(() => {
     const now = new Date();
@@ -239,15 +266,16 @@ const MetasPage = () => {
           <h3 className="font-display text-sm font-semibold text-foreground mb-3">Metas por Serviço</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { label: "Cursos", metaQty: svcMetaCursos, metaVal: svcValCursos, source: "produto" as const, icon: <GraduationCap className="h-5 w-5" />, variant: "accent" as const },
-              { label: "Site", metaQty: svcMetaSite, metaVal: svcValSite, source: "servico" as const, servico: "Site", icon: <Globe className="h-5 w-5" />, variant: "primary" as const },
-              { label: "Negócio Local", metaQty: svcMetaNL, metaVal: svcValNL, source: "servico" as const, servico: "Negócio Local", icon: <MapPin className="h-5 w-5" />, variant: "primary" as const },
-              { label: "CRM", metaQty: svcMetaCRM, metaVal: svcValCRM, source: "servico" as const, servico: "CRM", icon: <Database className="h-5 w-5" />, variant: "primary" as const },
-              { label: "Upsell", metaQty: svcMetaUpsell, metaVal: svcValUpsell, source: "servico" as const, servico: "Upsell", icon: <ArrowUpCircle className="h-5 w-5" />, variant: "accent" as const },
+              { label: "Cursos", metaQty: svcMetaCursos, superMetaQty: svcSuperMetaCursos, metaVal: svcValCursos, superMetaVal: svcSuperValCursos, source: "produto" as const, icon: <GraduationCap className="h-5 w-5" />, variant: "accent" as const },
+              { label: "Site", metaQty: svcMetaSite, superMetaQty: svcSuperMetaSite, metaVal: svcValSite, superMetaVal: svcSuperValSite, source: "servico" as const, servico: "Site", icon: <Globe className="h-5 w-5" />, variant: "primary" as const },
+              { label: "Negocio Local", metaQty: svcMetaNL, superMetaQty: svcSuperMetaNL, metaVal: svcValNL, superMetaVal: svcSuperValNL, source: "servico" as const, servico: "Negocio Local", icon: <MapPin className="h-5 w-5" />, variant: "primary" as const },
+              { label: "CRM", metaQty: svcMetaCRM, superMetaQty: svcSuperMetaCRM, metaVal: svcValCRM, superMetaVal: svcSuperValCRM, source: "servico" as const, servico: "CRM", icon: <Database className="h-5 w-5" />, variant: "primary" as const },
+              { label: "Upsell", metaQty: svcMetaUpsell, superMetaQty: svcSuperMetaUpsell, metaVal: svcValUpsell, superMetaVal: svcSuperValUpsell, source: "servico" as const, servico: "Upsell", icon: <ArrowUpCircle className="h-5 w-5" />, variant: "accent" as const },
             ].map((svc) => {
+              const periodProducts = approvedPeriodVendas.filter((v) => Boolean(v.produto?.trim()));
               const vendasRelacionadas = svc.source === "produto"
-                ? approvedMonthProducts
-                : approvedMonthVendas.filter((v) => v.servico === svc.servico);
+                ? periodProducts
+                : approvedPeriodVendas.filter((v) => normalizeText(v.servico) === normalizeText(svc.servico));
               const realizado = vendasRelacionadas.length;
               const realizadoValor = vendasRelacionadas.reduce((s, v) => s + Number(v.valor || 0), 0);
               const comissoes = vendasRelacionadas.reduce((s, v) => s + Number(v.comissao || 0), 0);
@@ -273,8 +301,16 @@ const MetasPage = () => {
                         <p className="font-display text-base font-bold text-foreground">{formatCurrency(Number(svc.metaVal))}</p>
                       </div>
                       <div>
+                        <p className="text-[10px] text-muted-foreground/50">Super Valor</p>
+                        <p className="font-display text-base font-bold text-amber-400">{formatCurrency(Number(svc.superMetaVal))}</p>
+                      </div>
+                      <div>
                         <p className="text-[10px] text-muted-foreground/50">Meta Qtd</p>
                         <p className="font-display text-base font-bold text-foreground">{Number(svc.metaQty)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground/50">Super Qtd</p>
+                        <p className="font-display text-base font-bold text-amber-400">{Number(svc.superMetaQty)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground/50">Valor Total</p>
