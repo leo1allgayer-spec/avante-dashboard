@@ -5,6 +5,7 @@ import { useDateFilter } from "@/hooks/useDateFilter";
 import { useTodayMetrics, useDeleteMetrics } from "@/hooks/useMetrics";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
 import DashboardLayout from "@/components/DashboardLayout";
+import DateFilterBar from "@/components/DateFilterBar";
 
 import MetricsForm from "@/components/MetricsForm";
 import RevenueChart from "@/components/RevenueChart";
@@ -283,6 +284,14 @@ const Dashboard = () => {
           </div>
         }
       >
+        <DateFilterBar
+          mode={filter.mode}
+          onModeChange={filter.setMode}
+          label={filter.label}
+          onBack={filter.goBack}
+          onForward={filter.goForward}
+        />
+
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-5">
 
           {/* Month label (no day/week filter) */}
