@@ -654,6 +654,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_course_booking: {
+        Args: { p_booking_id: string }
+        Returns: {
+          course_date: string | null
+          course_name: string | null
+          course_status: string | null
+          course_time: string | null
+          message: string
+          student_name: string | null
+          success: boolean
+        }[]
+      }
       get_booking_counts: {
         Args: { p_course_name: string }
         Returns: {

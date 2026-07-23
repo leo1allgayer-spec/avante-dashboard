@@ -39,7 +39,7 @@ values
   ),
   (
     'reminder_24h',
-    E'Ola, {{nome}}!\n\nPassando para lembrar que seu curso acontece amanha.\n\nCurso: {{curso}}\nData: {{data_agendamento}}\n\nSe precisar remarcar, chama a gente por aqui.',
+    E'Ola, {{nome}}!\n\nPassando para lembrar que seu curso acontece amanha.\n\nCurso: {{curso}}\nData: {{data_agendamento}}\n\nConfirme sua presenca por aqui:\n{{confirmacao_link}}\n\nSe precisar remarcar, chama a gente por aqui.',
     true
   ),
   (

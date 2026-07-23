@@ -28,6 +28,10 @@ function fillTemplate(template: string, vars: Record<string, string>): string {
   return result;
 }
 
+function getPublicSiteUrl(): string {
+  return (Deno.env.get("PUBLIC_SITE_URL") || "https://dashboard-avante.pages.dev").replace(/\/+$/, "");
+}
+
 // Cache do nome técnico real da instância (resolvido via fetchInstances)
 let RESOLVED_INSTANCE: string | null = null;
 
@@ -199,6 +203,13 @@ Deno.serve(async (req) => {
       if (!messageText) {
         messageText = template.message_template;
       }
+    }
+
+    if (bookingId && messageText) {
+      messageText = messageText.replace(
+        /\{\{confirmacao_link\}\}/g,
+        `${getPublicSiteUrl()}/confirmar-agendamento?id=${bookingId}`,
+      );
     }
 
     const formattedPhone = formatPhone(phone);

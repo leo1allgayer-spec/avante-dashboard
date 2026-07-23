@@ -36,6 +36,7 @@ import ClientTasksPage from "./pages/clients/ClientTasksPage";
 import ClientSettingsPage from "./pages/clients/ClientSettingsPage";
 import AdminBookingsPage from "./pages/clients/AdminBookingsPage";
 import BookingPublicPage from "./pages/clients/BookingPublicPage";
+import ConfirmBookingPage from "./pages/clients/ConfirmBookingPage";
 import MetaPixelPage from "./pages/meta/MetaPixelPage";
 
 const queryClient = new QueryClient();
@@ -97,6 +98,7 @@ const AnimatedRoutes = () => {
         <Route path="/admin-settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/agendamentos" element={<ProtectedRoute><AdminBookingsPage /></ProtectedRoute>} />
         <Route path="/agendar" element={<BookingPublicPage />} />
+        <Route path="/confirmar-agendamento" element={<ConfirmBookingPage />} />
         
         {/* Rota do Meta Pixel & CAPI Dashboard */}
         <Route path="/meta-pixel" element={<ProtectedRoute><MetaPixelPage /></ProtectedRoute>} />
