@@ -13,7 +13,7 @@ import avanteLogo from "@/assets/logo-full.svg";
 
 const COURSES: { id: string; label: string; subtitle?: string }[] = [
   { id: "Curso Meta Ads", label: "Curso Tráfego Pago Meta Ads", subtitle: "Facebook e Instagram" },
-  { id: "Curso Meta Ads Avançado", label: "Curso Tráfego Pago Meta Ads PRO+", subtitle: "Facebook e Instagram" },
+  { id: "Curso Meta Ads Avançado", label: "Curso de Tráfego Gestor PRO+", subtitle: "Facebook e Instagram" },
   { id: "Curso Google Ads", label: "Curso Tráfego Pago Google Ads" },
   { id: "Curso Social Media", label: "Curso Social Media" },
   { id: "Curso Canva", label: "Curso Canva" },
