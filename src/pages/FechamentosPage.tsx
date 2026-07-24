@@ -491,7 +491,11 @@ export default function FechamentosPage() {
         </Card>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogContent
+            className="max-h-[90vh] overflow-hidden sm:max-w-2xl"
+            onWheel={(event) => event.stopPropagation()}
+            onTouchMove={(event) => event.stopPropagation()}
+          >
             <DialogHeader>
               <DialogTitle>{editing ? "Editar fechamento" : "Registrar fechamento"}</DialogTitle>
               <DialogDescription>
@@ -499,7 +503,7 @@ export default function FechamentosPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+            <form onSubmit={handleSubmit} className="grid max-h-[calc(90vh-120px)] gap-4 overflow-y-auto overscroll-contain pr-2 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Data</Label>
                 <Input type="date" value={form.data} onChange={(event) => setForm((prev) => ({ ...prev, data: event.target.value }))} />
