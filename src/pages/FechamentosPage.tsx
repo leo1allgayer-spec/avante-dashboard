@@ -27,6 +27,18 @@ import { CalendarClock, CheckCircle2, Clock3, Layers3, Pencil, Plus, Search, Tra
 
 const STATUS_OPTIONS = ["a receber", "recebido", "cancelado"];
 
+const defaultItem = {
+  produto_servico: "",
+  categoria: "",
+  valor_sinal: 0,
+  valor_a_entrar: 0,
+  valor_recorrente: 0,
+  parcelas_total: "",
+  valor_parcela: 0,
+  previsao_entrada: "",
+  observacao: "",
+};
+
 const defaultForm = {
   data: new Date().toISOString().split("T")[0],
   cliente: "",
@@ -41,6 +53,7 @@ const defaultForm = {
   previsao_entrada: "",
   status: "a receber",
   observacao: "",
+  items: [{ ...defaultItem }],
 };
 
 const formatBRL = (value: number) =>
@@ -58,6 +71,9 @@ const getCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servic
   item.categoria || item.produto_servico || "Sem categoria";
 
 const nameKey = (value: string) => value.trim().toLowerCase();
+
+type FechamentoForm = typeof defaultForm;
+type FechamentoItemForm = typeof defaultItem;
 
 function StatusBadge({ status }: { status: string }) {
   const normalized = normalizeStatus(status);
@@ -156,6 +172,17 @@ export default function FechamentosPage() {
       previsao_entrada: item.previsao_entrada || "",
       status: normalizeStatus(item.status),
       observacao: item.observacao || "",
+      items: [{
+        produto_servico: item.produto_servico,
+        categoria: getCategoria(item),
+        valor_sinal: item.valor_sinal,
+        valor_a_entrar: item.valor_a_entrar,
+        valor_recorrente: item.valor_recorrente,
+        parcelas_total: item.parcelas_total ? String(item.parcelas_total) : "",
+        valor_parcela: item.valor_parcela,
+        previsao_entrada: item.previsao_entrada || "",
+        observacao: item.observacao || "",
+      }],
     });
     setDialogOpen(true);
   };
@@ -176,6 +203,31 @@ export default function FechamentosPage() {
       vendedor: prev.vendedor || selectedClient.manager,
       valor_recorrente: selectedClient.status === "Ativo" ? Number(selectedClient.contractValue || 0) : 0,
       previsao_entrada: prev.previsao_entrada || selectedClient.nextChargeDate || "",
+      items: prev.items.map((item, index) => index === 0
+        ? {
+            ...item,
+            valor_recorrente: item.valor_recorrente || (selectedClient.status === "Ativo" ? Number(selectedClient.contractValue || 0) : 0),
+            previsao_entrada: item.previsao_entrada || selectedClient.nextChargeDate || "",
+          }
+        : item),
+    }));
+  };
+
+  const updateItem = (index: number, updates: Partial<FechamentoItemForm>) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item),
+    }));
+  };
+
+  const addItem = () => {
+    setForm((prev) => ({ ...prev, items: [...prev.items, { ...defaultItem }] }));
+  };
+
+  const removeItem = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.length === 1 ? prev.items : prev.items.filter((_, itemIndex) => itemIndex !== index),
     }));
   };
 
@@ -187,27 +239,42 @@ export default function FechamentosPage() {
       return;
     }
 
-    const categoria = form.categoria || form.produto_servico.trim();
-    const payload = {
+    const filledItems = form.items.filter((item) =>
+      item.categoria ||
+      item.produto_servico.trim() ||
+      Number(item.valor_sinal || 0) ||
+      Number(item.valor_a_entrar || 0) ||
+      Number(item.valor_recorrente || 0),
+    );
+
+    if (filledItems.length === 0) {
+      toast({ title: "Adicione pelo menos um item", variant: "destructive" });
+      return;
+    }
+
+    const buildPayload = (item: FechamentoItemForm) => {
+      const categoria = item.categoria || item.produto_servico.trim();
+      return {
       user_id: session.user.id,
       data: form.data,
       cliente: form.cliente.trim(),
       vendedor: form.vendedor.trim(),
       produto_servico: categoria,
       categoria,
-      valor_sinal: Number(form.valor_sinal || 0),
-      valor_a_entrar: Number(form.valor_a_entrar || 0),
-      valor_recorrente: Number(form.valor_recorrente || 0),
-      parcelas_total: form.parcelas_total ? Number(form.parcelas_total) : null,
-      valor_parcela: Number(form.valor_parcela || 0),
-      previsao_entrada: form.previsao_entrada || null,
+      valor_sinal: Number(item.valor_sinal || 0),
+      valor_a_entrar: Number(item.valor_a_entrar || 0),
+      valor_recorrente: Number(item.valor_recorrente || 0),
+      parcelas_total: item.parcelas_total ? Number(item.parcelas_total) : null,
+      valor_parcela: Number(item.valor_parcela || 0),
+      previsao_entrada: item.previsao_entrada || null,
       status: normalizeStatus(form.status),
-      observacao: form.observacao.trim() || null,
+      observacao: item.observacao.trim() || null,
+    };
     };
 
     if (editing) {
       updateFechamento.mutate(
-        { id: editing.id, ...payload },
+        { id: editing.id, ...buildPayload(filledItems[0]) },
         {
           onSuccess: () => {
             toast({ title: "Fechamento atualizado!" });
@@ -221,14 +288,13 @@ export default function FechamentosPage() {
       return;
     }
 
-    createFechamento.mutate(payload, {
-      onSuccess: () => {
-        toast({ title: "Fechamento registrado!" });
+    Promise.all(filledItems.map((item) => createFechamento.mutateAsync(buildPayload(item))))
+      .then(() => {
+        toast({ title: filledItems.length > 1 ? "Fechamentos registrados!" : "Fechamento registrado!" });
         setDialogOpen(false);
         setForm({ ...defaultForm });
-      },
-      onError: (error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
-    });
+      })
+      .catch((error) => toast({ title: "Erro", description: error.message, variant: "destructive" }));
   };
 
   const actions = (
@@ -473,44 +539,78 @@ export default function FechamentosPage() {
                 <Label>Vendedor</Label>
                 <Input value={form.vendedor} onChange={(event) => setForm((prev) => ({ ...prev, vendedor: event.target.value }))} placeholder="Quem fechou" />
               </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Categoria</Label>
-                <Select value={form.categoria} onValueChange={(categoria) => setForm((prev) => ({ ...prev, categoria, produto_servico: categoria }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
-                  <SelectContent>
-                    {SERVICE_CATEGORIES.map((categoria) => (
-                      <SelectItem key={categoria} value={categoria}>{categoria}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Valor coletado</Label>
-                <Input type="number" step="0.01" value={form.valor_sinal || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_sinal: Number(event.target.value) }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-2">
-                <Label>Valor a receber</Label>
-                <Input type="number" step="0.01" value={form.valor_a_entrar || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_a_entrar: Number(event.target.value) }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-2">
-                <Label>Recorrente mensal</Label>
-                <Input type="number" step="0.01" value={form.valor_recorrente || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_recorrente: Number(event.target.value) }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-2">
-                <Label>Previsao de entrada</Label>
-                <Input type="date" value={form.previsao_entrada} onChange={(event) => setForm((prev) => ({ ...prev, previsao_entrada: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Quantidade de parcelas</Label>
-                <Input type="number" min="1" step="1" value={form.parcelas_total} onChange={(event) => setForm((prev) => ({ ...prev, parcelas_total: event.target.value }))} placeholder="Ex: 3" />
-              </div>
-              <div className="space-y-2">
-                <Label>Valor da parcela</Label>
-                <Input type="number" step="0.01" value={form.valor_parcela || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_parcela: Number(event.target.value) }))} placeholder="0,00" />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Observacao</Label>
-                <Textarea value={form.observacao} onChange={(event) => setForm((prev) => ({ ...prev, observacao: event.target.value }))} placeholder="Forma de pagamento, condicao combinada, parcelas..." rows={3} />
+              <div className="space-y-3 sm:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <Label>Itens do fechamento</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Adicione um item para cada categoria ou servico vendido para o mesmo cliente.
+                    </p>
+                  </div>
+                  {!editing && (
+                    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addItem}>
+                      <Plus className="h-4 w-4" />
+                      Adicionar item
+                    </Button>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {form.items.map((item, index) => (
+                    <div key={index} className="rounded-xl border border-border/50 bg-background/40 p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold">Item {index + 1}</div>
+                        {!editing && form.items.length > 1 && (
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(index)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Categoria</Label>
+                          <Select value={item.categoria} onValueChange={(categoria) => updateItem(index, { categoria, produto_servico: categoria })}>
+                            <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
+                            <SelectContent>
+                              {SERVICE_CATEGORIES.map((categoria) => (
+                                <SelectItem key={categoria} value={categoria}>{categoria}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor coletado</Label>
+                          <Input type="number" step="0.01" value={item.valor_sinal || ""} onChange={(event) => updateItem(index, { valor_sinal: Number(event.target.value) })} placeholder="0,00" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor a receber</Label>
+                          <Input type="number" step="0.01" value={item.valor_a_entrar || ""} onChange={(event) => updateItem(index, { valor_a_entrar: Number(event.target.value) })} placeholder="0,00" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Recorrente mensal</Label>
+                          <Input type="number" step="0.01" value={item.valor_recorrente || ""} onChange={(event) => updateItem(index, { valor_recorrente: Number(event.target.value) })} placeholder="0,00" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Previsao de entrada</Label>
+                          <Input type="date" value={item.previsao_entrada} onChange={(event) => updateItem(index, { previsao_entrada: event.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Quantidade de parcelas</Label>
+                          <Input type="number" min="1" step="1" value={item.parcelas_total} onChange={(event) => updateItem(index, { parcelas_total: event.target.value })} placeholder="Ex: 3" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Valor da parcela</Label>
+                          <Input type="number" step="0.01" value={item.valor_parcela || ""} onChange={(event) => updateItem(index, { valor_parcela: Number(event.target.value) })} placeholder="0,00" />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Observacao do item</Label>
+                          <Textarea value={item.observacao} onChange={(event) => updateItem(index, { observacao: event.target.value })} placeholder="Forma de pagamento, condicao combinada, parcelas..." rows={2} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="sm:col-span-2">
                 <Button type="submit" className="w-full" disabled={createFechamento.isPending || updateFechamento.isPending}>
