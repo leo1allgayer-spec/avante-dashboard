@@ -49,6 +49,8 @@ function dbToClient(row: DbClient): Client {
   };
 }
 
+const nullableDate = (value?: string | null) => value && value.trim() ? value : null;
+
 function clientToDb(client: Client, userId: string) {
   return {
     id: client.id,
@@ -63,13 +65,13 @@ function clientToDb(client: Client, userId: string) {
     payment_date: client.paymentDate,
     commission_value: client.commissionValue,
     contract_value: client.contractValue,
-    last_balance_date: client.lastBalanceDate,
+    last_balance_date: nullableDate(client.lastBalanceDate),
     balance_note: client.balanceNote,
-    last_report_date: client.lastReportDate,
+    last_report_date: nullableDate(client.lastReportDate),
     report_day: client.reportDay,
-    last_account_update: client.lastAccountUpdate,
-    start_date: client.startDate,
-    next_charge_date: client.nextChargeDate || "",
+    last_account_update: nullableDate(client.lastAccountUpdate),
+    start_date: nullableDate(client.startDate),
+    next_charge_date: nullableDate(client.nextChargeDate),
     notes: client.notes as any,
   };
 }
@@ -142,8 +144,9 @@ export function useClients() {
       .eq("id", client.id);
 
     if (error) {
-      toast.error("Erro ao atualizar cliente");
+      toast.error(`Erro ao atualizar cliente: ${error.message}`);
       console.error(error);
+      throw error;
     } else {
       setClients((prev) => prev.map((c) => (c.id === client.id ? client : c)));
     }
