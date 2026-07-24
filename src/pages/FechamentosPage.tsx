@@ -118,7 +118,9 @@ export default function FechamentosPage() {
     const ativos = filtered.filter((item) => normalizeStatus(item.status) !== "cancelado");
     const coletado = ativos.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
     const aReceber = ativos.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
-    const recorrente = ativos.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
+    const recorrente = gestaoClients
+      .filter((client) => client.status === "Ativo")
+      .reduce((sum, client) => sum + Number(client.contractValue || 0), 0);
     return {
       coletado,
       aReceber,
@@ -126,7 +128,7 @@ export default function FechamentosPage() {
       recorrente,
       quantidade: ativos.length,
     };
-  }, [filtered]);
+  }, [filtered, gestaoClients]);
 
   const categoryTotals = useMemo(() => {
     const totalsByCategory = filtered
@@ -274,7 +276,6 @@ export default function FechamentosPage() {
       cliente: form.cliente.trim(),
       vendedor: form.vendedor.trim(),
       produto_servico: categoria,
-      categoria,
       valor_sinal: Number(item.valor_sinal || 0),
       valor_a_entrar: Number(item.valor_a_entrar || 0),
       valor_recorrente: Number(item.valor_recorrente || 0),
@@ -319,7 +320,7 @@ export default function FechamentosPage() {
   );
 
   return (
-    <DashboardLayout title="Fechamentos Diarios" subtitle="Valores coletados, a receber e recorrentes mensais" actions={actions}>
+    <DashboardLayout title="Fechamentos Diarios" subtitle="Valores coletados, a receber e recorrentes vindos da Gestao de Clientes" actions={actions}>
       <PageTransition>
         <DateFilterBar
           mode={dateFilter.mode}
@@ -357,7 +358,7 @@ export default function FechamentosPage() {
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                <Layers3 className="h-4 w-4 text-accent" /> Recorrente mensal
+                <Layers3 className="h-4 w-4 text-accent" /> Recorrente clientes
               </CardTitle>
             </CardHeader>
             <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.recorrente)}</CardContent>
