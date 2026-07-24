@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface AddClientDialogProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (client: Client) => void;
+  onAdd: (client: Client) => void | Promise<void>;
 }
 
 export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) {
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
     company: "",
@@ -24,8 +25,9 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
     reportDay: WEEKDAYS[0],
   });
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.name.trim()) return;
+    setSaving(true);
     const today = new Date().toISOString().split("T")[0];
     const newClient: Client = {
       id: Date.now().toString(),
@@ -47,9 +49,13 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
       startDate: today,
       notes: [],
     };
-    onAdd(newClient);
-    setForm({ name: "", company: "", instagram: "", manager: MANAGERS[0], monthlyBudget: 0, paymentDate: 1, commissionValue: 0, contractValue: 0, reportDay: WEEKDAYS[0] });
-    onClose();
+    try {
+      await onAdd(newClient);
+      setForm({ name: "", company: "", instagram: "", manager: MANAGERS[0], monthlyBudget: 0, paymentDate: 1, commissionValue: 0, contractValue: 0, reportDay: WEEKDAYS[0] });
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -90,7 +96,9 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
             <Input type="number" placeholder="Dia pgto" min={1} max={31} value={form.paymentDate || ""} onChange={(e) => setForm({ ...form, paymentDate: Number(e.target.value) })} className="bg-input border-border" />
             <Input type="number" placeholder="Comissão" value={form.commissionValue || ""} onChange={(e) => setForm({ ...form, commissionValue: Number(e.target.value) })} className="bg-input border-border" />
           </div>
-          <Button onClick={handleSubmit} className="w-full">Adicionar Cliente</Button>
+          <Button onClick={handleSubmit} className="w-full" disabled={saving}>
+            {saving ? "Salvando..." : "Adicionar Cliente"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

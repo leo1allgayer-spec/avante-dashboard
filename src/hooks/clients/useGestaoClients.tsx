@@ -123,8 +123,9 @@ export function useClients() {
       .single();
 
     if (error) {
-      toast.error("Erro ao adicionar cliente");
+      toast.error(`Erro ao adicionar cliente: ${error.message}`);
       console.error(error);
+      throw error;
     } else {
       setClients((prev) => [dbToClient(data as unknown as DbClient), ...prev]);
       toast.success("Cliente adicionado!");
