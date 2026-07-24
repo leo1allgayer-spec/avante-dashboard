@@ -50,9 +50,23 @@ function dbToClient(row: DbClient): Client {
 }
 
 const nullableDate = (value?: string | null) => value && value.trim() ? value : null;
+const CLIENT_DATE_FIELDS = [
+  "last_balance_date",
+  "last_report_date",
+  "last_account_update",
+  "start_date",
+  "next_charge_date",
+];
+
+function sanitizeClientDates<T extends Record<string, any>>(data: T): T {
+  CLIENT_DATE_FIELDS.forEach((field) => {
+    if (data[field] === "") data[field] = null;
+  });
+  return data;
+}
 
 function clientToDb(client: Client, userId: string) {
-  return {
+  return sanitizeClientDates({
     id: client.id,
     user_id: userId,
     name: client.name,
@@ -73,7 +87,7 @@ function clientToDb(client: Client, userId: string) {
     start_date: nullableDate(client.startDate),
     next_charge_date: nullableDate(client.nextChargeDate),
     notes: client.notes as any,
-  };
+  });
 }
 
 export function useClients() {
@@ -117,7 +131,7 @@ export function useClients() {
     if (!session?.user?.id) return;
     const dbData = clientToDb(client, session.user.id);
     // Remove the client-generated id, let DB generate UUID
-    const { id, ...rest } = dbData;
+    const { id, ...rest } = sanitizeClientDates(dbData);
     const { data, error } = await supabase
       .from("clients")
       .insert(rest as any)
@@ -137,7 +151,7 @@ export function useClients() {
   const updateClient = async (client: Client) => {
     if (!session?.user?.id) return;
     const dbData = clientToDb(client, session.user.id);
-    const { id, user_id, ...rest } = dbData;
+    const { id, user_id, ...rest } = sanitizeClientDates(dbData);
     const { error } = await supabase
       .from("clients")
       .update(rest as any)
