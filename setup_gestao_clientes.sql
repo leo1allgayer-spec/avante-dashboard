@@ -26,9 +26,26 @@ create table if not exists public.clients (
 );
 
 alter table public.clients
+  add column if not exists user_id uuid,
+  add column if not exists name text,
+  add column if not exists company text,
+  add column if not exists instagram text,
+  add column if not exists manager text not null default '',
+  add column if not exists status text not null default 'Ativo',
   add column if not exists payment_status text not null default 'a receber',
+  add column if not exists monthly_budget numeric not null default 0,
+  add column if not exists payment_date integer not null default 1,
+  add column if not exists commission_value numeric not null default 0,
   add column if not exists contract_value numeric not null default 0,
+  add column if not exists last_balance_date date,
+  add column if not exists balance_note text,
+  add column if not exists last_report_date date,
+  add column if not exists report_day text,
+  add column if not exists last_account_update date,
+  add column if not exists start_date date,
   add column if not exists next_charge_date date,
+  add column if not exists notes jsonb not null default '[]'::jsonb,
+  add column if not exists created_at timestamp with time zone not null default now(),
   add column if not exists updated_at timestamp with time zone not null default now();
 
 alter table public.clients enable row level security;
