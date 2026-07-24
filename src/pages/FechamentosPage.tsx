@@ -5,6 +5,7 @@ import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useClients as useGestaoClients } from "@/hooks/clients/useGestaoClients";
 import {
   FechamentoDiario,
   useCreateFechamentoDiario,
@@ -56,6 +57,8 @@ const normalizeStatus = (status?: string | null) => (status === "para entrar" ? 
 const getCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
   item.categoria || item.produto_servico || "Sem categoria";
 
+const nameKey = (value: string) => value.trim().toLowerCase();
+
 function StatusBadge({ status }: { status: string }) {
   const normalized = normalizeStatus(status);
   if (normalized === "recebido") {
@@ -72,6 +75,7 @@ export default function FechamentosPage() {
   const createFechamento = useCreateFechamentoDiario();
   const updateFechamento = useUpdateFechamentoDiario();
   const deleteFechamento = useDeleteFechamentoDiario();
+  const { clients: gestaoClients } = useGestaoClients();
   const dateFilter = useLocalDateFilter();
   const { session } = useAuth();
   const { toast } = useToast();
@@ -154,6 +158,25 @@ export default function FechamentosPage() {
       observacao: item.observacao || "",
     });
     setDialogOpen(true);
+  };
+
+  const applyClientFromGestao = (clienteNome: string) => {
+    const selectedClient = gestaoClients.find((client) =>
+      [client.name, client.company].some((value) => nameKey(value || "") === nameKey(clienteNome)),
+    );
+
+    if (!selectedClient) {
+      setForm((prev) => ({ ...prev, cliente: clienteNome }));
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      cliente: selectedClient.name,
+      vendedor: prev.vendedor || selectedClient.manager,
+      valor_recorrente: selectedClient.status === "Ativo" ? Number(selectedClient.contractValue || 0) : 0,
+      previsao_entrada: prev.previsao_entrada || selectedClient.nextChargeDate || "",
+    }));
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -428,7 +451,23 @@ export default function FechamentosPage() {
               </div>
               <div className="space-y-2">
                 <Label>Cliente</Label>
-                <Input value={form.cliente} onChange={(event) => setForm((prev) => ({ ...prev, cliente: event.target.value }))} placeholder="Nome do cliente" required />
+                <Input
+                  value={form.cliente}
+                  list="gestao-clientes-list"
+                  onChange={(event) => applyClientFromGestao(event.target.value)}
+                  placeholder="Nome do cliente"
+                  required
+                />
+                <datalist id="gestao-clientes-list">
+                  {gestaoClients.map((client) => (
+                    <option key={client.id} value={client.name}>
+                      {client.status} - Contrato {formatBRL(Number(client.contractValue || 0))}
+                    </option>
+                  ))}
+                </datalist>
+                <p className="text-xs text-muted-foreground">
+                  Ao escolher um cliente ativo da Gestao de Clientes, o recorrente mensal vem do valor do contrato.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Vendedor</Label>
