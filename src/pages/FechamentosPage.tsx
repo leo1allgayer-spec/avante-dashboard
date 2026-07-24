@@ -70,7 +70,7 @@ const normalizeStatus = (status?: string | null) => (status === "para entrar" ? 
 const getCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
   item.categoria || item.produto_servico || "Sem categoria";
 
-const nameKey = (value: string) => value.trim().toLowerCase();
+const nameKey = (value: string) => value.trim().toLowerCase().replace(/^@/, "");
 
 type FechamentoForm = typeof defaultForm;
 type FechamentoItemForm = typeof defaultItem;
@@ -187,10 +187,24 @@ export default function FechamentosPage() {
     setDialogOpen(true);
   };
 
-  const applyClientFromGestao = (clienteNome: string) => {
-    const selectedClient = gestaoClients.find((client) =>
-      [client.name, client.company].some((value) => nameKey(value || "") === nameKey(clienteNome)),
+  const findGestaoClient = (clienteNome: string) => {
+    const query = nameKey(clienteNome);
+    if (!query) return null;
+
+    const exactMatch = gestaoClients.find((client) =>
+      [client.name, client.company, client.instagram].some((value) => nameKey(value || "") === query),
     );
+    if (exactMatch) return exactMatch;
+
+    const partialMatches = gestaoClients.filter((client) =>
+      [client.name, client.company, client.instagram].some((value) => nameKey(value || "").includes(query)),
+    );
+
+    return partialMatches.length === 1 ? partialMatches[0] : null;
+  };
+
+  const applyClientFromGestao = (clienteNome: string) => {
+    const selectedClient = findGestaoClient(clienteNome);
 
     if (!selectedClient) {
       setForm((prev) => ({ ...prev, cliente: clienteNome }));
@@ -525,6 +539,7 @@ export default function FechamentosPage() {
                   value={form.cliente}
                   list="gestao-clientes-list"
                   onChange={(event) => applyClientFromGestao(event.target.value)}
+                  onBlur={(event) => applyClientFromGestao(event.target.value)}
                   placeholder="Nome do cliente"
                   required
                 />
