@@ -1,6 +1,6 @@
 create extension if not exists "pgcrypto";
 
-create table if not exists public.clients (
+create table if not exists public.gestao_clients (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   name text not null,
@@ -25,19 +25,13 @@ create table if not exists public.clients (
   updated_at timestamp with time zone not null default now()
 );
 
-alter table public.clients
+alter table public.gestao_clients
   add column if not exists user_id uuid,
   add column if not exists name text,
-  add column if not exists nome text,
   add column if not exists company text,
   add column if not exists instagram text,
   add column if not exists manager text not null default '',
-  add column if not exists consultor text,
   add column if not exists status text not null default 'Ativo',
-  add column if not exists valor numeric default 0,
-  add column if not exists leads integer default 0,
-  add column if not exists mql integer default 0,
-  add column if not exists ultima_atividade date,
   add column if not exists payment_status text not null default 'a receber',
   add column if not exists monthly_budget numeric not null default 0,
   add column if not exists payment_date integer not null default 1,
@@ -54,31 +48,31 @@ alter table public.clients
   add column if not exists created_at timestamp with time zone not null default now(),
   add column if not exists updated_at timestamp with time zone not null default now();
 
-alter table public.clients enable row level security;
+alter table public.gestao_clients enable row level security;
 
-drop policy if exists "Users can view their own clients" on public.clients;
-drop policy if exists "Users can insert their own clients" on public.clients;
-drop policy if exists "Users can update their own clients" on public.clients;
-drop policy if exists "Users can delete their own clients" on public.clients;
+drop policy if exists "Users can view their own gestao clients" on public.gestao_clients;
+drop policy if exists "Users can insert their own gestao clients" on public.gestao_clients;
+drop policy if exists "Users can update their own gestao clients" on public.gestao_clients;
+drop policy if exists "Users can delete their own gestao clients" on public.gestao_clients;
 
-create policy "Users can view their own clients"
-  on public.clients for select to authenticated
+create policy "Users can view their own gestao clients"
+  on public.gestao_clients for select to authenticated
   using (auth.uid() = user_id);
 
-create policy "Users can insert their own clients"
-  on public.clients for insert to authenticated
+create policy "Users can insert their own gestao clients"
+  on public.gestao_clients for insert to authenticated
   with check (auth.uid() = user_id);
 
-create policy "Users can update their own clients"
-  on public.clients for update to authenticated
+create policy "Users can update their own gestao clients"
+  on public.gestao_clients for update to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-create policy "Users can delete their own clients"
-  on public.clients for delete to authenticated
+create policy "Users can delete their own gestao clients"
+  on public.gestao_clients for delete to authenticated
   using (auth.uid() = user_id);
 
-create or replace function public.set_clients_updated_at()
+create or replace function public.set_gestao_clients_updated_at()
 returns trigger
 language plpgsql
 as $$
@@ -88,9 +82,9 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_clients_updated_at on public.clients;
-create trigger trg_clients_updated_at
-  before update on public.clients
-  for each row execute function public.set_clients_updated_at();
+drop trigger if exists trg_gestao_clients_updated_at on public.gestao_clients;
+create trigger trg_gestao_clients_updated_at
+  before update on public.gestao_clients
+  for each row execute function public.set_gestao_clients_updated_at();
 
 select pg_notify('pgrst', 'reload schema');

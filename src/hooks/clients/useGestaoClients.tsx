@@ -8,13 +8,10 @@ interface DbClient {
   id: string;
   user_id: string;
   name?: string;
-  nome?: string;
   company?: string;
   instagram: string | null;
   manager?: string;
-  consultor?: string | null;
   status: string;
-  valor?: number | null;
   monthly_budget?: number;
   payment_date?: number;
   commission_value?: number;
@@ -29,8 +26,8 @@ interface DbClient {
 }
 
 function dbToClient(row: DbClient): Client {
-  const clientName = row.name || row.nome || "";
-  const manager = row.manager || row.consultor || "Leonardo";
+  const clientName = row.name || "";
+  const manager = row.manager || "Leonardo";
   return {
     id: row.id,
     name: clientName,
@@ -42,7 +39,7 @@ function dbToClient(row: DbClient): Client {
     monthlyBudget: Number(row.monthly_budget || 0),
     paymentDate: Number(row.payment_date || 1),
     commissionValue: Number(row.commission_value || 0),
-    contractValue: Number((row as any).contract_value || row.valor || 0) || 0,
+    contractValue: Number((row as any).contract_value || 0) || 0,
     lastBalanceDate: row.last_balance_date || "",
     balanceNote: row.balance_note || "",
     lastReportDate: row.last_report_date || "",
@@ -75,21 +72,15 @@ function clientToDb(client: Client, userId: string) {
     id: client.id,
     user_id: userId,
     name: client.name,
-    nome: client.name,
     company: client.company,
     instagram: client.instagram,
     manager: client.manager,
-    consultor: client.manager,
     status: client.status,
     payment_status: client.paymentStatus,
     monthly_budget: client.monthlyBudget,
     payment_date: client.paymentDate,
     commission_value: client.commissionValue,
     contract_value: client.contractValue,
-    valor: client.contractValue,
-    leads: 0,
-    mql: 0,
-    ultima_atividade: nullableDate(client.lastAccountUpdate),
     last_balance_date: nullableDate(client.lastBalanceDate),
     balance_note: client.balanceNote,
     last_report_date: nullableDate(client.lastReportDate),
@@ -112,7 +103,7 @@ export function useClients() {
       return;
     }
     const { data, error } = await supabase
-      .from("clients")
+      .from("gestao_clients" as any)
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -132,8 +123,8 @@ export function useClients() {
   useEffect(() => {
     if (!session?.user?.id) return;
     const channel = supabase
-      .channel("clients-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, () => fetchClients())
+      .channel("gestao-clients-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "gestao_clients" }, () => fetchClients())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [session?.user?.id, fetchClients]);
@@ -144,7 +135,7 @@ export function useClients() {
     // Remove the client-generated id, let DB generate UUID
     const { id, ...rest } = sanitizeClientDates(dbData);
     const { data, error } = await supabase
-      .from("clients")
+      .from("gestao_clients" as any)
       .insert(rest as any)
       .select()
       .single();
@@ -164,7 +155,7 @@ export function useClients() {
     const dbData = clientToDb(client, session.user.id);
     const { id, user_id, ...rest } = sanitizeClientDates(dbData);
     const { error } = await supabase
-      .from("clients")
+      .from("gestao_clients" as any)
       .update(rest as any)
       .eq("id", client.id);
 
@@ -179,7 +170,7 @@ export function useClients() {
 
   const deleteClient = async (id: string) => {
     const { error } = await supabase
-      .from("clients")
+      .from("gestao_clients" as any)
       .delete()
       .eq("id", id);
 
