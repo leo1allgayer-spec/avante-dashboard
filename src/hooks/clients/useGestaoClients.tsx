@@ -7,37 +7,42 @@ import { toast } from "sonner";
 interface DbClient {
   id: string;
   user_id: string;
-  name: string;
-  company: string;
-  instagram: string;
-  manager: string;
+  name?: string;
+  nome?: string;
+  company?: string;
+  instagram: string | null;
+  manager?: string;
+  consultor?: string | null;
   status: string;
-  monthly_budget: number;
-  payment_date: number;
-  commission_value: number;
-  last_balance_date: string;
-  balance_note: string;
-  last_report_date: string;
-  report_day: string;
-  last_account_update: string;
-  start_date: string;
+  valor?: number | null;
+  monthly_budget?: number;
+  payment_date?: number;
+  commission_value?: number;
+  last_balance_date?: string;
+  balance_note?: string;
+  last_report_date?: string;
+  report_day?: string;
+  last_account_update?: string;
+  start_date?: string;
   notes: ClientNote[];
   created_at: string;
 }
 
 function dbToClient(row: DbClient): Client {
+  const clientName = row.name || row.nome || "";
+  const manager = row.manager || row.consultor || "Leonardo";
   return {
     id: row.id,
-    name: row.name,
+    name: clientName,
     company: row.company || "",
     instagram: row.instagram || "",
-    manager: row.manager,
+    manager,
     status: row.status as "Ativo" | "Pausado",
     paymentStatus: ((row as any).payment_status || "a receber") as "pago" | "atrasado" | "a receber" | "permuta",
-    monthlyBudget: Number(row.monthly_budget),
-    paymentDate: row.payment_date,
-    commissionValue: Number(row.commission_value),
-    contractValue: Number((row as any).contract_value) || 0,
+    monthlyBudget: Number(row.monthly_budget || 0),
+    paymentDate: Number(row.payment_date || 1),
+    commissionValue: Number(row.commission_value || 0),
+    contractValue: Number((row as any).contract_value || row.valor || 0) || 0,
     lastBalanceDate: row.last_balance_date || "",
     balanceNote: row.balance_note || "",
     lastReportDate: row.last_report_date || "",
@@ -70,15 +75,21 @@ function clientToDb(client: Client, userId: string) {
     id: client.id,
     user_id: userId,
     name: client.name,
+    nome: client.name,
     company: client.company,
     instagram: client.instagram,
     manager: client.manager,
+    consultor: client.manager,
     status: client.status,
     payment_status: client.paymentStatus,
     monthly_budget: client.monthlyBudget,
     payment_date: client.paymentDate,
     commission_value: client.commissionValue,
     contract_value: client.contractValue,
+    valor: client.contractValue,
+    leads: 0,
+    mql: 0,
+    ultima_atividade: nullableDate(client.lastAccountUpdate),
     last_balance_date: nullableDate(client.lastBalanceDate),
     balance_note: client.balanceNote,
     last_report_date: nullableDate(client.lastReportDate),
