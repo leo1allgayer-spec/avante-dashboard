@@ -566,6 +566,54 @@ export type Database = {
         }
         Relationships: []
       }
+      fechamentos_diarios: {
+        Row: {
+          cliente: string
+          created_at: string
+          data: string
+          id: string
+          observacao: string | null
+          previsao_entrada: string | null
+          produto_servico: string
+          status: string
+          updated_at: string
+          user_id: string
+          valor_a_entrar: number
+          valor_sinal: number
+          vendedor: string
+        }
+        Insert: {
+          cliente: string
+          created_at?: string
+          data?: string
+          id?: string
+          observacao?: string | null
+          previsao_entrada?: string | null
+          produto_servico?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+          valor_a_entrar?: number
+          valor_sinal?: number
+          vendedor?: string
+        }
+        Update: {
+          cliente?: string
+          created_at?: string
+          data?: string
+          id?: string
+          observacao?: string | null
+          previsao_entrada?: string | null
+          produto_servico?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+          valor_a_entrar?: number
+          valor_sinal?: number
+          vendedor?: string
+        }
+        Relationships: []
+      }
       vendas: {
         Row: {
           cliente: string

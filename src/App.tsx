@@ -23,6 +23,7 @@ import ResetPassword from "./pages/ResetPassword";
 import PesquisaPage from "./pages/PesquisaPage";
 import PlanilhaPage from "./pages/PlanilhaPage";
 import VendasPage from "./pages/VendasPage";
+import FechamentosPage from "./pages/FechamentosPage";
 import CursosDadosPage from "./pages/CursosDadosPage";
 import CriativosPage from "./pages/CriativosPage";
 import PlanilhaInstaPage from "./pages/PlanilhaInstaPage";
@@ -87,6 +88,7 @@ const AnimatedRoutes = () => {
         <Route path="/pesquisa" element={<PesquisaPage />} />
         <Route path="/planilha" element={<ProtectedRoute><PlanilhaPage /></ProtectedRoute>} />
         <Route path="/vendas" element={<ProtectedRoute><VendasPage /></ProtectedRoute>} />
+        <Route path="/fechamentos" element={<ProtectedRoute><FechamentosPage /></ProtectedRoute>} />
         <Route path="/cursos-dados" element={<ProtectedRoute><CursosDadosPage /></ProtectedRoute>} />
         <Route path="/criativos" element={<ProtectedRoute><CriativosPage /></ProtectedRoute>} />
         <Route path="/planilha-insta" element={<ProtectedRoute><PlanilhaInstaPage /></ProtectedRoute>} />
