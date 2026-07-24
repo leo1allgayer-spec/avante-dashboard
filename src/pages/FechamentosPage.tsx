@@ -12,6 +12,7 @@ import {
   useFechamentosDiarios,
   useUpdateFechamentoDiario,
 } from "@/hooks/useFechamentosDiarios";
+import { SERVICE_CATEGORIES } from "@/constants/serviceCategories";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,19 +22,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarClock, CheckCircle2, Clock3, Pencil, Plus, Search, Trash2, Wallet } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock3, Layers3, Pencil, Plus, Search, Trash2, Wallet } from "lucide-react";
 
-const STATUS_OPTIONS = ["para entrar", "recebido", "cancelado"];
+const STATUS_OPTIONS = ["a receber", "recebido", "cancelado"];
 
 const defaultForm = {
   data: new Date().toISOString().split("T")[0],
   cliente: "",
   vendedor: "",
   produto_servico: "",
+  categoria: "",
   valor_sinal: 0,
   valor_a_entrar: 0,
+  valor_recorrente: 0,
+  parcelas_total: "",
+  valor_parcela: 0,
   previsao_entrada: "",
-  status: "para entrar",
+  status: "a receber",
   observacao: "",
 };
 
@@ -46,14 +51,20 @@ const formatDate = (date?: string | null) => {
   return `${day}/${month}/${year}`;
 };
 
+const normalizeStatus = (status?: string | null) => (status === "para entrar" ? "a receber" : status || "a receber");
+
+const getCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
+  item.categoria || item.produto_servico || "Sem categoria";
+
 function StatusBadge({ status }: { status: string }) {
-  if (status === "recebido") {
-    return <Badge className="bg-success/15 text-success border-success/30">Recebido</Badge>;
+  const normalized = normalizeStatus(status);
+  if (normalized === "recebido") {
+    return <Badge className="border-success/30 bg-success/15 text-success">Recebido</Badge>;
   }
-  if (status === "cancelado") {
+  if (normalized === "cancelado") {
     return <Badge variant="outline" className="border-destructive/30 text-destructive">Cancelado</Badge>;
   }
-  return <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/30">Para entrar</Badge>;
+  return <Badge className="border-amber-500/30 bg-amber-500/15 text-amber-500">A receber</Badge>;
 }
 
 export default function FechamentosPage() {
@@ -76,27 +87,47 @@ export default function FechamentosPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return periodItems.filter((item) => {
-      if (statusFilter !== "todos" && item.status !== statusFilter) return false;
+      if (statusFilter !== "todos" && normalizeStatus(item.status) !== statusFilter) return false;
       if (!q) return true;
-      return [item.cliente, item.vendedor, item.produto_servico, item.observacao || ""]
+      return [item.cliente, item.vendedor, getCategoria(item), item.produto_servico, item.observacao || ""]
         .some((value) => value.toLowerCase().includes(q));
     });
   }, [periodItems, search, statusFilter]);
 
   const totals = useMemo(() => {
-    const ativos = filtered.filter((item) => item.status !== "cancelado");
-    const sinal = ativos.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-    const aEntrar = ativos.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
-    const recebido = ativos
-      .filter((item) => item.status === "recebido")
-      .reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
+    const ativos = filtered.filter((item) => normalizeStatus(item.status) !== "cancelado");
+    const coletado = ativos.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
+    const aReceber = ativos.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
+    const recorrente = ativos.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
     return {
-      sinal,
-      aEntrar,
-      previsto: sinal + aEntrar,
-      recebido,
+      coletado,
+      aReceber,
+      total: coletado + aReceber,
+      recorrente,
       quantidade: ativos.length,
     };
+  }, [filtered]);
+
+  const categoryTotals = useMemo(() => {
+    const totalsByCategory = filtered
+      .filter((item) => normalizeStatus(item.status) !== "cancelado")
+      .reduce<Record<string, { total: number; coletado: number; aReceber: number; recorrente: number }>>((acc, item) => {
+        const categoria = getCategoria(item);
+        if (!acc[categoria]) acc[categoria] = { total: 0, coletado: 0, aReceber: 0, recorrente: 0 };
+
+        const coletado = Number(item.valor_sinal || 0);
+        const aReceber = Number(item.valor_a_entrar || 0);
+        const recorrente = Number(item.valor_recorrente || 0);
+        acc[categoria].coletado += coletado;
+        acc[categoria].aReceber += aReceber;
+        acc[categoria].recorrente += recorrente;
+        acc[categoria].total += coletado + aReceber;
+        return acc;
+      }, {});
+
+    return Object.entries(totalsByCategory)
+      .map(([categoria, values]) => ({ categoria, ...values }))
+      .sort((a, b) => b.total - a.total);
   }, [filtered]);
 
   const openNewDialog = () => {
@@ -112,10 +143,14 @@ export default function FechamentosPage() {
       cliente: item.cliente,
       vendedor: item.vendedor,
       produto_servico: item.produto_servico,
+      categoria: getCategoria(item),
       valor_sinal: item.valor_sinal,
       valor_a_entrar: item.valor_a_entrar,
+      valor_recorrente: item.valor_recorrente,
+      parcelas_total: item.parcelas_total ? String(item.parcelas_total) : "",
+      valor_parcela: item.valor_parcela,
       previsao_entrada: item.previsao_entrada || "",
-      status: item.status,
+      status: normalizeStatus(item.status),
       observacao: item.observacao || "",
     });
     setDialogOpen(true);
@@ -129,16 +164,21 @@ export default function FechamentosPage() {
       return;
     }
 
+    const categoria = form.categoria || form.produto_servico.trim();
     const payload = {
       user_id: session.user.id,
       data: form.data,
       cliente: form.cliente.trim(),
       vendedor: form.vendedor.trim(),
-      produto_servico: form.produto_servico.trim(),
+      produto_servico: categoria,
+      categoria,
       valor_sinal: Number(form.valor_sinal || 0),
       valor_a_entrar: Number(form.valor_a_entrar || 0),
+      valor_recorrente: Number(form.valor_recorrente || 0),
+      parcelas_total: form.parcelas_total ? Number(form.parcelas_total) : null,
+      valor_parcela: Number(form.valor_parcela || 0),
       previsao_entrada: form.previsao_entrada || null,
-      status: form.status,
+      status: normalizeStatus(form.status),
       observacao: form.observacao.trim() || null,
     };
 
@@ -176,7 +216,7 @@ export default function FechamentosPage() {
   );
 
   return (
-    <DashboardLayout title="Fechamentos Diários" subtitle="Sinais recebidos e valores previstos para entrar" actions={actions}>
+    <DashboardLayout title="Fechamentos Diarios" subtitle="Valores coletados, a receber e recorrentes mensais" actions={actions}>
       <PageTransition>
         <DateFilterBar
           mode={dateFilter.mode}
@@ -190,36 +230,61 @@ export default function FechamentosPage() {
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                <Wallet className="h-4 w-4 text-success" /> Sinal recebido
+                <Wallet className="h-4 w-4 text-success" /> Valor coletado
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.sinal)}</CardContent>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.coletado)}</CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                <Clock3 className="h-4 w-4 text-amber-500" /> Para entrar
+                <Clock3 className="h-4 w-4 text-amber-500" /> A receber
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.aEntrar)}</CardContent>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.aReceber)}</CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                <CalendarClock className="h-4 w-4 text-primary" /> Total previsto
+                <CalendarClock className="h-4 w-4 text-primary" /> Total do periodo
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.previsto)}</CardContent>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.total)}</CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 text-accent" /> Fechamentos
+                <Layers3 className="h-4 w-4 text-accent" /> Recorrente mensal
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{totals.quantidade}</CardContent>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(totals.recorrente)}</CardContent>
           </Card>
         </div>
+
+        <Card className="border-border/50 bg-card/70">
+          <CardHeader>
+            <CardTitle>Totais por categoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {categoryTotals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma categoria encontrada no periodo.</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {categoryTotals.map((item) => (
+                  <div key={item.categoria} className="rounded-lg border border-border/50 bg-background/40 p-4">
+                    <div className="text-sm font-semibold">{item.categoria}</div>
+                    <div className="mt-3 font-display text-xl font-bold">{formatBRL(item.total)}</div>
+                    <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
+                      <span>Coletado: {formatBRL(item.coletado)}</span>
+                      <span>A receber: {formatBRL(item.aReceber)}</span>
+                      <span>Recorrente: {formatBRL(item.recorrente)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card className="border-border/50 bg-card/70">
           <CardHeader>
@@ -227,7 +292,7 @@ export default function FechamentosPage() {
               <div>
                 <CardTitle>Lista de fechamentos</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Controle os sinais recebidos no dia e os valores que ainda vão entrar.
+                  Controle os valores coletados no dia, o que ainda vai entrar e os recorrentes.
                 </p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -261,22 +326,23 @@ export default function FechamentosPage() {
                   <TableRow>
                     <TableHead>Data</TableHead>
                     <TableHead>Cliente</TableHead>
-                    <TableHead>Produto/serviço</TableHead>
-                    <TableHead className="text-right">Sinal</TableHead>
-                    <TableHead className="text-right">Para entrar</TableHead>
-                    <TableHead>Previsão</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead className="text-right">Coletado</TableHead>
+                    <TableHead className="text-right">A receber</TableHead>
+                    <TableHead className="text-right">Recorrente</TableHead>
+                    <TableHead>Previsao</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
+                    <TableHead className="text-right">Acoes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
+                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
                     </TableRow>
                   ) : filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Nenhum fechamento encontrado.</TableCell>
+                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum fechamento encontrado.</TableCell>
                     </TableRow>
                   ) : (
                     filtered.map((item) => (
@@ -287,16 +353,22 @@ export default function FechamentosPage() {
                           {item.vendedor && <div className="text-xs text-muted-foreground">{item.vendedor}</div>}
                         </TableCell>
                         <TableCell>
-                          <div>{item.produto_servico || "-"}</div>
+                          <div>{getCategoria(item)}</div>
+                          {item.parcelas_total && (
+                            <div className="text-xs text-muted-foreground">
+                              {item.parcelas_total}x de {formatBRL(Number(item.valor_parcela || 0))}
+                            </div>
+                          )}
                           {item.observacao && <div className="max-w-xs truncate text-xs text-muted-foreground">{item.observacao}</div>}
                         </TableCell>
                         <TableCell className="text-right font-semibold text-success">{formatBRL(item.valor_sinal)}</TableCell>
                         <TableCell className="text-right font-semibold text-amber-500">{formatBRL(item.valor_a_entrar)}</TableCell>
+                        <TableCell className="text-right font-semibold text-primary">{formatBRL(item.valor_recorrente)}</TableCell>
                         <TableCell className="whitespace-nowrap">{formatDate(item.previsao_entrada)}</TableCell>
                         <TableCell><StatusBadge status={item.status} /></TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-1">
-                            {item.status === "para entrar" && (
+                            {normalizeStatus(item.status) === "a receber" && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -334,7 +406,7 @@ export default function FechamentosPage() {
             <DialogHeader>
               <DialogTitle>{editing ? "Editar fechamento" : "Registrar fechamento"}</DialogTitle>
               <DialogDescription>
-                Lance o sinal recebido e o valor que ainda está previsto para entrar.
+                Lance o valor coletado, o que esta a receber, recorrentes e parcelas.
               </DialogDescription>
             </DialogHeader>
 
@@ -363,28 +435,47 @@ export default function FechamentosPage() {
                 <Input value={form.vendedor} onChange={(event) => setForm((prev) => ({ ...prev, vendedor: event.target.value }))} placeholder="Quem fechou" />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label>Produto ou serviço</Label>
-                <Input value={form.produto_servico} onChange={(event) => setForm((prev) => ({ ...prev, produto_servico: event.target.value }))} placeholder="Curso, CRM, Site, Upsell..." />
+                <Label>Categoria</Label>
+                <Select value={form.categoria} onValueChange={(categoria) => setForm((prev) => ({ ...prev, categoria, produto_servico: categoria }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_CATEGORIES.map((categoria) => (
+                      <SelectItem key={categoria} value={categoria}>{categoria}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label>Valor de sinal recebido</Label>
+                <Label>Valor coletado</Label>
                 <Input type="number" step="0.01" value={form.valor_sinal || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_sinal: Number(event.target.value) }))} placeholder="0,00" />
               </div>
               <div className="space-y-2">
-                <Label>Valor para entrar</Label>
+                <Label>Valor a receber</Label>
                 <Input type="number" step="0.01" value={form.valor_a_entrar || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_a_entrar: Number(event.target.value) }))} placeholder="0,00" />
               </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Previsão de entrada</Label>
+              <div className="space-y-2">
+                <Label>Recorrente mensal</Label>
+                <Input type="number" step="0.01" value={form.valor_recorrente || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_recorrente: Number(event.target.value) }))} placeholder="0,00" />
+              </div>
+              <div className="space-y-2">
+                <Label>Previsao de entrada</Label>
                 <Input type="date" value={form.previsao_entrada} onChange={(event) => setForm((prev) => ({ ...prev, previsao_entrada: event.target.value }))} />
               </div>
+              <div className="space-y-2">
+                <Label>Quantidade de parcelas</Label>
+                <Input type="number" min="1" step="1" value={form.parcelas_total} onChange={(event) => setForm((prev) => ({ ...prev, parcelas_total: event.target.value }))} placeholder="Ex: 3" />
+              </div>
+              <div className="space-y-2">
+                <Label>Valor da parcela</Label>
+                <Input type="number" step="0.01" value={form.valor_parcela || ""} onChange={(event) => setForm((prev) => ({ ...prev, valor_parcela: Number(event.target.value) }))} placeholder="0,00" />
+              </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label>Observação</Label>
-                <Textarea value={form.observacao} onChange={(event) => setForm((prev) => ({ ...prev, observacao: event.target.value }))} placeholder="Forma de pagamento, condição combinada, parcelas..." rows={3} />
+                <Label>Observacao</Label>
+                <Textarea value={form.observacao} onChange={(event) => setForm((prev) => ({ ...prev, observacao: event.target.value }))} placeholder="Forma de pagamento, condicao combinada, parcelas..." rows={3} />
               </div>
               <div className="sm:col-span-2">
                 <Button type="submit" className="w-full" disabled={createFechamento.isPending || updateFechamento.isPending}>
-                  {editing ? "Salvar alterações" : "Registrar fechamento"}
+                  {editing ? "Salvar alteracoes" : "Registrar fechamento"}
                 </Button>
               </div>
             </form>

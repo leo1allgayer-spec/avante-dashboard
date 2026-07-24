@@ -570,45 +570,57 @@ export type Database = {
         Row: {
           cliente: string
           created_at: string
+          categoria: string | null
           data: string
           id: string
           observacao: string | null
+          parcelas_total: number | null
           previsao_entrada: string | null
           produto_servico: string
           status: string
           updated_at: string
           user_id: string
           valor_a_entrar: number
+          valor_parcela: number
+          valor_recorrente: number
           valor_sinal: number
           vendedor: string
         }
         Insert: {
           cliente: string
           created_at?: string
+          categoria?: string | null
           data?: string
           id?: string
           observacao?: string | null
+          parcelas_total?: number | null
           previsao_entrada?: string | null
           produto_servico?: string
           status?: string
           updated_at?: string
           user_id: string
           valor_a_entrar?: number
+          valor_parcela?: number
+          valor_recorrente?: number
           valor_sinal?: number
           vendedor?: string
         }
         Update: {
           cliente?: string
           created_at?: string
+          categoria?: string | null
           data?: string
           id?: string
           observacao?: string | null
+          parcelas_total?: number | null
           previsao_entrada?: string | null
           produto_servico?: string
           status?: string
           updated_at?: string
           user_id?: string
           valor_a_entrar?: number
+          valor_parcela?: number
+          valor_recorrente?: number
           valor_sinal?: number
           vendedor?: string
         }

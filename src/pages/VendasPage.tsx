@@ -15,19 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Search, Pencil } from "lucide-react";
+import { SERVICE_CATEGORIES } from "@/constants/serviceCategories";
 
 
-const PRODUTOS = [
-  "Meta Ads",
-  "Google Ads",
-  "YouTube Ads",
-  "TikTok Ads",
-  "Social Media",
-  "Edição e Captação",
-  "IA",
-];
-
-const SERVICOS = ["Tráfego", "Captação", "Site", "CRM"];
+const PRODUTOS = SERVICE_CATEGORIES;
+const SERVICOS = SERVICE_CATEGORIES;
 const ORIGENS = ["Anúncio", "Upsell", "Indicação Direta", "Indicação Comercial"];
 
 const TAXAS_CARTAO_GATEWAY: Record<number, number> = {

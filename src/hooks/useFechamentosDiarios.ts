@@ -8,8 +8,12 @@ export interface FechamentoDiario {
   cliente: string;
   vendedor: string;
   produto_servico: string;
+  categoria: string | null;
   valor_sinal: number;
   valor_a_entrar: number;
+  valor_recorrente: number;
+  parcelas_total: number | null;
+  valor_parcela: number;
   previsao_entrada: string | null;
   status: string;
   observacao: string | null;
