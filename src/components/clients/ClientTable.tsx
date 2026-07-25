@@ -141,9 +141,9 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
     );
   };
 
-  const SortHeader = ({ label, sortField }: { label: string; sortField: SortKey }) => (
+  const SortHeader = ({ label, sortField, className }: { label: string; sortField: SortKey; className?: string }) => (
     <th
-      className="px-2 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap"
+      className={cn("px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap", className)}
       onClick={() => toggleSort(sortField)}
     >
       <span className="inline-flex items-center gap-1">
@@ -153,8 +153,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
     </th>
   );
 
-  const StaticHeader = ({ label }: { label: string }) => (
-    <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+  const StaticHeader = ({ label, className }: { label: string; className?: string }) => (
+    <th className={cn("px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap", className)}>
       {label}
     </th>
   );
@@ -165,8 +165,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
         <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       )}
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_160px_140px_140px_auto] xl:grid-cols-[minmax(320px,1fr)_160px_140px_140px_auto]">
+        <div className="relative min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Buscar por nome ou Instagram..."
@@ -176,7 +176,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
           />
         </div>
         <Select value={filterManager} onValueChange={setFilterManager}>
-          <SelectTrigger className="w-[160px] bg-card border-border">
+          <SelectTrigger className="w-full bg-card border-border">
             <SelectValue placeholder="Gestor" />
           </SelectTrigger>
           <SelectContent>
@@ -188,7 +188,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
         </Select>
         {!onlyStatus && (
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[140px] bg-card border-border">
+            <SelectTrigger className="w-full bg-card border-border">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -199,16 +199,16 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
           </Select>
         )}
         <Select value={filterAlert} onValueChange={setFilterAlert}>
-          <SelectTrigger className="w-[160px] bg-card border-border">
+          <SelectTrigger className="w-full bg-card border-border">
             <SelectValue placeholder="Alertas" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="late">🔴 Atrasados</SelectItem>
+            <SelectItem value="late">Atrasados</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filterPayment} onValueChange={setFilterPayment}>
-          <SelectTrigger className="w-[140px] bg-card border-border">
+          <SelectTrigger className="w-full bg-card border-border">
             <SelectValue placeholder="Pgto" />
           </SelectTrigger>
           <SelectContent>
@@ -217,32 +217,33 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             <SelectItem value="30">Dia 30</SelectItem>
           </SelectContent>
         </Select>
-        <Button onClick={onAddClient} className="gap-2">
+        <Button onClick={onAddClient} className="gap-2 whitespace-nowrap">
           <Plus className="h-4 w-4" /> Novo Cliente
         </Button>
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border">
-        <table className="w-full text-xs">
-          <thead className="bg-secondary">
+      <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
+        <div className="max-h-[70vh] overflow-auto overscroll-contain">
+        <table className="min-w-[1760px] w-full table-fixed text-xs">
+          <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
-              <SortHeader label="Cliente" sortField="name" />
-              <StaticHeader label="Instagram" />
-              <StaticHeader label="Gestor" />
-              <StaticHeader label="Status" />
-              <StaticHeader label="Orçamento" />
-              <StaticHeader label="Saldo" />
-              <StaticHeader label="Otimização" />
-              <StaticHeader label="Dia Relatório" />
-              <SortHeader label="Atualização" sortField="lastAccountUpdate" />
-              <SortHeader label="Retenção" sortField="retention" />
-              <StaticHeader label="Cobrança" />
-              <StaticHeader label="Contrato" />
-              <StaticHeader label="Status Pgto" />
-              <SortHeader label="Pgto" sortField="paymentDate" />
-              <StaticHeader label="Comissão" />
-              <StaticHeader label="" />
+              <SortHeader label="Cliente" sortField="name" className="sticky left-0 z-30 w-[190px] bg-secondary border-r border-border" />
+              <StaticHeader label="Instagram" className="w-[150px]" />
+              <StaticHeader label="Gestor" className="w-[95px]" />
+              <StaticHeader label="Status" className="w-[80px]" />
+              <StaticHeader label="Orçamento" className="w-[110px]" />
+              <StaticHeader label="Saldo" className="w-[145px]" />
+              <StaticHeader label="Otimização" className="w-[145px]" />
+              <StaticHeader label="Dia relatório" className="w-[125px]" />
+              <SortHeader label="Atualização" sortField="lastAccountUpdate" className="w-[145px]" />
+              <SortHeader label="Retenção" sortField="retention" className="w-[90px]" />
+              <StaticHeader label="Cobrança" className="w-[120px]" />
+              <StaticHeader label="Contrato" className="w-[115px]" />
+              <StaticHeader label="Status pgto" className="w-[125px]" />
+              <SortHeader label="Pgto" sortField="paymentDate" className="w-[85px]" />
+              <StaticHeader label="Comissão" className="w-[105px]" />
+              <StaticHeader label="" className="w-[52px]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -255,8 +256,10 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 )}
                 onClick={() => onClientClick(client.id)}
               >
-                <td className="px-2 py-2 font-medium whitespace-nowrap">
-                  {renderEditable(client, "name", client.name)}
+                <td className="sticky left-0 z-10 border-r border-border bg-card/95 px-3 py-2 font-medium whitespace-nowrap">
+                  <div className="max-w-[165px] truncate" title={client.name}>
+                    {renderEditable(client, "name", client.name)}
+                  </div>
                 </td>
                 <td className="px-2 py-2 max-w-[140px]" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-1">
@@ -306,7 +309,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
                   const status = getAlertStatus(dateStr);
                   const label = getAlertLabel(dateStr);
-                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "—";
+                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
                   return (
                     <td key={field} className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
@@ -335,7 +338,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
                   const status = getAlertStatus(dateStr);
                   const label = getAlertLabel(dateStr);
-                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "—";
+                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
                   return (
                     <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
@@ -369,7 +372,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 {(() => {
                   const dateStr = client.nextChargeDate || "";
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
-                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "—";
+                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
                   return (
                     <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <Popover>
@@ -410,7 +413,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                       <AlertDialogHeader>
                         <AlertDialogTitle>Excluir cliente</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Tem certeza que deseja excluir <strong>{client.name}</strong>? Esta ação não pode ser desfeita.
+                          Tem certeza que deseja excluir <strong>{client.name}</strong>? Esta acao nao pode ser desfeita.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -445,7 +448,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 <td className="px-2 py-2 font-semibold text-primary whitespace-nowrap">
                   {(() => {
                     const ativos = filtered.filter(c => c.status === "Ativo" && c.startDate);
-                    if (ativos.length === 0) return "—";
+                    if (ativos.length === 0) return "-";
                     const avg = ativos.reduce((sum, c) => sum + getRetentionMonths(c.startDate), 0) / ativos.length;
                     return `${avg.toFixed(1)}m`;
                   })()}
@@ -459,7 +462,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     return (
                       <div className="flex flex-col">
                         <span>{formatCurrency(total)}</span>
-                        <span className="text-xs text-muted-foreground font-normal">média: {formatCurrency(media)}</span>
+                        <span className="text-xs text-muted-foreground font-normal">media: {formatCurrency(media)}</span>
                       </div>
                     );
                   })()}
@@ -473,6 +476,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             </tfoot>
           )}
         </table>
+        </div>
       </div>
 
       <div className="text-xs text-muted-foreground">
