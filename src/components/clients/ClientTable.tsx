@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Client, PaymentStatus, getAlertStatus, getAlertLabel, getRetentionMonths, formatCurrency, MANAGERS, WEEKDAYS } from "@/types/clients/client";
+import { Client, PaymentStatus, AlertStatus, getAlertStatus, getAlertLabel, getRetentionMonths, formatCurrency, MANAGERS, WEEKDAYS } from "@/types/clients/client";
 import { StatusIndicator } from "@/components/clients/StatusIndicator";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -105,11 +105,21 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
 
   const PAYMENT_STATUSES: PaymentStatus[] = ["pago", "atrasado", "a receber", "permuta"];
   const paymentStatusColors: Record<PaymentStatus, string> = {
-    "pago": "bg-status-ok status-ok",
-    "atrasado": "bg-status-late status-late",
-    "a receber": "bg-status-warn status-warn",
-    "permuta": "bg-blue-500/20 text-blue-400",
+    "pago": "border-emerald-500/40 bg-emerald-500/20 text-emerald-300",
+    "atrasado": "border-red-500/45 bg-red-500/20 text-red-300",
+    "a receber": "border-amber-500/45 bg-amber-500/20 text-amber-200",
+    "permuta": "border-blue-500/45 bg-blue-500/20 text-blue-300",
   };
+
+  const alertBadgeClasses: Record<AlertStatus, string> = {
+    ok: "border-emerald-500/35 bg-emerald-500/10 text-emerald-300",
+    warn: "border-yellow-500/45 bg-yellow-500/15 text-yellow-200",
+    today: "border-orange-500/45 bg-orange-500/15 text-orange-200",
+    late: "border-red-500/45 bg-red-500/15 text-red-300",
+  };
+
+  const moneyTone = (value: number) =>
+    Number(value) > 0 ? "text-foreground font-semibold" : "text-muted-foreground";
 
   const renderEditable = (client: Client, field: keyof Client, display: string, type = "text") => {
     const isEditing = editingCell?.id === client.id && editingCell?.field === field;
@@ -287,10 +297,10 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 </td>
                 <td className="px-2 py-2">
                   <span
-                    className={`inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                    className={`inline-flex border px-2 py-1 rounded-full text-xs font-semibold ${
                       client.status === "Ativo"
-                        ? "bg-status-ok status-ok"
-                        : "bg-status-warn status-warn"
+                        ? "border-emerald-500/35 bg-emerald-500/15 text-emerald-300"
+                        : "border-slate-500/40 bg-slate-500/15 text-slate-300"
                     }`}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -303,7 +313,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     {client.status}
                   </span>
                 </td>
-                <td className="px-2 py-2">{renderEditable(client, "monthlyBudget", formatCurrency(client.monthlyBudget), "number")}</td>
+                <td className={cn("px-2 py-2", moneyTone(client.monthlyBudget))}>{renderEditable(client, "monthlyBudget", formatCurrency(client.monthlyBudget), "number")}</td>
                 {(["lastBalanceDate", "lastReportDate"] as const).map((field) => {
                   const dateStr = client[field];
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
@@ -314,9 +324,9 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     <td key={field} className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5 transition-colors whitespace-nowrap">
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">{dateFormatted}</span>
-                            <span className={cn("text-xs font-medium whitespace-nowrap", status === "ok" && "status-ok", status === "warn" && "status-warn", status === "today" && "text-status-today", status === "late" && "status-late")}>{label}</span>
+                          <button className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-1 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
+                            <span className="text-xs whitespace-nowrap">{dateFormatted}</span>
+                            <span className="text-xs font-semibold whitespace-nowrap">{label}</span>
                             <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                           </button>
                         </PopoverTrigger>
@@ -343,9 +353,9 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5 transition-colors whitespace-nowrap">
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">{dateFormatted}</span>
-                            <span className={cn("text-xs font-medium whitespace-nowrap", status === "ok" && "status-ok", status === "warn" && "status-warn", status === "today" && "text-status-today", status === "late" && "status-late")}>{label}</span>
+                          <button className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-1 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
+                            <span className="text-xs whitespace-nowrap">{dateFormatted}</span>
+                            <span className="text-xs font-semibold whitespace-nowrap">{label}</span>
                             <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                           </button>
                         </PopoverTrigger>
@@ -389,7 +399,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     </td>
                   );
                 })()}
-                <td className="px-2 py-2">{renderEditable(client, "contractValue", formatCurrency(client.contractValue), "number")}</td>
+                <td className={cn("px-2 py-2", moneyTone(client.contractValue))}>{renderEditable(client, "contractValue", formatCurrency(client.contractValue), "number")}</td>
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                   <Select value={client.paymentStatus} onValueChange={(v) => onUpdateClient({ ...client, paymentStatus: v as PaymentStatus })}>
                     <SelectTrigger className={cn("h-6 w-[100px] text-xs border-border rounded-full", paymentStatusColors[client.paymentStatus])}>
@@ -400,8 +410,12 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     </SelectContent>
                   </Select>
                 </td>
-                <td className="px-2 py-2 whitespace-nowrap">Dia {client.paymentDate}</td>
-                <td className="px-2 py-2">{formatCurrency(client.commissionValue)}</td>
+                <td className="px-2 py-2 whitespace-nowrap">
+                  <span className="inline-flex rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                    Dia {client.paymentDate}
+                  </span>
+                </td>
+                <td className={cn("px-2 py-2", moneyTone(client.commissionValue))}>{formatCurrency(client.commissionValue)}</td>
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
