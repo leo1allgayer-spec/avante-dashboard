@@ -153,7 +153,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
 
   const SortHeader = ({ label, sortField, className }: { label: string; sortField: SortKey; className?: string }) => (
     <th
-      className={cn("px-2 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap", className)}
+      className={cn("px-2 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground transition-colors select-none whitespace-nowrap", className)}
       onClick={() => toggleSort(sortField)}
     >
       <span className="inline-flex items-center gap-1">
@@ -164,7 +164,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
   );
 
   const StaticHeader = ({ label, className }: { label: string; className?: string }) => (
-    <th className={cn("px-2 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap", className)}>
+    <th className={cn("px-2 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap", className)}>
       {label}
     </th>
   );
@@ -234,26 +234,26 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
 
       {/* Table */}
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
-        <div className="max-h-[70vh] overflow-auto overscroll-contain">
-        <table className="min-w-[1180px] w-full table-fixed text-[11px]">
+        <div className="overflow-x-auto overscroll-contain">
+        <table className="min-w-[1500px] w-full table-fixed text-xs">
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
-              <SortHeader label="Cliente" sortField="name" className="sticky left-0 z-30 w-[145px] bg-secondary border-r border-border" />
-              <StaticHeader label="Instagram" className="w-[115px]" />
+              <SortHeader label="Cliente" sortField="name" className="w-[150px]" />
+              <StaticHeader label="Instagram" className="w-[130px]" />
               <StaticHeader label="Gestor" className="w-[70px]" />
-              <StaticHeader label="Status" className="w-[64px]" />
-              <StaticHeader label="Orçam." className="w-[78px]" />
-              <StaticHeader label="Saldo" className="w-[92px]" />
-              <StaticHeader label="Otim." className="w-[92px]" />
-              <StaticHeader label="Relat." className="w-[86px]" />
-              <SortHeader label="Atual." sortField="lastAccountUpdate" className="w-[92px]" />
-              <SortHeader label="Ret." sortField="retention" className="w-[56px]" />
-              <StaticHeader label="Cobran." className="w-[76px]" />
-              <StaticHeader label="Contrato" className="w-[82px]" />
-              <StaticHeader label="Pgto" className="w-[92px]" />
-              <SortHeader label="Dia" sortField="paymentDate" className="w-[58px]" />
-              <StaticHeader label="Comiss." className="w-[78px]" />
-              <StaticHeader label="" className="w-[34px]" />
+              <StaticHeader label="Status" className="w-[70px]" />
+              <StaticHeader label="Orcamento" className="w-[90px]" />
+              <StaticHeader label="Saldo" className="w-[125px]" />
+              <StaticHeader label="Otimizacao" className="w-[125px]" />
+              <StaticHeader label="Dia relatorio" className="w-[105px]" />
+              <SortHeader label="Atualizacao" sortField="lastAccountUpdate" className="w-[125px]" />
+              <SortHeader label="Retencao" sortField="retention" className="w-[75px]" />
+              <StaticHeader label="Cobranca" className="w-[95px]" />
+              <StaticHeader label="Contrato" className="w-[95px]" />
+              <StaticHeader label="Status pgto" className="w-[100px]" />
+              <SortHeader label="Pgto" sortField="paymentDate" className="w-[65px]" />
+              <StaticHeader label="Comissao" className="w-[90px]" />
+              <StaticHeader label="" className="w-[40px]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -266,8 +266,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 )}
                 onClick={() => onClientClick(client.id)}
               >
-                <td className="sticky left-0 z-10 border-r border-border bg-card/95 px-2 py-2 font-medium whitespace-nowrap">
-                  <div className="max-w-[120px] truncate" title={client.name}>
+                <td className="px-2 py-2 font-medium whitespace-nowrap">
+                  <div className="max-w-[140px] truncate" title={client.name}>
                     {renderEditable(client, "name", client.name)}
                   </div>
                 </td>
@@ -288,7 +288,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                       value={client.instagram}
                       placeholder="instagram"
                       onSave={(v) => onUpdateClient({ ...client, instagram: v.replace(/^@/, "") })}
-                      displayClassName="truncate max-w-[84px]"
+                      displayClassName="truncate max-w-[100px]"
                     />
                   </div>
                 </td>
@@ -297,7 +297,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 </td>
                 <td className="px-2 py-2">
                   <span
-                    className={`inline-flex border px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    className={`inline-flex border px-2 py-0.5 rounded-full text-xs font-semibold ${
                       client.status === "Ativo"
                         ? "border-emerald-500/35 bg-emerald-500/15 text-emerald-300"
                         : "border-slate-500/40 bg-slate-500/15 text-slate-300"
@@ -319,15 +319,15 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
                   const status = getAlertStatus(dateStr);
                   const label = getAlertLabel(dateStr);
-                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM") : "-";
+                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
                   return (
                     <td key={field} className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
-                            <span className="text-[10px] whitespace-nowrap">{dateFormatted}</span>
-                            <span className="text-[10px] font-semibold whitespace-nowrap">{label}</span>
-                            <CalendarIcon className="h-2.5 w-2.5 text-muted-foreground" />
+                          <button className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
+                            <span className="text-xs whitespace-nowrap">{dateFormatted}</span>
+                            <span className="text-xs font-semibold whitespace-nowrap">{label}</span>
+                            <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
@@ -339,7 +339,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 })}
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                   <Select value={client.reportDay} onValueChange={(v) => onUpdateClient({ ...client, reportDay: v })}>
-                    <SelectTrigger className="h-6 w-[82px] text-[10px] bg-card border-border"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-6 w-[95px] text-xs bg-card border-border"><SelectValue /></SelectTrigger>
                     <SelectContent>{WEEKDAYS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}</SelectContent>
                   </Select>
                 </td>
@@ -348,15 +348,15 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
                   const status = getAlertStatus(dateStr);
                   const label = getAlertLabel(dateStr);
-                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM") : "-";
+                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
                   return (
                     <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
-                            <span className="text-[10px] whitespace-nowrap">{dateFormatted}</span>
-                            <span className="text-[10px] font-semibold whitespace-nowrap">{label}</span>
-                            <CalendarIcon className="h-2.5 w-2.5 text-muted-foreground" />
+                          <button className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
+                            <span className="text-xs whitespace-nowrap">{dateFormatted}</span>
+                            <span className="text-xs font-semibold whitespace-nowrap">{label}</span>
+                            <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
@@ -371,7 +371,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     <PopoverTrigger asChild>
                       <button className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5 transition-colors">
                         <span className="text-primary font-medium">{getRetentionMonths(client.startDate)}m</span>
-                        <CalendarIcon className="h-2.5 w-2.5 text-muted-foreground" />
+                        <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
@@ -382,14 +382,14 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 {(() => {
                   const dateStr = client.nextChargeDate || "";
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
-                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM") : "-";
+                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
                   return (
                     <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <Popover>
                         <PopoverTrigger asChild>
                           <button className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5 transition-colors">
-                            <span className="text-[10px] text-muted-foreground">{dateFormatted}</span>
-                            <CalendarIcon className="h-2.5 w-2.5 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">{dateFormatted}</span>
+                            <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
@@ -402,7 +402,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 <td className={cn("px-2 py-2", moneyTone(client.contractValue))}>{renderEditable(client, "contractValue", formatCurrency(client.contractValue), "number")}</td>
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                   <Select value={client.paymentStatus} onValueChange={(v) => onUpdateClient({ ...client, paymentStatus: v as PaymentStatus })}>
-                    <SelectTrigger className={cn("h-6 w-[86px] text-[10px] border-border rounded-full", paymentStatusColors[client.paymentStatus])}>
+                    <SelectTrigger className={cn("h-6 w-[95px] text-xs border-border rounded-full", paymentStatusColors[client.paymentStatus])}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -411,8 +411,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   </Select>
                 </td>
                 <td className="px-2 py-2 whitespace-nowrap">
-                  <span className="inline-flex rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                    {client.paymentDate}
+                  <span className="inline-flex rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                    Dia {client.paymentDate}
                   </span>
                 </td>
                 <td className={cn("px-2 py-2", moneyTone(client.commissionValue))}>{formatCurrency(client.commissionValue)}</td>

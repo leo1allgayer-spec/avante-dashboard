@@ -54,6 +54,7 @@ const Index = () => {
           )}
         </div>
       }
+      contentClassName="max-w-[1720px]"
     >
       {selectedClient ? (
         <ClientDetail

@@ -3,15 +3,17 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Moon, PanelLeft, Sun } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface DashboardLayoutProps {
   children: ReactNode;
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  contentClassName?: string;
 }
 
-const DashboardLayout = ({ children, title, subtitle, actions }: DashboardLayoutProps) => {
+const DashboardLayout = ({ children, title, subtitle, actions, contentClassName }: DashboardLayoutProps) => {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (typeof window === "undefined") return "dark";
     return localStorage.getItem("avante-theme") === "light" ? "light" : "dark";
@@ -63,7 +65,7 @@ const DashboardLayout = ({ children, title, subtitle, actions }: DashboardLayout
           <div className="flex-1 relative">
             <div className="absolute inset-0 dot-pattern opacity-30 pointer-events-none" />
             <main className="relative z-10 p-4 sm:p-6">
-              <div className="mx-auto max-w-7xl space-y-5">
+              <div className={cn("mx-auto max-w-7xl space-y-5", contentClassName)}>
                 {children}
               </div>
             </main>
