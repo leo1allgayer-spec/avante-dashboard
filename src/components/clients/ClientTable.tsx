@@ -235,7 +235,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
       {/* Table */}
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <div className="overflow-x-auto overscroll-contain">
-        <table className="min-w-[1500px] w-full table-fixed text-xs">
+        <table className="min-w-[1660px] w-full table-fixed text-xs">
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
               <SortHeader label="Cliente" sortField="name" className="w-[150px]" />
@@ -243,15 +243,15 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
               <StaticHeader label="Gestor" className="w-[70px]" />
               <StaticHeader label="Status" className="w-[70px]" />
               <StaticHeader label="Orcamento" className="w-[90px]" />
-              <StaticHeader label="Saldo" className="w-[125px]" />
-              <StaticHeader label="Otimizacao" className="w-[125px]" />
+              <StaticHeader label="Saldo" className="w-[150px]" />
+              <StaticHeader label="Otimizacao" className="w-[150px]" />
               <StaticHeader label="Dia relatorio" className="w-[105px]" />
-              <SortHeader label="Atualizacao" sortField="lastAccountUpdate" className="w-[125px]" />
-              <SortHeader label="Retencao" sortField="retention" className="w-[75px]" />
+              <SortHeader label="Atualizacao" sortField="lastAccountUpdate" className="w-[150px]" />
+              <SortHeader label="Retencao" sortField="retention" className="w-[85px]" />
               <StaticHeader label="Cobranca" className="w-[95px]" />
               <StaticHeader label="Contrato" className="w-[95px]" />
-              <StaticHeader label="Status pgto" className="w-[100px]" />
-              <SortHeader label="Pgto" sortField="paymentDate" className="w-[65px]" />
+              <StaticHeader label="Status pgto" className="w-[120px]" />
+              <SortHeader label="Pgto" sortField="paymentDate" className="w-[75px]" />
               <StaticHeader label="Comissao" className="w-[90px]" />
               <StaticHeader label="" className="w-[40px]" />
             </tr>
@@ -324,10 +324,9 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     <td key={field} className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
+                          <button className={cn("inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
                             <span className="text-xs whitespace-nowrap">{dateFormatted}</span>
                             <span className="text-xs font-semibold whitespace-nowrap">{label}</span>
-                            <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
@@ -353,10 +352,9 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
+                          <button className={cn("inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
                             <span className="text-xs whitespace-nowrap">{dateFormatted}</span>
                             <span className="text-xs font-semibold whitespace-nowrap">{label}</span>
-                            <CalendarIcon className="h-3 w-3 text-muted-foreground" />
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
@@ -402,7 +400,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 <td className={cn("px-2 py-2", moneyTone(client.contractValue))}>{renderEditable(client, "contractValue", formatCurrency(client.contractValue), "number")}</td>
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                   <Select value={client.paymentStatus} onValueChange={(v) => onUpdateClient({ ...client, paymentStatus: v as PaymentStatus })}>
-                    <SelectTrigger className={cn("h-6 w-[95px] text-xs border-border rounded-full", paymentStatusColors[client.paymentStatus])}>
+                    <SelectTrigger className={cn("h-6 w-[112px] text-xs border-border rounded-full", paymentStatusColors[client.paymentStatus])}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
