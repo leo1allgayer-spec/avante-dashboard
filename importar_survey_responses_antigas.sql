@@ -1,5 +1,6 @@
 ﻿-- Importa as 200 respostas antigas do formulario para o Supabase novo.
 -- Pode rodar mais de uma vez: se o id ja existir, atualiza os dados.
+-- Esta versao nao usa user_id, porque a tabela nova nao tem essa coluna.
 
 alter table public.survey_responses
   add column if not exists nota_interna integer;
@@ -6274,7 +6275,6 @@ insert into public.survey_responses (
   indicaria_alguem,
   nota_indicacao,
   created_at,
-  user_id,
   nota_interna
 )
 select
@@ -6307,7 +6307,6 @@ select
   indicaria_alguem,
   nota_indicacao,
   coalesce(created_at, now()),
-  user_id,
   null
 from source
 on conflict (id) do update set
@@ -6338,7 +6337,6 @@ on conflict (id) do update set
   sugestao_atendimento = excluded.sugestao_atendimento,
   indicaria_alguem = excluded.indicaria_alguem,
   nota_indicacao = excluded.nota_indicacao,
-  created_at = excluded.created_at,
-  user_id = excluded.user_id;
+  created_at = excluded.created_at;
 
 select pg_notify('pgrst', 'reload schema');
