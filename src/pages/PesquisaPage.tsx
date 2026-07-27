@@ -185,7 +185,6 @@ const PesquisaPage = () => {
       if (!form.fator_determinante.trim()) return "Preencha o fator determinante";
     }
     if (s === 2) {
-      if (!form.consultor.trim()) return "Preencha o nome do consultor";
       if (!form.tempo_atendimento) return "Selecione o tempo de atendimento";
       if (!form.atendimento_rapido) return "Selecione se o atendimento foi rápido";
       if (!form.forma_atendimento) return "Selecione sobre a forma de atendimento";
@@ -230,7 +229,7 @@ const PesquisaPage = () => {
         segmento: form.segmento || null,
         fator_determinante: form.fator_determinante || null,
         dor_principal: form.dor_principal || null,
-        consultor: form.consultor || null,
+        consultor: null,
         tempo_atendimento: form.tempo_atendimento || null,
         atendimento_rapido: form.atendimento_rapido || null,
         nota_whatsapp: form.nota_whatsapp,
@@ -366,10 +365,6 @@ const PesquisaPage = () => {
 
           {step === 2 && (
             <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-              <div>
-                <Label className="text-sm font-semibold text-foreground mb-2 block">Quem foi o consultor que te atendeu? *</Label>
-                <Input value={form.consultor} onChange={(e) => set("consultor", e.target.value)} placeholder="Nome do consultor" className="bg-secondary/30 border-border/40" />
-              </div>
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-2 block">Em quanto tempo você foi atendido(a) após o primeiro contato? *</Label>
                 <RadioGroup options={TEMPO_ATENDIMENTO} value={form.tempo_atendimento} onChange={(v) => set("tempo_atendimento", v)} name="tempo_atendimento" />

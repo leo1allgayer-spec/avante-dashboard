@@ -39,12 +39,23 @@ export function useSurveyResponses() {
   return useQuery({
     queryKey: ["survey-responses"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("survey_responses")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data as SurveyResponse[]) || [];
+      const pageSize = 1000;
+      const allRows: SurveyResponse[] = [];
+
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase
+          .from("survey_responses")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+        const rows = (data as SurveyResponse[]) || [];
+        allRows.push(...rows);
+        if (rows.length < pageSize) break;
+      }
+
+      return allRows;
     },
   });
 }
