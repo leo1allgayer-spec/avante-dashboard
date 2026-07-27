@@ -184,11 +184,13 @@ const AlunoExpandRow = ({
             <div className="px-4 pb-4 pt-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
               {fieldOrder.map((key) => {
                 const val = r[key];
-                if (val === null || val === undefined || val === "") return null;
+                const hasAnswer = val !== null && val !== undefined && val !== "";
                 return (
                   <div key={key} className="py-1.5 border-b border-border/10">
                     <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">{fieldLabels[key] || key}</p>
-                    <p className="text-sm text-foreground/90 mt-0.5 break-words">{String(val)}</p>
+                    <p className={cn("text-sm mt-0.5 break-words", hasAnswer ? "text-foreground/90" : "text-muted-foreground/45 italic")}>
+                      {hasAnswer ? String(val) : "Sem resposta"}
+                    </p>
                   </div>
                 );
               })}
