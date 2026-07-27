@@ -54,10 +54,11 @@ drop policy if exists "Users can view their own gestao clients" on public.gestao
 drop policy if exists "Users can insert their own gestao clients" on public.gestao_clients;
 drop policy if exists "Users can update their own gestao clients" on public.gestao_clients;
 drop policy if exists "Users can delete their own gestao clients" on public.gestao_clients;
+drop policy if exists "Authenticated users can view all gestao clients" on public.gestao_clients;
 
-create policy "Users can view their own gestao clients"
+create policy "Authenticated users can view all gestao clients"
   on public.gestao_clients for select to authenticated
-  using (auth.uid() = user_id);
+  using (true);
 
 create policy "Users can insert their own gestao clients"
   on public.gestao_clients for insert to authenticated
