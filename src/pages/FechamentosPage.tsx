@@ -83,6 +83,9 @@ const buildParcelDates = (total: string | number | null | undefined, firstDate: 
   return Array.from({ length: count }, (_, index) => current[index] || addMonths(firstDate, index));
 };
 
+const getStoredParcelDates = (item: Pick<FechamentoDiario, "parcelas_datas">) =>
+  Array.isArray(item.parcelas_datas) ? item.parcelas_datas.filter((date): date is string => typeof date === "string" && !!date) : [];
+
 const getCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
   item.categoria || item.produto_servico || "Sem categoria";
 
@@ -114,29 +117,57 @@ export default function FechamentosPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [origemFilter, setOrigemFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FechamentoDiario | null>(null);
   const [form, setForm] = useState({ ...defaultForm });
 
-  const periodItems = dateFilter.filterByDate(fechamentos);
+  const dateInRange = (date?: string | null) => !!date && date >= dateFilter.range.start && date <= dateFilter.range.end;
+
+  const getAReceberNoPeriodo = (item: FechamentoDiario) => {
+    const parcelasNoPeriodo = getStoredParcelDates(item).filter(dateInRange);
+    if (parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
+      return parcelasNoPeriodo.length * Number(item.valor_parcela || 0);
+    }
+    if (dateInRange(item.previsao_entrada)) return Number(item.valor_a_entrar || 0);
+    if (dateInRange(item.data) && !item.previsao_entrada && getStoredParcelDates(item).length === 0) {
+      return Number(item.valor_a_entrar || 0);
+    }
+    return 0;
+  };
+
+  const periodItems = useMemo(() => {
+    return fechamentos.filter((item) => {
+      const hasRecurringInPeriod = Number(item.valor_recorrente || 0) > 0 && item.data <= dateFilter.range.end;
+      return (
+        dateInRange(item.data) ||
+        dateInRange(item.previsao_entrada) ||
+        getStoredParcelDates(item).some(dateInRange) ||
+        hasRecurringInPeriod
+      );
+    });
+  }, [fechamentos, dateFilter.range.start, dateFilter.range.end]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return periodItems.filter((item) => {
       if (statusFilter !== "todos" && normalizeStatus(item.status) !== statusFilter) return false;
+      if (origemFilter !== "todos" && (item.origem || "") !== origemFilter) return false;
       if (!q) return true;
       return [item.cliente, item.vendedor, item.origem || "", getCategoria(item), item.produto_servico, item.observacao || ""]
         .some((value) => value.toLowerCase().includes(q));
     });
-  }, [periodItems, search, statusFilter]);
+  }, [periodItems, search, statusFilter, origemFilter]);
 
   const totals = useMemo(() => {
     const ativos = filtered.filter((item) => normalizeStatus(item.status) !== "cancelado");
-    const coletado = ativos.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-    const aReceber = ativos.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
-    const recorrente = gestaoClients
-      .filter((client) => client.status === "Ativo")
-      .reduce((sum, client) => sum + Number(client.contractValue || 0), 0);
+    const coletado = ativos.reduce((sum, item) => sum + (dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0), 0);
+    const aReceber = ativos.reduce((sum, item) => sum + getAReceberNoPeriodo(item), 0);
+    const recorrente = origemFilter === "todos"
+      ? gestaoClients
+          .filter((client) => client.status === "Ativo")
+          .reduce((sum, client) => sum + Number(client.contractValue || 0), 0)
+      : ativos.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
     return {
       coletado,
       aReceber,
@@ -144,7 +175,7 @@ export default function FechamentosPage() {
       recorrente,
       quantidade: ativos.length,
     };
-  }, [filtered, gestaoClients]);
+  }, [filtered, gestaoClients, origemFilter, dateFilter.range.start, dateFilter.range.end]);
 
   const categoryTotals = useMemo(() => {
     const totalsByCategory = filtered
@@ -153,8 +184,8 @@ export default function FechamentosPage() {
         const categoria = getCategoria(item);
         if (!acc[categoria]) acc[categoria] = { total: 0, coletado: 0, aReceber: 0, recorrente: 0 };
 
-        const coletado = Number(item.valor_sinal || 0);
-        const aReceber = Number(item.valor_a_entrar || 0);
+        const coletado = dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0;
+        const aReceber = getAReceberNoPeriodo(item);
         const recorrente = Number(item.valor_recorrente || 0);
         acc[categoria].coletado += coletado;
         acc[categoria].aReceber += aReceber;
@@ -445,6 +476,17 @@ export default function FechamentosPage() {
                     <SelectItem value="todos">Todos</SelectItem>
                     {STATUS_OPTIONS.map((status) => (
                       <SelectItem key={status} value={status}>{status}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={origemFilter} onValueChange={setOrigemFilter}>
+                  <SelectTrigger className="sm:w-44">
+                    <SelectValue placeholder="Origem" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas origens</SelectItem>
+                    {ORIGEM_OPTIONS.map((origem) => (
+                      <SelectItem key={origem} value={origem}>{origem}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
