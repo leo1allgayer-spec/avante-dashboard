@@ -6,6 +6,7 @@ create table if not exists public.fechamentos_diarios (
   vendedor text not null default '',
   produto_servico text not null default '',
   categoria text,
+  origem text,
   valor_sinal numeric not null default 0,
   valor_a_entrar numeric not null default 0,
   valor_recorrente numeric not null default 0,
@@ -21,6 +22,7 @@ create table if not exists public.fechamentos_diarios (
 
 alter table public.fechamentos_diarios
   add column if not exists categoria text,
+  add column if not exists origem text,
   add column if not exists valor_recorrente numeric not null default 0,
   add column if not exists parcelas_total integer,
   add column if not exists valor_parcela numeric not null default 0,

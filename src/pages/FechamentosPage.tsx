@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock, CheckCircle2, Clock3, Layers3, Pencil, Plus, Search, Trash2, Wallet } from "lucide-react";
 
 const STATUS_OPTIONS = ["a receber", "recebido", "cancelado"];
+const ORIGEM_OPTIONS = ["Anuncio", "Upsell", "Indicacao", "Social Seller"];
 
 const defaultItem = {
   produto_servico: "",
@@ -44,6 +45,7 @@ const defaultForm = {
   data: new Date().toISOString().split("T")[0],
   cliente: "",
   vendedor: "",
+  origem: "",
   produto_servico: "",
   categoria: "",
   valor_sinal: 0,
@@ -123,7 +125,7 @@ export default function FechamentosPage() {
     return periodItems.filter((item) => {
       if (statusFilter !== "todos" && normalizeStatus(item.status) !== statusFilter) return false;
       if (!q) return true;
-      return [item.cliente, item.vendedor, getCategoria(item), item.produto_servico, item.observacao || ""]
+      return [item.cliente, item.vendedor, item.origem || "", getCategoria(item), item.produto_servico, item.observacao || ""]
         .some((value) => value.toLowerCase().includes(q));
     });
   }, [periodItems, search, statusFilter]);
@@ -178,6 +180,7 @@ export default function FechamentosPage() {
       data: item.data,
       cliente: item.cliente,
       vendedor: item.vendedor,
+      origem: item.origem || "",
       produto_servico: item.produto_servico,
       categoria: getCategoria(item),
       valor_sinal: item.valor_sinal,
@@ -297,6 +300,7 @@ export default function FechamentosPage() {
       data: form.data || new Date().toISOString().split("T")[0],
       cliente: form.cliente.trim() || "Sem cliente",
       vendedor: form.vendedor.trim(),
+      origem: form.origem || null,
       produto_servico: categoria,
       categoria,
       valor_sinal: Number(item.valor_sinal || 0),
@@ -455,6 +459,7 @@ export default function FechamentosPage() {
                     <TableHead>Data</TableHead>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Categoria</TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead className="text-right">Coletado</TableHead>
                     <TableHead className="text-right">A receber</TableHead>
                     <TableHead className="text-right">Recorrente</TableHead>
@@ -466,11 +471,11 @@ export default function FechamentosPage() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
+                      <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
                     </TableRow>
                   ) : filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum fechamento encontrado.</TableCell>
+                      <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Nenhum fechamento encontrado.</TableCell>
                     </TableRow>
                   ) : (
                     filtered.map((item) => (
@@ -489,6 +494,7 @@ export default function FechamentosPage() {
                           )}
                           {item.observacao && <div className="max-w-xs truncate text-xs text-muted-foreground">{item.observacao}</div>}
                         </TableCell>
+                        <TableCell className="whitespace-nowrap">{item.origem || "-"}</TableCell>
                         <TableCell className="text-right font-semibold text-success">{formatBRL(item.valor_sinal)}</TableCell>
                         <TableCell className="text-right font-semibold text-amber-500">{formatBRL(item.valor_a_entrar)}</TableCell>
                         <TableCell className="text-right font-semibold text-primary">{formatBRL(item.valor_recorrente)}</TableCell>
@@ -554,6 +560,17 @@ export default function FechamentosPage() {
                   <SelectContent>
                     {STATUS_OPTIONS.map((status) => (
                       <SelectItem key={status} value={status}>{status}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Origem</Label>
+                <Select value={form.origem} onValueChange={(origem) => setForm((prev) => ({ ...prev, origem }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione a origem" /></SelectTrigger>
+                  <SelectContent>
+                    {ORIGEM_OPTIONS.map((origem) => (
+                      <SelectItem key={origem} value={origem}>{origem}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -20,7 +20,7 @@ import { SERVICE_CATEGORIES } from "@/constants/serviceCategories";
 
 const PRODUTOS = SERVICE_CATEGORIES;
 const SERVICOS = SERVICE_CATEGORIES;
-const ORIGENS = ["Anúncio", "Upsell", "Indicação Direta", "Indicação Comercial"];
+const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller"];
 
 const TAXAS_CARTAO_GATEWAY: Record<number, number> = {
   1: 0, 2: 4.78, 3: 5.78, 4: 6.78, 5: 7.78, 6: 8.78,

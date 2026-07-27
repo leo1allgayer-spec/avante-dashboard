@@ -7,6 +7,7 @@ create table if not exists public.fechamentos_diarios (
   cliente text default '',
   vendedor text default '',
   produto_servico text default '',
+  origem text,
   status text not null default 'a receber',
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now()
@@ -14,6 +15,7 @@ create table if not exists public.fechamentos_diarios (
 
 alter table public.fechamentos_diarios
   add column if not exists categoria text,
+  add column if not exists origem text,
   add column if not exists valor_sinal numeric not null default 0,
   add column if not exists valor_a_entrar numeric not null default 0,
   add column if not exists valor_recorrente numeric not null default 0,

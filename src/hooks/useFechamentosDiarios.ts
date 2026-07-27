@@ -9,6 +9,7 @@ export interface FechamentoDiario {
   vendedor: string;
   produto_servico: string;
   categoria: string | null;
+  origem: string | null;
   valor_sinal: number;
   valor_a_entrar: number;
   valor_recorrente: number;
