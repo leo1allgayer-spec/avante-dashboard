@@ -77,6 +77,7 @@ const fieldLabels: Record<string, string> = {
   atendimento_rapido: "Atendimento rápido",
   nota_whatsapp: "Nota WhatsApp",
   nota_curso: "Nota do curso",
+  nota_interna: "Nota interna",
   forma_atendimento: "Forma de atendimento",
   motivacao_fechar: "Motivação para fechar",
   valor_curso_opiniao: "Opinião sobre o valor",
@@ -90,7 +91,7 @@ const fieldOrder = [
   "data_curso", "consultor", "como_conheceu", "tempo_para_fechar",
   "conversou_outras_escolas", "objetivo_principal", "segmento",
   "fator_determinante", "dor_principal", "tempo_atendimento",
-  "atendimento_rapido", "nota_whatsapp", "nota_curso", "forma_atendimento",
+  "atendimento_rapido", "nota_whatsapp", "nota_curso", "nota_interna", "forma_atendimento",
   "motivacao_fechar", "valor_curso_opiniao", "sugestao_atendimento",
   "indicaria_alguem", "nota_indicacao",
 ];
@@ -100,12 +101,14 @@ const AlunoExpandRow = ({
   index,
   onEdit,
   onDelete,
+  onRate,
   isDeleting,
 }: {
   r: SurveyResponse;
   index: number;
   onEdit: (r: SurveyResponse) => void;
   onDelete: (r: SurveyResponse) => void;
+  onRate: (r: SurveyResponse, nota: number | null) => void;
   isDeleting: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -123,6 +126,22 @@ const AlunoExpandRow = ({
           {r.nota_whatsapp != null && <span className="text-[10px] text-warning hidden md:inline">⭐ {r.nota_whatsapp}/10</span>}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <div className="hidden sm:flex items-center gap-0.5 rounded-full border border-border/40 bg-secondary/20 px-2 py-1" onClick={(e) => e.stopPropagation()}>
+            {[1, 2, 3, 4, 5].map((nota) => (
+              <button
+                key={nota}
+                type="button"
+                className={cn(
+                  "text-sm leading-none transition-colors",
+                  Number(r.nota_interna || 0) >= nota ? "text-warning" : "text-muted-foreground/35 hover:text-warning/70",
+                )}
+                onClick={() => onRate(r, Number(r.nota_interna || 0) === nota ? null : nota)}
+                title={`${nota} estrela${nota > 1 ? "s" : ""}`}
+              >
+                ★
+              </button>
+            ))}
+          </div>
           <Button
             type="button"
             variant="ghost"
@@ -242,7 +261,7 @@ const AnaliseAlunosPage = () => {
     if (!editingResponse) return;
     const payload = fieldOrder.reduce<Record<string, string | number | null>>((acc, key) => {
       const value = editForm[key]?.trim() ?? "";
-      if (key === "nota_whatsapp" || key === "nota_curso" || key === "nota_indicacao") {
+      if (key === "nota_whatsapp" || key === "nota_curso" || key === "nota_indicacao" || key === "nota_interna") {
         acc[key] = value === "" ? null : Number(value);
       } else {
         acc[key] = value === "" ? null : value;
@@ -263,6 +282,16 @@ const AnaliseAlunosPage = () => {
         },
         onError: (err) => toast({ title: "Erro ao atualizar", description: err.message, variant: "destructive" }),
       }
+    );
+  };
+
+  const handleRateResponse = (response: SurveyResponse, nota: number | null) => {
+    updateSurveyResponse.mutate(
+      { id: response.id, nota_interna: nota },
+      {
+        onSuccess: () => toast({ title: nota ? `Nota interna: ${nota} estrela${nota > 1 ? "s" : ""}` : "Nota interna removida" }),
+        onError: (err) => toast({ title: "Erro ao salvar nota", description: err.message, variant: "destructive" }),
+      },
     );
   };
 
@@ -385,7 +414,7 @@ const AnaliseAlunosPage = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {fieldOrder.map((key) => {
                     const isLong = ["dor_principal", "motivacao_fechar", "sugestao_atendimento", "valor_curso_opiniao"].includes(key);
-                    const isNumber = key === "nota_whatsapp" || key === "nota_curso" || key === "nota_indicacao";
+                    const isNumber = key === "nota_whatsapp" || key === "nota_curso" || key === "nota_indicacao" || key === "nota_interna";
                     return (
                       <div key={key} className={cn("space-y-1.5", isLong && "sm:col-span-2")}>
                         <Label className="text-xs text-muted-foreground">{fieldLabels[key] || key}</Label>
@@ -701,6 +730,7 @@ const AnaliseAlunosPage = () => {
                     index={i}
                     onEdit={openEditResponse}
                     onDelete={handleDeleteResponse}
+                    onRate={handleRateResponse}
                     isDeleting={deleteSurveyResponse.isPending}
                   />
                 ))}

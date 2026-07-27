@@ -25,6 +25,7 @@ export interface SurveyResponse {
   atendimento_rapido: string | null;
   nota_whatsapp: number | null;
   nota_curso: number | null;
+  nota_interna: number | null;
   forma_atendimento: string | null;
   motivacao_fechar: string | null;
   valor_curso_opiniao: string | null;
