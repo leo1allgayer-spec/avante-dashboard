@@ -36,6 +36,7 @@ const defaultItem = {
   parcelas_total: "",
   valor_parcela: 0,
   previsao_entrada: "",
+  parcelas_datas: [] as string[],
   observacao: "",
 };
 
@@ -66,6 +67,19 @@ const formatDate = (date?: string | null) => {
 };
 
 const normalizeStatus = (status?: string | null) => (status === "para entrar" ? "a receber" : status || "a receber");
+
+const addMonths = (date: string, months: number) => {
+  if (!date) return "";
+  const [year, month, day] = date.split("-").map(Number);
+  const next = new Date(year, month - 1 + months, day);
+  return next.toISOString().split("T")[0];
+};
+
+const buildParcelDates = (total: string | number | null | undefined, firstDate: string, current: string[] = []) => {
+  const count = Math.max(0, Number(total || 0));
+  if (count <= 1) return [];
+  return Array.from({ length: count }, (_, index) => current[index] || addMonths(firstDate, index));
+};
 
 const getCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
   item.categoria || item.produto_servico || "Sem categoria";
@@ -183,6 +197,7 @@ export default function FechamentosPage() {
         parcelas_total: item.parcelas_total ? String(item.parcelas_total) : "",
         valor_parcela: item.valor_parcela,
         previsao_entrada: item.previsao_entrada || "",
+        parcelas_datas: item.parcelas_datas || [],
         observacao: item.observacao || "",
       }],
     });
@@ -224,6 +239,7 @@ export default function FechamentosPage() {
             ...item,
             valor_recorrente: item.valor_recorrente || (selectedClient.status === "Ativo" ? Number(selectedClient.contractValue || 0) : 0),
             previsao_entrada: item.previsao_entrada || selectedClient.nextChargeDate || "",
+            parcelas_datas: buildParcelDates(item.parcelas_total, item.previsao_entrada || selectedClient.nextChargeDate || "", item.parcelas_datas),
           }
         : item),
     }));
@@ -232,7 +248,14 @@ export default function FechamentosPage() {
   const updateItem = (index: number, updates: Partial<FechamentoItemForm>) => {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item),
+      items: prev.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const next = { ...item, ...updates };
+        if ("parcelas_total" in updates || "previsao_entrada" in updates) {
+          next.parcelas_datas = buildParcelDates(next.parcelas_total, next.previsao_entrada, next.parcelas_datas);
+        }
+        return next;
+      }),
     }));
   };
 
@@ -250,38 +273,39 @@ export default function FechamentosPage() {
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!session?.user?.id) return;
-    if (!form.cliente.trim()) {
-      toast({ title: "Informe o cliente", variant: "destructive" });
-      return;
-    }
 
     const filledItems = form.items.filter((item) =>
       item.categoria ||
       item.produto_servico.trim() ||
       Number(item.valor_sinal || 0) ||
       Number(item.valor_a_entrar || 0) ||
-      Number(item.valor_recorrente || 0),
+      Number(item.valor_recorrente || 0) ||
+      Number(item.parcelas_total || 0) ||
+      item.observacao.trim(),
     );
 
     if (filledItems.length === 0) {
-      toast({ title: "Adicione pelo menos um item", variant: "destructive" });
+      toast({ title: "Preencha pelo menos uma informacao do fechamento", variant: "destructive" });
       return;
     }
 
     const buildPayload = (item: FechamentoItemForm) => {
-      const categoria = item.categoria || item.produto_servico.trim();
+      const categoria = item.categoria || item.produto_servico.trim() || "Sem categoria";
+      const parcelasDatas = buildParcelDates(item.parcelas_total, item.previsao_entrada, item.parcelas_datas).filter(Boolean);
       return {
       user_id: session.user.id,
-      data: form.data,
-      cliente: form.cliente.trim(),
+      data: form.data || new Date().toISOString().split("T")[0],
+      cliente: form.cliente.trim() || "Sem cliente",
       vendedor: form.vendedor.trim(),
       produto_servico: categoria,
+      categoria,
       valor_sinal: Number(item.valor_sinal || 0),
       valor_a_entrar: Number(item.valor_a_entrar || 0),
       valor_recorrente: Number(item.valor_recorrente || 0),
       parcelas_total: item.parcelas_total ? Number(item.parcelas_total) : null,
       valor_parcela: Number(item.valor_parcela || 0),
-      previsao_entrada: item.previsao_entrada || null,
+      previsao_entrada: item.previsao_entrada || parcelasDatas[0] || null,
+      parcelas_datas: parcelasDatas,
       status: normalizeStatus(form.status),
       observacao: item.observacao.trim() || null,
     };
@@ -539,10 +563,8 @@ export default function FechamentosPage() {
                 <Input
                   value={form.cliente}
                   list="gestao-clientes-list"
-                  onChange={(event) => applyClientFromGestao(event.target.value)}
-                  onBlur={(event) => applyClientFromGestao(event.target.value)}
+                  onChange={(event) => setForm((prev) => ({ ...prev, cliente: event.target.value }))}
                   placeholder="Nome do cliente"
-                  required
                 />
                 <datalist id="gestao-clientes-list">
                   {gestaoClients.map((client) => (
@@ -552,8 +574,11 @@ export default function FechamentosPage() {
                   ))}
                 </datalist>
                 <p className="text-xs text-muted-foreground">
-                  Ao escolher um cliente ativo da Gestao de Clientes, o recorrente mensal vem do valor do contrato.
+                  Campo livre. Se quiser puxar recorrente e previsao da Gestao de Clientes, digite o nome exato e clique no botao.
                 </p>
+                <Button type="button" variant="outline" size="sm" onClick={() => applyClientFromGestao(form.cliente)}>
+                  Puxar dados da Gestao
+                </Button>
               </div>
               <div className="space-y-2">
                 <Label>Vendedor</Label>
@@ -623,6 +648,27 @@ export default function FechamentosPage() {
                           <Label>Valor da parcela</Label>
                           <Input type="number" step="0.01" value={item.valor_parcela || ""} onChange={(event) => updateItem(index, { valor_parcela: Number(event.target.value) })} placeholder="0,00" />
                         </div>
+                        {Number(item.parcelas_total || 0) > 1 && (
+                          <div className="space-y-2 sm:col-span-2">
+                            <Label>Datas das parcelas</Label>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {buildParcelDates(item.parcelas_total, item.previsao_entrada, item.parcelas_datas).map((date, parcelIndex) => (
+                                <div key={parcelIndex} className="space-y-1">
+                                  <span className="text-xs text-muted-foreground">Parcela {parcelIndex + 1}</span>
+                                  <Input
+                                    type="date"
+                                    value={date}
+                                    onChange={(event) => {
+                                      const parcelas_datas = buildParcelDates(item.parcelas_total, item.previsao_entrada, item.parcelas_datas);
+                                      parcelas_datas[parcelIndex] = event.target.value;
+                                      updateItem(index, { parcelas_datas });
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="space-y-2 sm:col-span-2">
                           <Label>Observacao do item</Label>
                           <Textarea value={item.observacao} onChange={(event) => updateItem(index, { observacao: event.target.value })} placeholder="Forma de pagamento, condicao combinada, parcelas..." rows={2} />

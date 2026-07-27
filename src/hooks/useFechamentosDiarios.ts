@@ -15,6 +15,7 @@ export interface FechamentoDiario {
   parcelas_total: number | null;
   valor_parcela: number;
   previsao_entrada: string | null;
+  parcelas_datas: string[] | null;
   status: string;
   observacao: string | null;
   created_at: string;

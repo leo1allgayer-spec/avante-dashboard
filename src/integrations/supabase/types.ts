@@ -574,6 +574,7 @@ export type Database = {
           data: string
           id: string
           observacao: string | null
+          parcelas_datas: Json | null
           parcelas_total: number | null
           previsao_entrada: string | null
           produto_servico: string
@@ -593,6 +594,7 @@ export type Database = {
           data?: string
           id?: string
           observacao?: string | null
+          parcelas_datas?: Json | null
           parcelas_total?: number | null
           previsao_entrada?: string | null
           produto_servico?: string
@@ -612,6 +614,7 @@ export type Database = {
           data?: string
           id?: string
           observacao?: string | null
+          parcelas_datas?: Json | null
           parcelas_total?: number | null
           previsao_entrada?: string | null
           produto_servico?: string

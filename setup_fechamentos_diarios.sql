@@ -2,7 +2,7 @@ create table if not exists public.fechamentos_diarios (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   data date not null default current_date,
-  cliente text not null,
+  cliente text not null default '',
   vendedor text not null default '',
   produto_servico text not null default '',
   categoria text,
@@ -12,6 +12,7 @@ create table if not exists public.fechamentos_diarios (
   parcelas_total integer,
   valor_parcela numeric not null default 0,
   previsao_entrada date,
+  parcelas_datas jsonb not null default '[]'::jsonb,
   status text not null default 'a receber',
   observacao text,
   created_at timestamp with time zone not null default now(),
@@ -22,7 +23,16 @@ alter table public.fechamentos_diarios
   add column if not exists categoria text,
   add column if not exists valor_recorrente numeric not null default 0,
   add column if not exists parcelas_total integer,
-  add column if not exists valor_parcela numeric not null default 0;
+  add column if not exists valor_parcela numeric not null default 0,
+  add column if not exists parcelas_datas jsonb not null default '[]'::jsonb;
+
+alter table public.fechamentos_diarios
+  alter column cliente set default '',
+  alter column vendedor set default '',
+  alter column produto_servico set default '',
+  alter column cliente drop not null,
+  alter column vendedor drop not null,
+  alter column produto_servico drop not null;
 
 update public.fechamentos_diarios
 set categoria = coalesce(nullif(categoria, ''), nullif(produto_servico, ''), 'Sem categoria')
