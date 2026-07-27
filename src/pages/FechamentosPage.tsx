@@ -494,20 +494,20 @@ export default function FechamentosPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto rounded-xl border border-border/40">
-              <Table>
+            <div className="overflow-hidden rounded-xl border border-border/40">
+              <Table className="table-fixed text-xs">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Origem</TableHead>
-                    <TableHead className="text-right">Coletado</TableHead>
-                    <TableHead className="text-right">A receber</TableHead>
-                    <TableHead className="text-right">Recorrente</TableHead>
-                    <TableHead>Previsao</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Acoes</TableHead>
+                    <TableHead className="w-[7%] px-2">Data</TableHead>
+                    <TableHead className="w-[12%] px-2">Cliente</TableHead>
+                    <TableHead className="w-[21%] px-2">Categoria</TableHead>
+                    <TableHead className="w-[10%] px-2">Origem</TableHead>
+                    <TableHead className="w-[9%] px-2 text-right">Coletado</TableHead>
+                    <TableHead className="w-[9%] px-2 text-right">A receber</TableHead>
+                    <TableHead className="w-[9%] px-2 text-right">Recorr.</TableHead>
+                    <TableHead className="w-[8%] px-2">Previsao</TableHead>
+                    <TableHead className="w-[8%] px-2">Status</TableHead>
+                    <TableHead className="w-[7%] px-2 text-right">Acoes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -522,49 +522,49 @@ export default function FechamentosPage() {
                   ) : (
                     filtered.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="whitespace-nowrap">{formatDate(item.data)}</TableCell>
-                        <TableCell>
-                          <div className="font-medium">{item.cliente}</div>
-                          {item.vendedor && <div className="text-xs text-muted-foreground">{item.vendedor}</div>}
+                        <TableCell className="px-2 whitespace-nowrap">{formatDate(item.data)}</TableCell>
+                        <TableCell className="px-2">
+                          <div className="truncate font-medium" title={item.cliente}>{item.cliente}</div>
+                          {item.vendedor && <div className="truncate text-[11px] text-muted-foreground" title={item.vendedor}>{item.vendedor}</div>}
                         </TableCell>
-                        <TableCell>
-                          <div>{getCategoria(item)}</div>
+                        <TableCell className="px-2">
+                          <div className="truncate font-medium" title={getCategoria(item)}>{getCategoria(item)}</div>
                           {item.parcelas_total && (
-                            <div className="text-xs text-muted-foreground">
+                            <div className="truncate text-[11px] text-muted-foreground">
                               {item.parcelas_total}x de {formatBRL(Number(item.valor_parcela || 0))}
                             </div>
                           )}
-                          {item.observacao && <div className="max-w-xs truncate text-xs text-muted-foreground">{item.observacao}</div>}
+                          {item.observacao && <div className="truncate text-[11px] text-muted-foreground" title={item.observacao}>{item.observacao}</div>}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">{item.origem || "-"}</TableCell>
-                        <TableCell className="text-right font-semibold text-success">{formatBRL(item.valor_sinal)}</TableCell>
-                        <TableCell className="text-right font-semibold text-amber-500">{formatBRL(item.valor_a_entrar)}</TableCell>
-                        <TableCell className="text-right font-semibold text-primary">{formatBRL(item.valor_recorrente)}</TableCell>
-                        <TableCell className="whitespace-nowrap">{formatDate(item.previsao_entrada)}</TableCell>
-                        <TableCell><StatusBadge status={item.status} /></TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-1">
+                        <TableCell className="truncate px-2" title={item.origem || "-"}>{item.origem || "-"}</TableCell>
+                        <TableCell className="px-2 text-right font-semibold text-success">{formatBRL(item.valor_sinal)}</TableCell>
+                        <TableCell className="px-2 text-right font-semibold text-amber-500">{formatBRL(item.valor_a_entrar)}</TableCell>
+                        <TableCell className="px-2 text-right font-semibold text-primary">{formatBRL(item.valor_recorrente)}</TableCell>
+                        <TableCell className="px-2 whitespace-nowrap">{formatDate(item.previsao_entrada)}</TableCell>
+                        <TableCell className="px-2"><StatusBadge status={item.status} /></TableCell>
+                        <TableCell className="px-2">
+                          <div className="flex justify-end gap-0.5">
                             {normalizeStatus(item.status) === "a receber" && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-success"
+                                className="h-7 w-7 text-success"
                                 title="Marcar como recebido"
                                 onClick={() => updateFechamento.mutate({ id: item.id, status: "recebido" })}
                               >
-                                <CheckCircle2 className="h-4 w-4" />
+                                <CheckCircle2 className="h-3.5 w-3.5" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(item)}>
-                              <Pencil className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(item)}>
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-destructive"
+                              className="h-7 w-7 text-destructive"
                               onClick={() => deleteFechamento.mutate(item.id)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>
