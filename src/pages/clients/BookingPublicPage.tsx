@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useParams } from "react-router-dom";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,14 +12,14 @@ import {
 } from "lucide-react";
 import avanteLogo from "@/assets/logo-full.svg";
 
-const COURSES: { id: string; label: string; subtitle?: string }[] = [
-  { id: "Curso Meta Ads", label: "Curso Tráfego Pago Meta Ads", subtitle: "Facebook e Instagram" },
-  { id: "Curso Meta Ads Avançado", label: "Curso de Tráfego Gestor PRO+", subtitle: "Facebook e Instagram" },
-  { id: "Curso Google Ads", label: "Curso Tráfego Pago Google Ads" },
-  { id: "Curso Social Media", label: "Curso Social Media" },
-  { id: "Curso Canva", label: "Curso Canva" },
-  { id: "Curso Inteligência Artificial", label: "Curso Inteligência Artificial" },
-  { id: "Curso Captação e Edição de Vídeo", label: "Curso Captação e Edição de Vídeo" },
+const COURSES: { id: string; slug: string; label: string; subtitle?: string }[] = [
+  { id: "Curso Meta Ads", slug: "meta-ads", label: "Curso Tráfego Pago Meta Ads", subtitle: "Facebook e Instagram" },
+  { id: "Curso Meta Ads Avançado", slug: "gestor-pro", label: "Curso de Tráfego Gestor PRO+", subtitle: "Facebook e Instagram" },
+  { id: "Curso Google Ads", slug: "google-ads", label: "Curso Tráfego Pago Google Ads" },
+  { id: "Curso Social Media", slug: "social-media", label: "Curso Social Media" },
+  { id: "Curso Canva", slug: "canva", label: "Curso Canva" },
+  { id: "Curso Inteligência Artificial", slug: "ia", label: "Curso Inteligência Artificial" },
+  { id: "Curso Captação e Edição de Vídeo", slug: "captacao-edicao-video", label: "Curso Captação e Edição de Vídeo" },
 ];
 
 const MAX_STUDENTS = 5;
@@ -46,14 +47,28 @@ interface DateShift {
 }
 
 export default function BookingPublic() {
-  const [step, setStep] = useState<"course" | "date" | "form" | "loading" | "done">("course");
-  const [selectedCourse, setSelectedCourse] = useState("");
+  const { courseSlug } = useParams();
+  const lockedCourse = useMemo(() => COURSES.find(c => c.slug === courseSlug), [courseSlug]);
+  const [step, setStep] = useState<"course" | "date" | "form" | "loading" | "done">(() => lockedCourse ? "date" : "course");
+  const [selectedCourse, setSelectedCourse] = useState(() => lockedCourse?.id || "");
   const [dateShifts, setDateShifts] = useState<DateShift[]>([]);
   const [selectedShift, setSelectedShift] = useState<DateShift | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "55", instagram: "", certificateName: "" });
   const [errors, setErrors] = useState({ name: "", email: "", phone: "", instagram: "", certificateName: "" });
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!courseSlug) return;
+    if (lockedCourse) {
+      setSelectedCourse(lockedCourse.id);
+      setStep("date");
+      setSelectedShift(null);
+      setSelectedDate(null);
+    }
+  }, [courseSlug, lockedCourse]);
 
   useEffect(() => {
     if (!selectedCourse) return;
@@ -289,12 +304,13 @@ export default function BookingPublic() {
 
   const goBack = () => {
     if (step === "form") setStep("date");
-    else if (step === "date") { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
+    else if (step === "date" && !lockedCourse) { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
   };
 
   const reset = () => {
-    setStep("course"); setSelectedCourse(""); setSelectedShift(null);
-    setDateShifts([]); setForm({ name: "", email: "", phone: "55", instagram: "", certificateName: "" }); setErrors({ name: "", email: "", phone: "", instagram: "", certificateName: "" });
+    setStep(lockedCourse ? "date" : "course"); setSelectedCourse(lockedCourse?.id || ""); setSelectedShift(null); setSelectedDate(null);
+    if (!lockedCourse) setDateShifts([]);
+    setForm({ name: "", email: "", phone: "55", instagram: "", certificateName: "" }); setErrors({ name: "", email: "", phone: "", instagram: "", certificateName: "" });
   };
 
   // Build a set of available dates and their shifts
@@ -315,9 +331,6 @@ export default function BookingPublic() {
 
   const shiftTime = (shift: string) => shift === "Manhã" ? "8:30" : "14:00";
 
-  // Calendar state
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
-
   const calendarDays = (() => {
     const monthStart = startOfMonth(calendarMonth);
     const monthEnd = endOfMonth(calendarMonth);
@@ -328,7 +341,7 @@ export default function BookingPublic() {
 
   const today = startOfDay(new Date());
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const selectedCourseInfo = COURSES.find(c => c.id === selectedCourse);
   const shiftsForSelectedDate = selectedDate ? (availableDatesMap[selectedDate] || []) : [];
 
   return (
@@ -416,14 +429,16 @@ export default function BookingPublic() {
           {/* Step 2: Choose date and shift */}
           {step === "date" && (
             <div className="space-y-4">
-              <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground">
-                <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
-              </Button>
+              {!lockedCourse && (
+                <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground">
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+                </Button>
+              )}
 
               <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <CalendarDays className="h-4 w-4 text-primary" />
-                  <span className="font-semibold text-sm">{selectedCourse}</span>
+                  <span className="font-semibold text-sm">{selectedCourseInfo?.label || selectedCourse}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Selecione uma data e turno disponíveis</p>
               </div>
@@ -540,7 +555,7 @@ export default function BookingPublic() {
               <Card className="rounded-2xl border-primary/20 bg-primary/10">
                 <CardContent className="p-4">
                   <div className="text-xs text-muted-foreground mb-1">Você está agendando:</div>
-                  <div className="font-semibold text-foreground">{selectedCourse}</div>
+                  <div className="font-semibold text-foreground">{selectedCourseInfo?.label || selectedCourse}</div>
                   <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1.5">
                       <CalendarDays className="h-3.5 w-3.5" />
@@ -645,7 +660,7 @@ export default function BookingPublic() {
                 </div>
                 <h2 className="font-display text-2xl font-bold">Agendamento Confirmado!</h2>
                 <p className="text-muted-foreground">
-                  Sua vaga no <strong>{selectedCourse}</strong> foi reservada com sucesso.
+                  Sua vaga no <strong>{selectedCourseInfo?.label || selectedCourse}</strong> foi reservada com sucesso.
                 </p>
                 {selectedShift && (
                   <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">

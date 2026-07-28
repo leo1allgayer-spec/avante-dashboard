@@ -100,6 +100,7 @@ const AnimatedRoutes = () => {
         <Route path="/admin-settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/agendamentos" element={<ProtectedRoute><AdminBookingsPage /></ProtectedRoute>} />
         <Route path="/agendar" element={<BookingPublicPage />} />
+        <Route path="/agendar/:courseSlug" element={<BookingPublicPage />} />
         <Route path="/confirmar-agendamento" element={<ConfirmBookingPage />} />
         
         {/* Rota do Meta Pixel & CAPI Dashboard */}
