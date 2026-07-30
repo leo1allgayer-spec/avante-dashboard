@@ -95,9 +95,17 @@ export function AllCoursesSection() {
         .select("id,student_name,course_name,date,time,course_status,email,phone,instagram,certificate_name")
         .order("date", { ascending: false }),
     ]);
+    if (error && bookingsError) {
+      toast.error("Erro ao carregar cursos");
+      setEnrollments([]);
+      setLoading(false);
+      return;
+    }
+
     if (error || bookingsError) {
-      toast.error("Erro ao carregar inscrições");
-    } else {
+      toast.warning("Alguns agendamentos podem não ter carregado");
+    }
+
       const statusMap = new Map<string, string>();
       (bookings || []).forEach((b: any) => {
         const t = COURSE_NAME_TO_TYPE[b.course_name] || "other";
@@ -143,7 +151,6 @@ export function AllCoursesSection() {
         });
 
       setEnrollments([...enrollmentRows, ...bookingRows]);
-    }
     setLoading(false);
   }, []);
 
