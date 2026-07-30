@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Trash2, Save, UserPlus } from "lucide-react";
+import { Trash2, Save, UserPlus, Users2 } from "lucide-react";
 
 interface Props {
   members: TeamMember[];
@@ -154,7 +154,19 @@ export function TeamSection({ members, onAdd, onUpdate, onDelete }: Props) {
       </div>
 
       {members.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-8">Adicione os membros da sua equipe acima</p>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Users2 className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-medium">Nenhum membro visível na equipe</p>
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                Se os nomes já existem no banco de dados, rode o SQL de permissão para liberar a visualização para todos os usuários do dashboard.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
