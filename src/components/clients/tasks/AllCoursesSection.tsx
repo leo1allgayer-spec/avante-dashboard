@@ -82,7 +82,7 @@ export function AllCoursesSection() {
   const [enrollments, setEnrollments] = useState<AllEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { locale: ptBR }));
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editing, setEditing] = useState<AllEnrollment | null>(null);
   const [form, setForm] = useState(emptyForm);
 
@@ -295,6 +295,17 @@ export function AllCoursesSection() {
 
   const selectedDateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
   const selectedEnrollments = selectedDateStr ? (enrollmentsByDate[selectedDateStr] || []) : [];
+
+  useEffect(() => {
+    if (loading || selectedDate) return;
+    const firstDateWithEnrollment = weekDays.find((day) => {
+      const dateStr = format(day, "yyyy-MM-dd");
+      return (enrollmentsByDate[dateStr] || []).length > 0;
+    });
+    if (firstDateWithEnrollment) {
+      setSelectedDate(firstDateWithEnrollment);
+    }
+  }, [loading, selectedDate, weekDays, enrollmentsByDate]);
 
   const goToToday = () => {
     setCurrentWeekStart(startOfWeek(new Date(), { locale: ptBR }));
