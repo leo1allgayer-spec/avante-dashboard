@@ -65,44 +65,44 @@ const Tasks = () => {
       contentClassName="max-w-[96rem]"
     >
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="bg-card border border-border">
-            <TabsTrigger value="dashboard" className="gap-1.5">
+          <TabsList className="h-auto min-h-12 flex-wrap justify-start gap-1 bg-card border border-border p-1.5">
+            <TabsTrigger value="dashboard" className="h-9 gap-1.5 px-3">
               <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
             </TabsTrigger>
-            <TabsTrigger value="tasks" className="gap-1.5">
+            <TabsTrigger value="tasks" className="h-9 gap-1.5 px-3">
               <KanbanSquare className="h-3.5 w-3.5" /> Tarefas
             </TabsTrigger>
-            <TabsTrigger value="daily" className="gap-1.5">
+            <TabsTrigger value="daily" className="h-9 gap-1.5 px-3">
               <RefreshCw className="h-3.5 w-3.5" /> Diárias
             </TabsTrigger>
-            <TabsTrigger value="meetings" className="gap-1.5">
+            <TabsTrigger value="meetings" className="h-9 gap-1.5 px-3">
               <CalendarDays className="h-3.5 w-3.5" /> Reuniões
             </TabsTrigger>
-            <TabsTrigger value="team" className="gap-1.5">
+            <TabsTrigger value="team" className="h-9 gap-1.5 px-3">
               <Users2 className="h-3.5 w-3.5" /> Equipe
             </TabsTrigger>
-            <TabsTrigger value="curso-todos" className="gap-1.5">
+            <TabsTrigger value="curso-todos" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Todos
             </TabsTrigger>
-            <TabsTrigger value="curso-google" className="gap-1.5">
+            <TabsTrigger value="curso-google" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Google Ads
             </TabsTrigger>
-            <TabsTrigger value="curso-social" className="gap-1.5">
+            <TabsTrigger value="curso-social" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Social Media
             </TabsTrigger>
-            <TabsTrigger value="curso-meta" className="gap-1.5">
+            <TabsTrigger value="curso-meta" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Meta Ads
             </TabsTrigger>
-            <TabsTrigger value="curso-meta-avancado" className="gap-1.5">
+            <TabsTrigger value="curso-meta-avancado" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Meta Avançado
             </TabsTrigger>
-            <TabsTrigger value="curso-canva" className="gap-1.5">
+            <TabsTrigger value="curso-canva" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Canva
             </TabsTrigger>
-            <TabsTrigger value="curso-ia" className="gap-1.5">
+            <TabsTrigger value="curso-ia" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> IA
             </TabsTrigger>
-            <TabsTrigger value="curso-video" className="gap-1.5">
+            <TabsTrigger value="curso-video" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Vídeo
             </TabsTrigger>
           </TabsList>
