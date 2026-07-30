@@ -15,6 +15,9 @@ import { toast } from "sonner";
 
 interface AllEnrollment {
   id: string;
+  enrollmentId?: string;
+  bookingId?: string;
+  source: "enrollment" | "booking";
   studentName: string;
   contact: string;
   email: string;
@@ -38,6 +41,7 @@ const COURSE_LABELS: Record<string, string> = {
   social_media: "Social Media",
   meta_ads: "Meta Ads",
   meta_ads_advanced: "Meta Avançado",
+  canva: "Canva",
   ia: "IA",
   video: "Vídeo",
 };
@@ -47,6 +51,7 @@ const COURSE_COLORS: Record<string, string> = {
   social_media: "bg-pink-500/15 text-pink-400 border-pink-500/30",
   meta_ads: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
   meta_ads_advanced: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  canva: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
   ia: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   video: "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
@@ -56,8 +61,19 @@ const COURSE_TYPE_TO_NAME: Record<string, string> = {
   social_media: "Curso Social Media",
   meta_ads: "Curso Meta Ads",
   meta_ads_advanced: "Curso Meta Ads Avançado",
+  canva: "Curso Canva",
   ia: "Curso Inteligência Artificial",
   video: "Curso Captação e Edição de Vídeo",
+};
+
+const COURSE_NAME_TO_TYPE: Record<string, string> = {
+  "Curso Google Ads": "google",
+  "Curso Social Media": "social_media",
+  "Curso Meta Ads": "meta_ads",
+  "Curso Meta Ads Avançado": "meta_ads_advanced",
+  "Curso Canva": "canva",
+  "Curso Inteligência Artificial": "ia",
+  "Curso Captação e Edição de Vídeo": "video",
 };
 
 const emptyForm = { studentName: "", contact: "", email: "", instagram: "", date: "", time: "" };
@@ -72,28 +88,25 @@ export function AllCoursesSection() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [{ data, error }, { data: bookings }] = await Promise.all([
+    const [{ data, error }, { data: bookings, error: bookingsError }] = await Promise.all([
       supabase.from("course_enrollments").select("*").order("date", { ascending: false }),
-      supabase.from("course_bookings").select("student_name,course_name,date,time,course_status"),
+      supabase
+        .from("course_bookings")
+        .select("id,student_name,course_name,date,time,course_status,email,phone,instagram,certificate_name")
+        .order("date", { ascending: false }),
     ]);
-    if (error) {
+    if (error || bookingsError) {
       toast.error("Erro ao carregar inscrições");
     } else {
-      const courseNameToType: Record<string, string> = {
-        "Curso Google Ads": "google",
-        "Curso Social Media": "social_media",
-        "Curso Meta Ads": "meta_ads",
-        "Curso Meta Ads Avançado": "meta_ads_advanced",
-        "Curso Inteligência Artificial": "ia",
-        "Curso Captação e Edição de Vídeo": "video",
-      };
       const statusMap = new Map<string, string>();
       (bookings || []).forEach((b: any) => {
-        const t = courseNameToType[b.course_name] || "other";
+        const t = COURSE_NAME_TO_TYPE[b.course_name] || "other";
         statusMap.set(`${b.student_name}|${t}|${b.date}|${b.time}`, b.course_status);
       });
-      setEnrollments((data || []).map((r: any) => ({
+      const enrollmentRows: AllEnrollment[] = (data || []).map((r: any) => ({
         id: r.id,
+        enrollmentId: r.id,
+        source: "enrollment",
         studentName: r.student_name,
         contact: r.contact || "",
         email: r.email || "",
@@ -102,7 +115,34 @@ export function AllCoursesSection() {
         time: r.time || "",
         courseType: r.course_type,
         courseStatus: statusMap.get(`${r.student_name}|${r.course_type}|${r.date}|${r.time}`),
-      })));
+      }));
+
+      const enrollmentKeys = new Set(
+        enrollmentRows.map(e => `${e.studentName.trim().toLowerCase()}|${e.courseType}|${e.date}|${e.time}`)
+      );
+      const bookingRows: AllEnrollment[] = (bookings || [])
+        .map((b: any) => {
+          const courseType = COURSE_NAME_TO_TYPE[b.course_name] || "other";
+          return {
+            id: `booking:${b.id}`,
+            bookingId: b.id,
+            source: "booking" as const,
+            studentName: b.student_name || b.certificate_name || "",
+            contact: b.phone || "",
+            email: b.email || "",
+            instagram: b.instagram || "",
+            date: b.date || "",
+            time: b.time || "",
+            courseType,
+            courseStatus: b.course_status || "confirmado",
+          };
+        })
+        .filter((b: AllEnrollment) => {
+          const key = `${b.studentName.trim().toLowerCase()}|${b.courseType}|${b.date}|${b.time}`;
+          return !enrollmentKeys.has(key);
+        });
+
+      setEnrollments([...enrollmentRows, ...bookingRows]);
     }
     setLoading(false);
   }, []);
@@ -120,6 +160,17 @@ export function AllCoursesSection() {
 
   const handleDelete = async (e: AllEnrollment) => {
     if (!confirm(`Excluir o aluno "${e.studentName}" deste curso?`)) return;
+    if (e.source === "booking" && e.bookingId) {
+      const { error } = await supabase.from("course_bookings").delete().eq("id", e.bookingId);
+      if (error) {
+        toast.error("Erro ao excluir agendamento");
+        return;
+      }
+      toast.success("Agendamento excluído");
+      fetchAll();
+      return;
+    }
+
     const { error } = await supabase.from("course_enrollments").delete().eq("id", e.id);
     if (error) {
       toast.error("Erro ao excluir inscrição");
@@ -158,6 +209,28 @@ export function AllCoursesSection() {
 
   const handleSaveEdit = async () => {
     if (!editing || !form.studentName.trim()) return;
+    if (editing.source === "booking" && editing.bookingId) {
+      const { error } = await supabase
+        .from("course_bookings")
+        .update({
+          student_name: form.studentName,
+          phone: form.contact,
+          email: form.email,
+          instagram: form.instagram,
+          date: form.date,
+          time: form.time,
+        })
+        .eq("id", editing.bookingId);
+      if (error) {
+        toast.error("Erro ao atualizar agendamento");
+        return;
+      }
+      toast.success("Agendamento atualizado");
+      setEditing(null);
+      fetchAll();
+      return;
+    }
+
     const { error } = await supabase
       .from("course_enrollments")
       .update({
@@ -274,7 +347,7 @@ export function AllCoursesSection() {
                 className={cn(
                   "relative p-1.5 sm:p-3 md:p-4 min-h-[64px] sm:min-h-[90px] md:min-h-[110px] rounded-lg border text-left transition-colors flex flex-col",
                   "hover:bg-accent/50",
-                  isSelected && "ring-2 ring-primary bg-accent",
+                  isSelected && "ring-2 ring-primary border-primary bg-transparent",
                   isToday && !isSelected && "border-primary bg-primary/5",
                   !isSelected && !isToday && "border-border"
                 )}

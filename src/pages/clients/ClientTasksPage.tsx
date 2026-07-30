@@ -95,6 +95,9 @@ const Tasks = () => {
             <TabsTrigger value="curso-meta-avancado" className="gap-1.5">
               <GraduationCap className="h-3.5 w-3.5" /> Meta Avançado
             </TabsTrigger>
+            <TabsTrigger value="curso-canva" className="gap-1.5">
+              <GraduationCap className="h-3.5 w-3.5" /> Canva
+            </TabsTrigger>
             <TabsTrigger value="curso-ia" className="gap-1.5">
               <GraduationCap className="h-3.5 w-3.5" /> IA
             </TabsTrigger>
@@ -244,6 +247,9 @@ const Tasks = () => {
           </TabsContent>
           <TabsContent value="curso-meta-avancado">
             <CourseSection courseType="meta_ads_advanced" />
+          </TabsContent>
+          <TabsContent value="curso-canva">
+            <CourseSection courseType="canva" />
           </TabsContent>
           <TabsContent value="curso-ia">
             <CourseSection courseType="ia" />

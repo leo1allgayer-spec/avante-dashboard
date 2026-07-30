@@ -12,13 +12,14 @@ import { Plus, Pencil, Trash2, Loader2, GraduationCap, ChevronLeft, ChevronRight
 import { cn } from "@/lib/utils";
 
 interface Props {
-  courseType: "google" | "social_media" | "meta_ads" | "meta_ads_advanced" | "ia" | "video";
+  courseType: "google" | "social_media" | "meta_ads" | "meta_ads_advanced" | "canva" | "ia" | "video";
 }
 
 const COURSE_LABELS: Record<string, string> = {
   google: "Curso Google Ads",
   social_media: "Curso Social Media",
   meta_ads: "Curso Meta Ads",
+  canva: "Curso Canva",
   meta_ads_advanced: "Curso Meta Ads Avançado",
   ia: "Curso Inteligência Artificial",
   video: "Curso Captação e Edição de Vídeo",
@@ -137,7 +138,7 @@ export function CourseSection({ courseType }: Props) {
                   className={cn(
                     "relative p-3 min-h-[90px] rounded-lg border text-left transition-colors flex flex-col",
                     "hover:bg-accent/50",
-                    isSelected && "ring-2 ring-primary bg-accent",
+                    isSelected && "ring-2 ring-primary border-primary bg-transparent",
                     isToday && !isSelected && "border-primary bg-primary/5",
                     !isSelected && !isToday && "border-border"
                   )}
