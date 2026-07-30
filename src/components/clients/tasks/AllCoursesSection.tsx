@@ -350,7 +350,7 @@ export function AllCoursesSection() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 md:gap-3 xl:gap-4">
           {weekDays.map((day) => {
             const dateStr = format(day, "yyyy-MM-dd");
             const dayEnrollments = enrollmentsByDate[dateStr] || [];
@@ -363,7 +363,7 @@ export function AllCoursesSection() {
                 key={dateStr}
                 onClick={() => setSelectedDate(isSelected ? null : day)}
                 className={cn(
-                  "relative p-1.5 sm:p-3 md:p-4 min-h-[64px] sm:min-h-[90px] md:min-h-[110px] rounded-lg border text-left transition-colors flex flex-col",
+                  "relative p-1.5 sm:p-3 md:p-4 xl:p-5 min-h-[64px] sm:min-h-[90px] md:min-h-[110px] xl:min-h-[128px] rounded-lg border text-left transition-colors flex flex-col",
                   "hover:bg-accent/50",
                   isSelected && "ring-2 ring-primary border-primary bg-transparent",
                   isToday && !isSelected && "border-primary bg-primary/5",
@@ -374,7 +374,7 @@ export function AllCoursesSection() {
                   <span className="sm:hidden">{["D", "S", "T", "Q", "Q", "S", "S"][day.getDay()]}</span>
                   <span className="hidden sm:inline">{format(day, "EEE", { locale: ptBR })}</span>
                 </span>
-                <span className={cn("text-sm sm:text-lg md:text-xl font-semibold", isToday && "text-primary")}>
+                <span className={cn("text-sm sm:text-lg md:text-xl xl:text-2xl font-semibold", isToday && "text-primary")}>
                   {format(day, "dd")}
                 </span>
                 {hasEnrollments && (

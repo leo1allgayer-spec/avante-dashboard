@@ -62,6 +62,7 @@ const Tasks = () => {
     <DashboardLayout
       title="Gestão de Tarefas"
       subtitle="Organização de tarefas, equipe e reuniões"
+      contentClassName="max-w-[96rem]"
     >
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="bg-card border border-border">
