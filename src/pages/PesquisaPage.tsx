@@ -244,7 +244,11 @@ const PesquisaPage = () => {
       if (error) throw error;
       setSubmitted(true);
     } catch (err: any) {
-      toast({ title: "Erro ao enviar", description: err.message, variant: "destructive" });
+      const message = String(err?.message || "");
+      const description = message.includes("row-level security")
+        ? "O envio do formulário ainda não está liberado no banco de dados. Avise a equipe da Avante."
+        : message || "Tente novamente em alguns instantes.";
+      toast({ title: "Erro ao enviar", description, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
