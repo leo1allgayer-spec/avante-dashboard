@@ -10,7 +10,7 @@ where exists (
 
 select cron.schedule(
   'daily-course-summary-18h',
-  '0 18 * * *',
+  '0 21 * * *',
   $$
   select net.http_post(
     url := 'https://ohhgmoivhgkdxakrrutg.supabase.co/functions/v1/daily-course-summary',
