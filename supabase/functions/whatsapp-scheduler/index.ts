@@ -7,6 +7,20 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const expectedSecret = Deno.env.get("WHATSAPP_SCHEDULER_SECRET");
+    const providedSecret = req.headers.get("x-cron-secret");
+
+    if (!expectedSecret) {
+      throw new Error("WHATSAPP_SCHEDULER_SECRET not configured");
+    }
+
+    if (providedSecret !== expectedSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!

@@ -2,3 +2,6 @@ project_id = "ohhgmoivhgkdxakrrutg"
 
 [functions.daily-course-summary]
 verify_jwt = false
+
+[functions.whatsapp-scheduler]
+verify_jwt = false
