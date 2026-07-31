@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const GOOGLE_REVIEW_URL =
   import.meta.env.VITE_GOOGLE_REVIEW_URL ||
-  "https://www.google.com/search?q=Avante+Digital+S%C3%A3o+Leopoldo+avalia%C3%A7%C3%A3o+Google";
+  "https://g.page/r/CRjcy9JM_2qTEBM/review";
 
 const qrImage = (url: string, size = 360) =>
   `https://quickchart.io/qr?text=${encodeURIComponent(url)}&size=${size}&margin=2`;
