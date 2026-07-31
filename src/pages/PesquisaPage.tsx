@@ -56,6 +56,7 @@ const FORMA_ATENDIMENTO = [
 ];
 
 const VALOR_CURSO = ["Muito caro", "Preço justo", "Muito barato"];
+const COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/Dv3za8lv0gz1QfU4wgPRj9?s=cl&p=a&ilr=1&amv=2";
 
 type FormData = {
   como_conheceu: string;
@@ -263,6 +264,11 @@ const PesquisaPage = () => {
           </div>
           <h1 className="font-display text-2xl font-bold text-foreground">Obrigado!</h1>
           <p className="text-muted-foreground">Sua resposta foi enviada com sucesso. Agradecemos seu feedback! 💜</p>
+          <Button asChild className="w-full h-12 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg shadow-accent/25">
+            <a href={COMMUNITY_GROUP_URL} target="_blank" rel="noopener noreferrer">
+              Entrar no grupo da comunidade
+            </a>
+          </Button>
         </motion.div>
       </div>
     );
