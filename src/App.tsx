@@ -21,6 +21,7 @@ import DashboardTVPage from "./pages/DashboardTVPage";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import PesquisaPage from "./pages/PesquisaPage";
+import QrPage from "./pages/QrPage";
 import PlanilhaPage from "./pages/PlanilhaPage";
 import VendasPage from "./pages/VendasPage";
 import FechamentosPage from "./pages/FechamentosPage";
@@ -86,6 +87,7 @@ const AnimatedRoutes = () => {
         <Route path="/configuracoes" element={<ProtectedRoute><ConfiguracoesPage /></ProtectedRoute>} />
         <Route path="/dashboard-tv" element={<ProtectedRoute><DashboardTVPage /></ProtectedRoute>} />
         <Route path="/pesquisa" element={<PesquisaPage />} />
+        <Route path="/qr" element={<QrPage />} />
         <Route path="/planilha" element={<ProtectedRoute><PlanilhaPage /></ProtectedRoute>} />
         <Route path="/vendas" element={<ProtectedRoute><VendasPage /></ProtectedRoute>} />
         <Route path="/fechamentos" element={<ProtectedRoute><FechamentosPage /></ProtectedRoute>} />
