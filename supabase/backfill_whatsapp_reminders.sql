@@ -1,3 +1,6 @@
+alter table public.whatsapp_scheduled_messages
+  add column if not exists updated_at timestamptz default now();
+
 insert into public.whatsapp_scheduled_messages (booking_id, message_type, scheduled_for, status)
 select
   b.id,
