@@ -196,6 +196,7 @@ Deno.serve(async (req) => {
             nome: booking.student_name,
             curso: booking.course_name,
             data_agendamento: `${dayName}, ${dateFormatted} às ${timeDisplay}`,
+            confirmacao_link: `${getPublicSiteUrl()}/confirmar-agendamento?id=${bookingId}`,
           });
         }
       }
