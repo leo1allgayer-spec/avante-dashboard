@@ -14,7 +14,12 @@ select cron.schedule(
   $$
   select net.http_post(
     url := 'https://ohhgmoivhgkdxakrrutg.supabase.co/functions/v1/daily-course-summary',
-    headers := '{"Content-Type":"application/json","x-cron-secret":"TROQUE_PELO_MESMO_VALOR_DO_DAILY_COURSE_SUMMARY_SECRET"}'::jsonb,
+    headers := jsonb_build_object(
+      'Content-Type',
+      'application/json',
+      'x-cron-secret',
+      'TROQUE_PELO_MESMO_VALOR_DO_DAILY_COURSE_SUMMARY_SECRET'
+    ),
     body := '{}'::jsonb
   );
   $$
