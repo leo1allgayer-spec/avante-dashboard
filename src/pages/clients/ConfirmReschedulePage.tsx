@@ -12,10 +12,14 @@ type RescheduleResult = {
   booking_id: string | null;
   student_name: string | null;
   course_name: string | null;
+  previous_course_date: string | null;
+  previous_course_time: string | null;
   course_date: string | null;
   course_time: string | null;
   course_status: string | null;
 };
+
+const ADMIN_WHATSAPP_PHONE = "5551999692480";
 
 function formatDate(date: string | null) {
   if (!date) return "";
@@ -28,6 +32,18 @@ function formatTime(time: string | null) {
   if (time === "Manhã" || time === "ManhÃ£") return "08:30";
   if (time === "Tarde") return "14:00";
   return time;
+}
+
+function buildAdminNotice(result: RescheduleResult) {
+  return [
+    "Remarcacao de curso confirmada",
+    "",
+    `Aluno: ${result.student_name || "-"}`,
+    `Curso: ${result.course_name || "-"}`,
+    "",
+    `Data anterior: ${formatDate(result.previous_course_date)} ${result.previous_course_time ? `as ${formatTime(result.previous_course_time)}` : ""}`.trim(),
+    `Nova data: ${formatDate(result.course_date)} ${result.course_time ? `as ${formatTime(result.course_time)}` : ""}`.trim(),
+  ].join("\n");
 }
 
 export default function ConfirmReschedulePage() {
@@ -45,6 +61,8 @@ export default function ConfirmReschedulePage() {
           booking_id: null,
           student_name: null,
           course_name: null,
+          previous_course_date: null,
+          previous_course_time: null,
           course_date: null,
           course_time: null,
           course_status: null,
@@ -64,6 +82,8 @@ export default function ConfirmReschedulePage() {
           booking_id: null,
           student_name: null,
           course_name: null,
+          previous_course_date: null,
+          previous_course_time: null,
           course_date: null,
           course_time: null,
           course_status: null,
@@ -80,6 +100,16 @@ export default function ConfirmReschedulePage() {
                 body: { bookingId },
               });
             }
+
+            await supabase.functions.invoke("whatsapp-send", {
+              body: {
+                phone: ADMIN_WHATSAPP_PHONE,
+                messageType: "reschedule_admin_notice",
+                customText: buildAdminNotice(row),
+                studentName: row.student_name || "",
+                courseName: row.course_name || "",
+              },
+            });
           } catch (e) {
             console.error("WhatsApp reschedule trigger error:", e);
           }
