@@ -48,11 +48,7 @@ Deno.serve(async (req) => {
       .eq("message_type", "confirmation")
       .eq("status", "sent");
 
-    if (existingLogs && existingLogs.length > 0) {
-      return new Response(JSON.stringify({ message: "Confirmation already sent" }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const confirmationAlreadySent = !!(existingLogs && existingLogs.length > 0);
 
     // 1. Send immediate confirmation
     const sendUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send`;
@@ -61,17 +57,19 @@ Deno.serve(async (req) => {
       Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
     };
 
-    await fetch(sendUrl, {
-      method: "POST",
-      headers: sendHeaders,
-      body: JSON.stringify({
-        phone: booking.phone,
-        bookingId: booking.id,
-        messageType: "confirmation",
-        studentName: booking.student_name,
-        courseName: booking.course_name,
-      }),
-    });
+    if (!confirmationAlreadySent) {
+      await fetch(sendUrl, {
+        method: "POST",
+        headers: sendHeaders,
+        body: JSON.stringify({
+          phone: booking.phone,
+          bookingId: booking.id,
+          messageType: "confirmation",
+          studentName: booking.student_name,
+          courseName: booking.course_name,
+        }),
+      });
+    }
 
     // 2. Schedule future messages
     // Parse course date and time, adjusting for BRT (UTC-3)

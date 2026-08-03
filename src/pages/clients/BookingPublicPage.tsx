@@ -49,7 +49,7 @@ interface DateShift {
 export default function BookingPublic() {
   const { courseSlug } = useParams();
   const lockedCourse = useMemo(() => COURSES.find(c => c.slug === courseSlug), [courseSlug]);
-  const [step, setStep] = useState<"course" | "date" | "form" | "loading" | "done">(() => lockedCourse ? "date" : "course");
+  const [step, setStep] = useState<"course" | "date" | "form" | "loading" | "done" | "rescheduleSent">(() => lockedCourse ? "date" : "course");
   const [selectedCourse, setSelectedCourse] = useState(() => lockedCourse?.id || "");
   const [dateShifts, setDateShifts] = useState<DateShift[]>([]);
   const [selectedShift, setSelectedShift] = useState<DateShift | null>(null);
@@ -233,6 +233,36 @@ export default function BookingPublic() {
     };
 
     try {
+      const { data: existingBookingCheck, error: existingBookingError } = await supabase.functions.invoke("reschedule-booking-request", {
+        body: { ...bookingPayload, dryRun: true },
+      });
+
+      if (!existingBookingError && existingBookingCheck?.exists) {
+        const wantsReschedule = window.confirm(
+          "Encontramos um agendamento ativo com este mesmo e-mail e telefone para este curso. Deseja remarcar para a nova data selecionada?"
+        );
+
+        if (!wantsReschedule) {
+          setSubmitting(false);
+          return;
+        }
+
+        const { data: rescheduleData, error: rescheduleError } = await supabase.functions.invoke("reschedule-booking-request", {
+          body: { ...bookingPayload, dryRun: false },
+        });
+
+        if (rescheduleError || !rescheduleData?.sent) {
+          const message = rescheduleData?.error || getSupabaseErrorMessage(rescheduleError);
+          alert(message ? `Erro ao solicitar remarcação: ${message}` : "Erro ao enviar o link de remarcação.");
+          setSubmitting(false);
+          return;
+        }
+
+        setSubmitting(false);
+        setStep("rescheduleSent");
+        return;
+      }
+
       const { data: rpcData, error: rpcError } = await supabase.rpc("create_public_course_booking", {
         p_course_name: bookingPayload.courseName,
         p_date: bookingPayload.date,
@@ -647,6 +677,36 @@ export default function BookingPublic() {
                 <Loader2 className="mx-auto h-14 w-14 animate-spin text-primary" />
                 <h2 className="font-display text-xl font-bold">Processando seu agendamento...</h2>
                 <p className="text-muted-foreground">Aguarde um momento enquanto confirmamos sua vaga.</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Reschedule confirmation sent */}
+          {step === "rescheduleSent" && (
+            <Card className="mx-auto max-w-xl rounded-2xl border-primary/30 bg-card/70 shadow-lg shadow-black/10 backdrop-blur-lg">
+              <CardContent className="space-y-4 p-8 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <CheckCircle2 className="h-9 w-9" />
+                </div>
+                <h2 className="font-display text-2xl font-bold">Link de remarcação enviado</h2>
+                <p className="text-muted-foreground">
+                  Enviamos um link de confirmação para o WhatsApp cadastrado. A data só será alterada depois que você confirmar por lá.
+                </p>
+                {selectedShift && (
+                  <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      <span className="capitalize">{formatDate(selectedShift.date)}</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      {shiftIcon(selectedShift.shift)}
+                      {selectedShift.shift} — {shiftTime(selectedShift.shift)}
+                    </span>
+                  </div>
+                )}
+                <Button variant="outline" onClick={reset}>
+                  Voltar para agenda
+                </Button>
               </CardContent>
             </Card>
           )}
