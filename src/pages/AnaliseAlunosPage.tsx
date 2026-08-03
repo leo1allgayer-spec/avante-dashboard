@@ -65,6 +65,7 @@ const fieldLabels: Record<string, string> = {
   endereco: "Endereco completo",
   whatsapp: "WhatsApp para contato",
   data_curso: "Data em que voce fez o curso",
+  curso_realizado: "Curso que esta fazendo",
   como_conheceu: "Como voce conheceu a Avante?",
   tempo_para_fechar: "Quanto tempo levou entre o primeiro contato e fechar o curso?",
   conversou_outras_escolas: "Voce conversou com outras escolas antes de decidir pela Avante?",
@@ -88,7 +89,7 @@ const fieldLabels: Record<string, string> = {
 
 const fieldOrder = [
   "nome", "cpf", "whatsapp", "email", "instagram", "cep", "cidade", "endereco",
-  "data_curso", "como_conheceu", "tempo_para_fechar",
+  "data_curso", "curso_realizado", "como_conheceu", "tempo_para_fechar",
   "conversou_outras_escolas", "objetivo_principal", "segmento",
   "fator_determinante", "dor_principal", "tempo_atendimento",
   "atendimento_rapido", "nota_whatsapp", "nota_curso", "forma_atendimento",

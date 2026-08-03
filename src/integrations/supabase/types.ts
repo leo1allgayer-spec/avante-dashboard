@@ -214,9 +214,10 @@ export type Database = {
           id: string
           instrutor: string
           nome_aluno: string
+          survey_response_id: string | null
           tipo_curso: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           comissao_extra?: number
@@ -225,9 +226,10 @@ export type Database = {
           id?: string
           instrutor: string
           nome_aluno: string
+          survey_response_id?: string | null
           tipo_curso: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           comissao_extra?: number
@@ -236,9 +238,10 @@ export type Database = {
           id?: string
           instrutor?: string
           nome_aluno?: string
+          survey_response_id?: string | null
           tipo_curso?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -476,6 +479,7 @@ export type Database = {
           consultor: string | null
           conversou_outras_escolas: string | null
           cpf: string | null
+          curso_realizado: string | null
           created_at: string
           data_curso: string | null
           dor_principal: string | null
@@ -509,6 +513,7 @@ export type Database = {
           consultor?: string | null
           conversou_outras_escolas?: string | null
           cpf?: string | null
+          curso_realizado?: string | null
           created_at?: string
           data_curso?: string | null
           dor_principal?: string | null
@@ -542,6 +547,7 @@ export type Database = {
           consultor?: string | null
           conversou_outras_escolas?: string | null
           cpf?: string | null
+          curso_realizado?: string | null
           created_at?: string
           data_curso?: string | null
           dor_principal?: string | null

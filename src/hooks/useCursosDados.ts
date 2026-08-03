@@ -3,12 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export interface CursoDado {
   id: string;
-  user_id: string;
+  user_id: string | null;
   data: string;
   instrutor: string;
   tipo_curso: string;
   nome_aluno: string;
   comissao_extra: number;
+  survey_response_id?: string | null;
   created_at: string;
   updated_at: string;
 }

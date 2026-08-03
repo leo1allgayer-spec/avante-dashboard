@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, ChevronLeft, ChevronRight, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -58,6 +59,15 @@ const FORMA_ATENDIMENTO = [
 const VALOR_CURSO = ["Muito caro", "Preço justo", "Muito barato"];
 const COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/Dv3za8lv0gz1QfU4wgPRj9?s=cl&p=a&ilr=1&amv=2";
 
+const CURSOS_REALIZADOS = [
+  "Curso Meta Ads",
+  "Curso Google Ads",
+  "Curso de Social Midia",
+  "Curso de IA",
+  "Curso Canva para Empreendedores",
+  "Curso Captacao/Edicao",
+];
+
 type FormData = {
   como_conheceu: string;
   tempo_para_fechar: string;
@@ -86,6 +96,7 @@ type FormData = {
   endereco: string;
   whatsapp: string;
   data_curso: string;
+  curso_realizado: string;
 };
 
 const initialForm: FormData = {
@@ -116,6 +127,7 @@ const initialForm: FormData = {
   endereco: "",
   whatsapp: "",
   data_curso: "",
+  curso_realizado: "",
 };
 
 const RadioGroup = ({ options, value, onChange, name }: { options: string[]; value: string; onChange: (v: string) => void; name: string }) => (
@@ -176,6 +188,7 @@ const PesquisaPage = () => {
       if (!form.email.trim()) return "Preencha seu e-mail";
       if (!form.endereco.trim()) return "Preencha seu endereço";
       if (!form.whatsapp.trim()) return "Preencha seu WhatsApp";
+      if (!form.curso_realizado) return "Selecione o curso que voce fez";
     }
     if (s === 1) {
       if (!form.como_conheceu) return "Selecione como conheceu a Avante";
@@ -223,6 +236,7 @@ const PesquisaPage = () => {
         endereco: form.endereco || null,
         whatsapp: form.whatsapp || null,
         data_curso: form.data_curso || null,
+        curso_realizado: form.curso_realizado || null,
         como_conheceu: form.como_conheceu || null,
         tempo_para_fechar: form.tempo_para_fechar || null,
         conversou_outras_escolas: form.conversou_outras_escolas || null,
@@ -336,6 +350,19 @@ const PesquisaPage = () => {
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">Data em que você fez o curso</Label>
                 <Input type="date" value={form.data_curso} onChange={(e) => set("data_curso", e.target.value)} className="bg-secondary/30 border-border/40" />
+              </div>
+              <div>
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">Qual curso voce esta fazendo? *</Label>
+                <Select value={form.curso_realizado} onValueChange={(v) => set("curso_realizado", v)}>
+                  <SelectTrigger className="bg-secondary/30 border-border/40">
+                    <SelectValue placeholder="Selecione o curso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURSOS_REALIZADOS.map((curso) => (
+                      <SelectItem key={curso} value={curso}>{curso}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </motion.div>
           )}
