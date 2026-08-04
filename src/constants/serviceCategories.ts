@@ -1,5 +1,5 @@
 export const SERVICE_CATEGORIES = [
-  "Curso de Trafego",
+  "Curso de Meta Ads",
   "Curso Google Ads",
   "Curso de Social Midia",
   "Curso de IA",
