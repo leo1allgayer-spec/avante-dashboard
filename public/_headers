@@ -9,3 +9,9 @@
 
 /vendas/*
   Cache-Control: no-cache, no-store, must-revalidate
+
+/planilha
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/planilha/*
+  Cache-Control: no-cache, no-store, must-revalidate

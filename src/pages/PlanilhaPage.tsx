@@ -551,8 +551,8 @@ const PlanilhaPage = () => {
                 </div>
 
                 {hasData && (
-                <div className="overflow-x-auto">
-                  <Table className="w-full table-fixed [&_th]:px-2 [&_td]:px-2">
+                <div className="w-full min-w-0 overflow-hidden [&>div]:w-full [&>div]:overflow-hidden">
+                  <Table className="w-full max-w-full table-fixed text-[11px] [&_th]:h-auto [&_th]:whitespace-normal [&_th]:break-words [&_th]:px-1 [&_th]:py-2 [&_td]:px-1">
                     <colgroup>
                       {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
                     </colgroup>
@@ -640,8 +640,8 @@ const PlanilhaPage = () => {
 
             return (
               <div className="rounded-lg overflow-hidden" style={{ border: "2px solid hsl(var(--accent) / 0.3)" }}>
-                <div className="overflow-x-auto">
-                  <Table className="w-full table-fixed [&_th]:px-2 [&_td]:px-2">
+                <div className="w-full min-w-0 overflow-hidden [&>div]:w-full [&>div]:overflow-hidden">
+                  <Table className="w-full max-w-full table-fixed text-[11px] [&_th]:h-auto [&_th]:whitespace-normal [&_th]:break-words [&_th]:px-1 [&_th]:py-2 [&_td]:px-1">
                     <colgroup>
                       {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
                     </colgroup>
