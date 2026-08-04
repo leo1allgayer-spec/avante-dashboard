@@ -487,7 +487,7 @@ const VendasPage = () => {
         valor_a_entrar: valorAEntrar,
         valor_recorrente: 0,
         parcelas_total: parcelasTotal,
-        valor_parcela: parcelasTotal ? Number(item.valor_parcela || valorAEntrar / parcelasTotal) : 0,
+        valor_parcela: parcelasTotal ? +(valorAEntrar / parcelasTotal).toFixed(2) : 0,
         previsao_entrada: pagoIntegralmente ? null : (item.previsao_entrada || parcelasDatas[0] || null),
         parcelas_datas: parcelasDatas,
         status: item.status === "cancelada" ? "cancelado" : pagoIntegralmente ? "recebido" : "a receber",
@@ -711,7 +711,9 @@ const VendasPage = () => {
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">Valor de cada parcela (R$)</Label>
-                        <Input type="number" min="0" step="0.01" value={form.valor_parcela || ""} onChange={(e) => setForm((p) => ({ ...p, valor_parcela: Number(e.target.value) }))} />
+                        <div className="h-10 flex items-center px-3 rounded-md bg-secondary/30 border border-border/30 text-sm font-semibold text-foreground">
+                          {formatBRL(Number(form.parcelas_total) ? Math.max(0, Number(form.valor || 0) - Number(form.valor_sinal || 0)) / Number(form.parcelas_total) : 0)}
+                        </div>
                       </div>
                     </>
                   )}
@@ -941,7 +943,9 @@ const VendasPage = () => {
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground">Valor por boleto (R$)</Label>
-                                  <Input type="number" min="0" step="0.01" value={item.valor_parcela || ""} onChange={(e) => updateVendaItem(index, { valor_parcela: Number(e.target.value) })} />
+                                  <div className="flex h-10 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-foreground">
+                                    {formatBRL(Number(item.parcelas_total) ? Math.max(0, Number(item.valor || 0) - Number(item.valor_sinal || 0)) / Number(item.parcelas_total) : 0)}
+                                  </div>
                                 </div>
                               </>
                             )}
