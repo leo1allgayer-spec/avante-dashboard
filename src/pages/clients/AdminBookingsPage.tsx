@@ -101,6 +101,8 @@ export default function AdminBookings() {
   const [editTemplateText, setEditTemplateText] = useState("");
   const [resending, setResending] = useState<string | null>(null);
   const [minAdvanceMinutes, setMinAdvanceMinutes] = useState(60);
+  const [bookingSettingsId, setBookingSettingsId] = useState<string | null>(null);
+  const [loadingAdvance, setLoadingAdvance] = useState(true);
   const [savingAdvance, setSavingAdvance] = useState(false);
   const [metaExceptions, setMetaExceptions] = useState<Array<{ id: string; date: string; shift: string | null }>>([]);
   const [excDialog, setExcDialog] = useState(false);
@@ -133,21 +135,59 @@ export default function AdminBookings() {
 
   // Load booking settings
   useEffect(() => {
-    supabase.from("booking_settings").select("*").limit(1).single().then(({ data }) => {
-      if (data) setMinAdvanceMinutes(data.min_advance_minutes);
-    });
+    const loadBookingSettings = async () => {
+      setLoadingAdvance(true);
+      const { data, error } = await supabase
+        .from("booking_settings")
+        .select("id, min_advance_minutes")
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Erro ao carregar configuração de agendamento:", error);
+        toast.error(`Não foi possível carregar a configuração: ${error.message}`);
+      } else if (data) {
+        setBookingSettingsId(data.id);
+        setMinAdvanceMinutes(data.min_advance_minutes);
+      }
+      setLoadingAdvance(false);
+    };
+
+    loadBookingSettings();
   }, []);
 
   const handleSaveAdvance = async () => {
+    if (!Number.isFinite(minAdvanceMinutes) || minAdvanceMinutes < 0) {
+      toast.error("Informe um tempo de antecedência válido.");
+      return;
+    }
+
     setSavingAdvance(true);
-    const { error } = await supabase
-      .from("booking_settings")
-      .update({ min_advance_minutes: minAdvanceMinutes, updated_at: new Date().toISOString() })
-      .not("id", "is", null);
+    const payload = {
+      min_advance_minutes: Math.round(minAdvanceMinutes),
+      updated_at: new Date().toISOString(),
+    };
+
+    const result = bookingSettingsId
+      ? await supabase
+          .from("booking_settings")
+          .update(payload)
+          .eq("id", bookingSettingsId)
+          .select("id, min_advance_minutes")
+          .single()
+      : await supabase
+          .from("booking_settings")
+          .insert(payload)
+          .select("id, min_advance_minutes")
+          .single();
+
     setSavingAdvance(false);
-    if (error) {
-      toast.error("Erro ao salvar configuração");
+    if (result.error) {
+      console.error("Erro ao salvar configuração de agendamento:", result.error);
+      toast.error(`Erro ao salvar: ${result.error.message}`, { duration: 10000 });
     } else {
+      setBookingSettingsId(result.data.id);
+      setMinAdvanceMinutes(result.data.min_advance_minutes);
       toast.success("Tempo mínimo de antecedência atualizado!");
     }
   };
@@ -878,13 +918,14 @@ export default function AdminBookings() {
                       min={0}
                       value={minAdvanceMinutes}
                       onChange={e => setMinAdvanceMinutes(Number(e.target.value))}
+                      disabled={loadingAdvance || savingAdvance}
                     />
                     <p className="text-xs text-muted-foreground">
                       O aluno precisa agendar com pelo menos {minAdvanceMinutes} minutos de antecedência do horário do curso.
                     </p>
                   </div>
-                  <Button onClick={handleSaveAdvance} disabled={savingAdvance}>
-                    {savingAdvance ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                  <Button onClick={handleSaveAdvance} disabled={loadingAdvance || savingAdvance}>
+                    {loadingAdvance || savingAdvance ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
                   </Button>
                 </div>
               </CardContent>
