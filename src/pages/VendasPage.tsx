@@ -278,15 +278,9 @@ const VendasPage = () => {
       const produtos = [...new Set(itens.map((item) => item.produto).filter(Boolean))];
       const servicos = [...new Set(itens.map((item) => item.servico).filter(Boolean))];
       const valoresPositivos = itens.map((item) => Number(item.valor || 0)).filter((valor) => valor > 0);
-      const valoresUnicos = [...new Set(valoresPositivos)];
-      const valorTotal = valoresUnicos.length === 1 && itens.length > 1
-        ? valoresUnicos[0]
-        : valoresPositivos.reduce((total, valor) => total + valor, 0);
+      const valorTotal = valoresPositivos.reduce((total, valor) => total + valor, 0);
       const liquidosPositivos = itens.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
-      const liquidosUnicos = [...new Set(liquidosPositivos)];
-      const valorLiquido = liquidosUnicos.length === 1 && itens.length > 1
-        ? liquidosUnicos[0]
-        : liquidosPositivos.reduce((total, valor) => total + valor, 0);
+      const valorLiquido = liquidosPositivos.reduce((total, valor) => total + valor, 0);
       const fechamentosRelacionados = fechamentosFiltrados.filter((item) =>
         item.data === principal.data &&
         item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
