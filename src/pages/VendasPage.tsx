@@ -4,7 +4,7 @@ import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
-import { useFechamentosDiarios, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
+import { useFechamentosDiarios, useCreateFechamentoDiario, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -69,6 +69,18 @@ const formatDate = (d: string) => {
   return `${day}/${m}/${y}`;
 };
 
+const addMonths = (date: string, months: number) => {
+  if (!date) return "";
+  const [year, month, day] = date.split("-").map(Number);
+  const next = new Date(year, month - 1 + months, day);
+  return next.toISOString().split("T")[0];
+};
+
+const buildParcelDates = (total: string | number | null | undefined, firstDate: string, current: string[] = []) => {
+  const count = Math.max(0, Number(total || 0));
+  return Array.from({ length: count }, (_, index) => current[index] || addMonths(firstDate, index));
+};
+
 const normalizeFechamentoStatus = (status?: string | null) => (status === "para entrar" ? "a receber" : status || "a receber");
 
 const getStoredParcelDates = (item: Pick<FechamentoDiario, "parcelas_datas">) =>
@@ -91,6 +103,14 @@ const defaultForm = {
   status: "pendente",
   servico: "",
   origem: "",
+  valor_sinal: 0,
+  valor_a_entrar: 0,
+  valor_recorrente: 0,
+  parcelas_total: "",
+  valor_parcela: 0,
+  previsao_entrada: "",
+  parcelas_datas: [] as string[],
+  observacao: "",
 };
 
 type VendaItemForm = {
@@ -101,6 +121,14 @@ type VendaItemForm = {
   pagamento: string;
   parcelas: number;
   status: string;
+  valor_sinal: number;
+  valor_a_entrar: number;
+  valor_recorrente: number;
+  parcelas_total: string;
+  valor_parcela: number;
+  previsao_entrada: string;
+  parcelas_datas: string[];
+  observacao: string;
 };
 
 const defaultVendaItem: VendaItemForm = {
@@ -111,6 +139,14 @@ const defaultVendaItem: VendaItemForm = {
   pagamento: "Dinheiro",
   parcelas: 1,
   status: "pendente",
+  valor_sinal: 0,
+  valor_a_entrar: 0,
+  valor_recorrente: 0,
+  parcelas_total: "",
+  valor_parcela: 0,
+  previsao_entrada: "",
+  parcelas_datas: [],
+  observacao: "",
 };
 
 const VendasPage = () => {
@@ -244,6 +280,14 @@ const VendasPage = () => {
     pagamento: form.pagamento,
     parcelas: form.parcelas,
     status: form.status,
+    valor_sinal: form.valor_sinal,
+    valor_a_entrar: form.valor_a_entrar,
+    valor_recorrente: form.valor_recorrente,
+    parcelas_total: form.parcelas_total,
+    valor_parcela: form.valor_parcela,
+    previsao_entrada: form.previsao_entrada,
+    parcelas_datas: form.parcelas_datas,
+    observacao: form.observacao,
   });
 
   const addVendaItem = () => {
@@ -379,6 +423,7 @@ const VendasPage = () => {
     setEditingVenda(v);
     const parcelasNum = v.parcelas ? parseInt(v.parcelas) : 1;
     setForm({
+      ...defaultForm,
       data: v.data,
       vendedor: v.vendedor,
       cliente: v.cliente,
