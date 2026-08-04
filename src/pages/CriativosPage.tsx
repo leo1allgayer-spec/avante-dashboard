@@ -56,15 +56,19 @@ const CHART_COLORS = [
 ];
 
 /* ---- Inline editable cell ---- */
-const EditableCell = ({ value, onSave, type = "text", className = "" }: {
-  value: string | number; onSave: (v: string) => void; type?: string; className?: string;
+const EditableCell = ({ value, onSave, type = "text", className = "", decimals }: {
+  value: string | number; onSave: (v: string) => void; type?: string; className?: string; decimals?: number;
 }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
   const commit = () => { setEditing(false); if (draft !== String(value)) onSave(draft); };
   if (!editing) return (
     <span className={`cursor-pointer hover:bg-secondary/30 px-1 py-0.5 rounded transition-colors ${className}`} onClick={() => { setDraft(String(value)); setEditing(true); }}>
-      {type === "number" ? (Number(value) === 0 ? "0" : value) : value || "—"}
+      {type === "date" && value
+        ? formatDisplayDate(String(value))
+        : type === "number" && decimals !== undefined
+          ? Number(value || 0).toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+          : type === "number" ? (Number(value) === 0 ? "0" : value) : value || "—"}
     </span>
   );
   return (
@@ -171,14 +175,15 @@ const CriativosPage = () => {
   const alunosUnicosVendas = new Set(vendasFiltradas.map((v) => v.nome_aluno.trim().toLowerCase())).size;
   const criativosUnicosCount = new Set(vendasFiltradas.map((v) => v.criativo)).size;
 
-  const totalFechamentos = resumosFiltrados.reduce((s, r) => s + Number(r.quantidade_fechamentos), 0) || totalVendas;
-  const totalValorFechado = resumosFiltrados.reduce((s, r) => s + Number(r.valor_fechado), 0) || totalValorCursoVendas;
+  const totalFechamentos = totalVendas > 0 ? totalVendas : resumosFiltrados.reduce((s, r) => s + Number(r.quantidade_fechamentos), 0);
+  const totalValorFechado = totalValorCursoVendas > 0 ? totalValorCursoVendas : resumosFiltrados.reduce((s, r) => s + Number(r.valor_fechado), 0);
   const totalValorGasto = automaticAdSpend > 0 ? automaticAdSpend : (resumosFiltrados.reduce((s, r) => s + Number(r.valor_gasto), 0) || totalValorAdsVendas);
   const avgRoasResumo = resumosFiltrados.length > 0
     ? resumosFiltrados.filter(r => Number(r.roas) > 0).reduce((s, r) => s + Number(r.roas), 0) / (resumosFiltrados.filter(r => Number(r.roas) > 0).length || 1)
     : 0;
   const avgRoas = automaticAdSpend > 0 ? roasVendas : (avgRoasResumo > 0 ? avgRoasResumo : roasVendas);
-  const totalCursosComprados = resumosFiltrados.reduce((s, r) => s + Number(r.quantidade_cursos || 0), 0) || totalVendas;
+  const totalCursosVendas = vendasFiltradas.reduce((sum, venda) => sum + Number(venda.quantidade_cursos || 1), 0);
+  const totalCursosComprados = totalCursosVendas > 0 ? totalCursosVendas : resumosFiltrados.reduce((s, r) => s + Number(r.quantidade_cursos || 0), 0);
   const cacMedio = totalFechamentos > 0 ? totalValorGasto / totalFechamentos : 0;
 
   const criativoAggregated = useMemo(() => {
@@ -327,7 +332,7 @@ const CriativosPage = () => {
       <DashboardLayout title="Criativos" subtitle="Rastreamento de criativos e vendas" actions={MonthSelector}>
         <DateFilterBar mode={filter.mode} onModeChange={filter.setMode} label={filter.label} onBack={filter.goBack} onForward={filter.goForward} />
         {/* KPIs */}
-        <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+        <StaggerContainer className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StaggerItem><MetricCard title="Total Vendas" value={String(totalVendas)} icon={<Target className="h-5 w-5" />} variant="accent" countUp /></StaggerItem>
           <StaggerItem><MetricCard title="Alunos Únicos" value={String(alunosUnicosVendas)} icon={<Users className="h-5 w-5" />} variant="primary" countUp /></StaggerItem>
           <StaggerItem><MetricCard title="Valor Vendido" value={formatBRL(totalValorFechado)} icon={<DollarSign className="h-5 w-5" />} variant="success" /></StaggerItem>
@@ -519,22 +524,22 @@ const CriativosPage = () => {
                               <EditableCell value={(v as any).codigo || ""} onSave={(val) => handleInlineUpdate(v.id, "codigo", val)} />
                             </TableCell>
                             <TableCell className="text-sm text-right">
-                              <EditableCell value={Number(v.valor_curso)} type="number" onSave={(val) => handleInlineUpdate(v.id, "valor_curso", val)} className="font-semibold" />
+                              <EditableCell value={Number(v.valor_curso)} type="number" decimals={2} onSave={(val) => handleInlineUpdate(v.id, "valor_curso", val)} className="font-semibold" />
                             </TableCell>
                             <TableCell className="text-sm text-center">
                               <EditableCell value={Number((v as any).quantidade_cursos || 1)} type="number" onSave={(val) => handleInlineUpdate(v.id, "quantidade_cursos", val)} className="font-semibold" />
                             </TableCell>
                             <TableCell className="text-sm text-right">
-                              <EditableCell value={Number(v.sinal || 0)} type="number" onSave={(val) => handleInlineUpdate(v.id, "sinal", val)} className="text-primary font-semibold" />
+                              <EditableCell value={Number(v.sinal || 0)} type="number" decimals={2} onSave={(val) => handleInlineUpdate(v.id, "sinal", val)} className="text-primary font-semibold" />
                             </TableCell>
                             <TableCell className="text-sm text-right font-semibold text-muted-foreground">
                               {formatBRL(restante)}
                             </TableCell>
                             <TableCell className="text-sm text-right">
-                              <EditableCell value={Number(v.valor_ads)} type="number" onSave={(val) => handleInlineUpdate(v.id, "valor_ads", val)} />
+                              <EditableCell value={Number(v.valor_ads)} type="number" decimals={2} onSave={(val) => handleInlineUpdate(v.id, "valor_ads", val)} />
                             </TableCell>
                             <TableCell className="text-sm text-right">
-                              <EditableCell value={Number(v.roas)} type="number" onSave={(val) => handleInlineUpdate(v.id, "roas", val)} className="font-semibold" />
+                              <EditableCell value={Number(v.roas)} type="number" decimals={2} onSave={(val) => handleInlineUpdate(v.id, "roas", val)} className="font-semibold" />
                             </TableCell>
                             <TableCell className="text-center">
                               <Button
