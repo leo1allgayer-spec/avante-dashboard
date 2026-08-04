@@ -184,6 +184,7 @@ const VendasPage = () => {
   const [editingVenda, setEditingVenda] = useState<Venda | null>(null);
   const [editingFechamento, setEditingFechamento] = useState<FechamentoDiario | null>(null);
   const [editingCriativoVenda, setEditingCriativoVenda] = useState<CriativoVenda | null>(null);
+  const [editingRecords, setEditingRecords] = useState<Array<{ venda: Venda; fechamento: FechamentoDiario | null; criativo: CriativoVenda | null }>>([]);
   const [taxProfile, setTaxProfile] = useState<TaxProfile>("opcao1");
 
   const [form, setForm] = useState({ ...defaultForm });
@@ -473,61 +474,73 @@ const VendasPage = () => {
     setEditingVenda(null);
     setEditingFechamento(null);
     setEditingCriativoVenda(null);
+    setEditingRecords([]);
     setForm({ ...defaultForm });
     setAdditionalItems([]);
     setDialogOpen(true);
   };
 
-  const openEditDialog = (v: Venda) => {
+  const openEditDialog = (groupItems: Venda[]) => {
+    const v = groupItems[0];
     setEditingVenda(v);
-    const parcelasNum = v.parcelas ? parseInt(v.parcelas) : 1;
-    const categoria = v.servico || v.produto || "Sem categoria";
-    const fechamento = fechamentos.find((item) =>
-      item.data === v.data &&
-      item.cliente.trim().toLowerCase() === v.cliente.trim().toLowerCase() &&
-      item.vendedor.trim().toLowerCase() === v.vendedor.trim().toLowerCase() &&
-      getFechamentoCategoria(item) === categoria,
-    ) || null;
-    const criativoVenda = criativosVendas.find((item) =>
-      item.data === v.data &&
-      item.nome_aluno.trim().toLowerCase() === v.cliente.trim().toLowerCase() &&
-      Number(item.valor_curso || 0) === Number(v.valor || 0),
-    ) || null;
-    const valorSinal = Number(fechamento?.valor_sinal || 0);
-    const valorAEntrar = Number(fechamento?.valor_a_entrar || 0);
-    const condicaoPagamento = fechamento?.parcelas_total
-      ? "boleto"
-      : valorAEntrar > 0 && valorSinal > 0
-        ? "sinal"
-        : valorAEntrar > 0
-          ? "a_receber"
-          : "pago";
+    const usedFechamentos = new Set<string>();
+    const usedCriativos = new Set<string>();
+    const records = groupItems.map((venda) => {
+      const categoria = venda.servico || venda.produto || "Sem categoria";
+      const fechamento = fechamentos.find((item) =>
+        !usedFechamentos.has(item.id) && item.data === venda.data &&
+        item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+        item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
+        getFechamentoCategoria(item) === categoria,
+      ) || null;
+      if (fechamento) usedFechamentos.add(fechamento.id);
+      const criativo = criativosVendas.find((item) =>
+        !usedCriativos.has(item.id) && item.data === venda.data &&
+        item.nome_aluno.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+        Number(item.valor_curso || 0) === Number(venda.valor || 0),
+      ) || null;
+      if (criativo) usedCriativos.add(criativo.id);
+      return { venda, fechamento, criativo };
+    });
+    const toItemForm = ({ venda, fechamento, criativo }: typeof records[number]): VendaItemForm => {
+      const parcelasNum = venda.parcelas ? parseInt(venda.parcelas) : 1;
+      const valorSinal = Number(fechamento?.valor_sinal || 0);
+      const valorAEntrar = Number(fechamento?.valor_a_entrar || 0);
+      const condicaoPagamento = fechamento?.parcelas_total ? "boleto" : valorAEntrar > 0 && valorSinal > 0 ? "sinal" : valorAEntrar > 0 ? "a_receber" : "pago";
+      return {
+        produto: venda.produto,
+        servico: venda.servico || "",
+        origem: venda.origem || "",
+        criativo: criativo?.criativo || "",
+        valor: Number(venda.valor || 0),
+        pagamento: venda.pagamento,
+        parcelas: isNaN(parcelasNum) ? 1 : parcelasNum,
+        status: venda.status,
+        valor_sinal: valorSinal,
+        valor_a_entrar: valorAEntrar,
+        valor_recorrente: Number(fechamento?.valor_recorrente || 0),
+        parcelas_total: fechamento?.parcelas_total ? String(fechamento.parcelas_total) : "",
+        valor_parcela: Number(fechamento?.valor_parcela || 0),
+        previsao_entrada: fechamento?.previsao_entrada || "",
+        parcelas_datas: fechamento ? getStoredParcelDates(fechamento) : [],
+        observacao: fechamento?.observacao || "",
+        condicao_pagamento: condicaoPagamento,
+      };
+    };
+    const primaryItem = toItemForm(records[0]);
+    const fechamento = records[0].fechamento;
+    const criativoVenda = records[0].criativo;
     setEditingFechamento(fechamento);
     setEditingCriativoVenda(criativoVenda);
+    setEditingRecords(records);
     setForm({
       ...defaultForm,
       data: v.data,
       vendedor: v.vendedor,
       cliente: v.cliente,
-      produto: v.produto,
-      valor: v.valor,
-      pagamento: v.pagamento,
-      parcelas: isNaN(parcelasNum) ? 1 : parcelasNum,
-      status: v.status,
-      servico: v.servico || "",
-      origem: v.origem || "",
-      criativo: criativoVenda?.criativo || "",
-      valor_sinal: valorSinal,
-      valor_a_entrar: valorAEntrar,
-      valor_recorrente: Number(fechamento?.valor_recorrente || 0),
-      parcelas_total: fechamento?.parcelas_total ? String(fechamento.parcelas_total) : "",
-      valor_parcela: Number(fechamento?.valor_parcela || 0),
-      previsao_entrada: fechamento?.previsao_entrada || "",
-      parcelas_datas: fechamento ? getStoredParcelDates(fechamento) : [],
-      observacao: fechamento?.observacao || "",
-      condicao_pagamento: condicaoPagamento,
+      ...primaryItem,
     });
-    setAdditionalItems([]);
+    setAdditionalItems(records.slice(1).map(toItemForm));
     setDialogOpen(true);
   };
 
@@ -599,25 +612,34 @@ const VendasPage = () => {
     };
 
     if (editingVenda) {
-      const primaryItem = getPrimaryItem();
-      const updates: Promise<unknown>[] = [updateVenda.mutateAsync({ id: editingVenda.id, ...buildPayload(primaryItem) })];
-      if (editingFechamento) {
-        updates.push(updateFechamento.mutateAsync({ id: editingFechamento.id, ...buildFechamentoPayload(primaryItem) }));
-      } else {
-        updates.push(createFechamento.mutateAsync(buildFechamentoPayload(primaryItem)));
-      }
-      if (editingCriativoVenda && primaryItem.criativo.trim()) {
-        updates.push(updateCriativoVenda.mutateAsync({ id: editingCriativoVenda.id, ...buildCriativoPayload(primaryItem) }));
-      } else if (primaryItem.criativo.trim()) {
-        updates.push(createCriativoVenda.mutateAsync(buildCriativoPayload(primaryItem)));
-      }
+      const saleItems = [getPrimaryItem(), ...additionalItems];
+      const updates: Promise<unknown>[] = [];
+      saleItems.forEach((item, index) => {
+        const record = editingRecords[index];
+        if (record) {
+          updates.push(updateVenda.mutateAsync({ id: record.venda.id, ...buildPayload(item) }));
+          updates.push(record.fechamento
+            ? updateFechamento.mutateAsync({ id: record.fechamento.id, ...buildFechamentoPayload(item) })
+            : createFechamento.mutateAsync(buildFechamentoPayload(item)));
+          if (item.criativo.trim()) {
+            updates.push(record.criativo
+              ? updateCriativoVenda.mutateAsync({ id: record.criativo.id, ...buildCriativoPayload(item) })
+              : createCriativoVenda.mutateAsync(buildCriativoPayload(item)));
+          }
+        } else if (item.produto || item.servico || Number(item.valor || 0)) {
+          updates.push(createVenda.mutateAsync(buildPayload(item)));
+          updates.push(createFechamento.mutateAsync(buildFechamentoPayload(item)));
+          if (item.criativo.trim()) updates.push(createCriativoVenda.mutateAsync(buildCriativoPayload(item)));
+        }
+      });
       Promise.all(updates)
         .then(() => {
-          toast({ title: "Venda atualizada!", description: editingFechamento ? "Dados financeiros atualizados junto com a venda." : undefined });
+          toast({ title: "Venda atualizada!", description: `${saleItems.length} curso(s) e seus dados financeiros foram atualizados.` });
           setDialogOpen(false);
           setEditingVenda(null);
           setEditingFechamento(null);
           setEditingCriativoVenda(null);
+          setEditingRecords([]);
           setForm({ ...defaultForm });
           setAdditionalItems([]);
         })
@@ -891,7 +913,6 @@ const VendasPage = () => {
           </div>
         </div>
 
-        {!editingVenda && (
           <div className="rounded-xl border border-border/30 bg-secondary/10 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -918,15 +939,17 @@ const VendasPage = () => {
                     <div key={index} className="rounded-lg border border-border/30 bg-background/50 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <p className="text-sm font-semibold">Item {index + 2}</p>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => removeVendaItem(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {(!editingVenda || index >= editingRecords.length - 1) && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => removeVendaItem(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
@@ -1094,7 +1117,6 @@ const VendasPage = () => {
               </div>
             )}
           </div>
-        )}
 
         <Button type="submit" className="w-full h-11 text-sm font-semibold mt-2" disabled={isSaving}>
           {isSaving ? "Salvando..." : editingVenda ? "✓ Atualizar Venda" : "✓ Registrar Venda"}
@@ -1136,7 +1158,7 @@ const VendasPage = () => {
           </div>
         }
       >
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingVenda(null); setEditingFechamento(null); setEditingCriativoVenda(null); } }}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingVenda(null); setEditingFechamento(null); setEditingCriativoVenda(null); setEditingRecords([]); } }}>
           {vendaFormDialog}
         </Dialog>
 
@@ -1412,8 +1434,8 @@ const VendasPage = () => {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-primary"
-                            onClick={() => openEditDialog(v)}
-                            title={grupo.itens.length > 1 ? "Editar o primeiro item desta venda" : "Editar venda"}
+                            onClick={() => openEditDialog(grupo.itens)}
+                            title={grupo.itens.length > 1 ? "Editar todos os cursos desta venda" : "Editar venda"}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
