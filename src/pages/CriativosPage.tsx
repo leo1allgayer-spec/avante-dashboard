@@ -484,7 +484,15 @@ const CriativosPage = () => {
 
               <p className="text-[11px] text-muted-foreground/60">💡 Clique em qualquer célula para editar diretamente</p>
 
-              <div className="rounded-lg border border-border/30 overflow-auto max-h-[500px]">
+              <div
+                className="max-h-[500px] overflow-x-auto overflow-y-scroll overscroll-contain rounded-lg border border-border/30 [&>div]:overflow-visible"
+                onWheel={(event) => {
+                  event.stopPropagation();
+                  event.currentTarget.scrollTop += event.deltaY;
+                  event.currentTarget.scrollLeft += event.deltaX;
+                }}
+                onTouchMove={(event) => event.stopPropagation()}
+              >
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-secondary/20 hover:bg-secondary/20">
@@ -669,7 +677,15 @@ const CriativosPage = () => {
 
               <p className="text-[11px] text-muted-foreground/60">💡 Clique em qualquer célula para editar diretamente</p>
 
-              <div className="rounded-lg border border-border/30 overflow-auto max-h-[500px]">
+              <div
+                className="max-h-[500px] overflow-x-auto overflow-y-scroll overscroll-contain rounded-lg border border-border/30 [&>div]:overflow-visible"
+                onWheel={(event) => {
+                  event.stopPropagation();
+                  event.currentTarget.scrollTop += event.deltaY;
+                  event.currentTarget.scrollLeft += event.deltaX;
+                }}
+                onTouchMove={(event) => event.stopPropagation()}
+              >
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-secondary/20 hover:bg-secondary/20">
