@@ -40,15 +40,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check for duplicate — don't send confirmation twice
+    // Check sent messages so retries do not duplicate confirmations or reminders.
     const { data: existingLogs } = await supabase
       .from("whatsapp_message_logs")
-      .select("id")
+      .select("message_type")
       .eq("booking_id", bookingId)
-      .eq("message_type", "confirmation")
       .eq("status", "sent");
 
-    const confirmationAlreadySent = !!(existingLogs && existingLogs.length > 0);
+    const sentMessageTypes = new Set(
+      (existingLogs || []).map((log) => log.message_type)
+    );
 
     // 1. Send immediate confirmation
     const sendUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send`;
@@ -57,18 +58,27 @@ Deno.serve(async (req) => {
       Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
     };
 
-    if (!confirmationAlreadySent) {
-      await fetch(sendUrl, {
+    const sendMessageNow = async (messageType: string) => {
+      if (sentMessageTypes.has(messageType)) return true;
+
+      const response = await fetch(sendUrl, {
         method: "POST",
         headers: sendHeaders,
         body: JSON.stringify({
           phone: booking.phone,
           bookingId: booking.id,
-          messageType: "confirmation",
+          messageType,
           studentName: booking.student_name,
           courseName: booking.course_name,
         }),
       });
+
+      if (response.ok) sentMessageTypes.add(messageType);
+      return response.ok;
+    };
+
+    if (!sentMessageTypes.has("confirmation")) {
+      await sendMessageNow("confirmation");
     }
 
     // 2. Schedule future messages
@@ -108,12 +118,20 @@ Deno.serve(async (req) => {
     const postCourseOffset = getOffsetMs("post_course", 7 * 24 * 60 * 60 * 1000);
 
     const now = new Date();
+    const reminder24hAt = new Date(courseDateTimeUTC.getTime() - reminder1Offset);
+
+    // Inscrições feitas depois do horário do lembrete de 24h recebem as
+    // informações importantes imediatamente, junto com a confirmação.
+    let reminder24hSentImmediately = false;
+    if (courseDateTimeUTC > now && reminder24hAt <= now) {
+      reminder24hSentImmediately = await sendMessageNow("reminder_24h");
+    }
 
     const scheduledMessages = [
       {
         booking_id: bookingId,
         message_type: "reminder_24h",
-        scheduled_for: new Date(courseDateTimeUTC.getTime() - reminder1Offset).toISOString(),
+        scheduled_for: reminder24hAt.toISOString(),
         status: "pending",
       },
       {
@@ -151,7 +169,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, scheduled: validMessages.length }), {
+    return new Response(JSON.stringify({
+      success: true,
+      scheduled: validMessages.length,
+      reminder24hSentImmediately,
+    }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
