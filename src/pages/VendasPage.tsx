@@ -5,7 +5,7 @@ import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
 import { useFechamentosDiarios, useCreateFechamentoDiario, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
-import { useCreateCriativoVenda } from "@/hooks/useCriativos";
+import { useCreateCriativoVenda, useCriativosVendas, useUpdateCriativoVenda, type CriativoVenda } from "@/hooks/useCriativos";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -159,11 +159,13 @@ const defaultVendaItem: VendaItemForm = {
 const VendasPage = () => {
   const { data: allVendas = [], isLoading } = useVendas();
   const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
+  const { data: criativosVendas = [] } = useCriativosVendas();
   const dateFilter = useLocalDateFilter();
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
   const createFechamento = useCreateFechamentoDiario();
   const createCriativoVenda = useCreateCriativoVenda();
+  const updateCriativoVenda = useUpdateCriativoVenda();
   const updateVenda = useUpdateVenda();
   const deleteVenda = useDeleteVenda();
   const clearVendas = useClearVendas();
@@ -180,6 +182,8 @@ const VendasPage = () => {
   const [origemFilter, setOrigemFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVenda, setEditingVenda] = useState<Venda | null>(null);
+  const [editingFechamento, setEditingFechamento] = useState<FechamentoDiario | null>(null);
+  const [editingCriativoVenda, setEditingCriativoVenda] = useState<CriativoVenda | null>(null);
   const [taxProfile, setTaxProfile] = useState<TaxProfile>("opcao1");
 
   const [form, setForm] = useState({ ...defaultForm });
@@ -467,6 +471,8 @@ const VendasPage = () => {
 
   const openNewDialog = () => {
     setEditingVenda(null);
+    setEditingFechamento(null);
+    setEditingCriativoVenda(null);
     setForm({ ...defaultForm });
     setAdditionalItems([]);
     setDialogOpen(true);
@@ -475,6 +481,29 @@ const VendasPage = () => {
   const openEditDialog = (v: Venda) => {
     setEditingVenda(v);
     const parcelasNum = v.parcelas ? parseInt(v.parcelas) : 1;
+    const categoria = v.servico || v.produto || "Sem categoria";
+    const fechamento = fechamentos.find((item) =>
+      item.data === v.data &&
+      item.cliente.trim().toLowerCase() === v.cliente.trim().toLowerCase() &&
+      item.vendedor.trim().toLowerCase() === v.vendedor.trim().toLowerCase() &&
+      getFechamentoCategoria(item) === categoria,
+    ) || null;
+    const criativoVenda = criativosVendas.find((item) =>
+      item.data === v.data &&
+      item.nome_aluno.trim().toLowerCase() === v.cliente.trim().toLowerCase() &&
+      Number(item.valor_curso || 0) === Number(v.valor || 0),
+    ) || null;
+    const valorSinal = Number(fechamento?.valor_sinal || 0);
+    const valorAEntrar = Number(fechamento?.valor_a_entrar || 0);
+    const condicaoPagamento = fechamento?.parcelas_total
+      ? "boleto"
+      : valorAEntrar > 0 && valorSinal > 0
+        ? "sinal"
+        : valorAEntrar > 0
+          ? "a_receber"
+          : "pago";
+    setEditingFechamento(fechamento);
+    setEditingCriativoVenda(criativoVenda);
     setForm({
       ...defaultForm,
       data: v.data,
@@ -487,6 +516,16 @@ const VendasPage = () => {
       status: v.status,
       servico: v.servico || "",
       origem: v.origem || "",
+      criativo: criativoVenda?.criativo || "",
+      valor_sinal: valorSinal,
+      valor_a_entrar: valorAEntrar,
+      valor_recorrente: Number(fechamento?.valor_recorrente || 0),
+      parcelas_total: fechamento?.parcelas_total ? String(fechamento.parcelas_total) : "",
+      valor_parcela: Number(fechamento?.valor_parcela || 0),
+      previsao_entrada: fechamento?.previsao_entrada || "",
+      parcelas_datas: fechamento ? getStoredParcelDates(fechamento) : [],
+      observacao: fechamento?.observacao || "",
+      condicao_pagamento: condicaoPagamento,
     });
     setAdditionalItems([]);
     setDialogOpen(true);
@@ -560,19 +599,29 @@ const VendasPage = () => {
     };
 
     if (editingVenda) {
-      updateVenda.mutate(
-        { id: editingVenda.id, ...buildPayload(getPrimaryItem()) },
-        {
-          onSuccess: () => {
-            toast({ title: "Venda atualizada!" });
-            setDialogOpen(false);
-            setEditingVenda(null);
-            setForm({ ...defaultForm });
-            setAdditionalItems([]);
-          },
-          onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
-        }
-      );
+      const primaryItem = getPrimaryItem();
+      const updates: Promise<unknown>[] = [updateVenda.mutateAsync({ id: editingVenda.id, ...buildPayload(primaryItem) })];
+      if (editingFechamento) {
+        updates.push(updateFechamento.mutateAsync({ id: editingFechamento.id, ...buildFechamentoPayload(primaryItem) }));
+      } else {
+        updates.push(createFechamento.mutateAsync(buildFechamentoPayload(primaryItem)));
+      }
+      if (editingCriativoVenda && primaryItem.criativo.trim()) {
+        updates.push(updateCriativoVenda.mutateAsync({ id: editingCriativoVenda.id, ...buildCriativoPayload(primaryItem) }));
+      } else if (primaryItem.criativo.trim()) {
+        updates.push(createCriativoVenda.mutateAsync(buildCriativoPayload(primaryItem)));
+      }
+      Promise.all(updates)
+        .then(() => {
+          toast({ title: "Venda atualizada!", description: editingFechamento ? "Dados financeiros atualizados junto com a venda." : undefined });
+          setDialogOpen(false);
+          setEditingVenda(null);
+          setEditingFechamento(null);
+          setEditingCriativoVenda(null);
+          setForm({ ...defaultForm });
+          setAdditionalItems([]);
+        })
+        .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
     } else {
       const saleItems = [getPrimaryItem(), ...additionalItems].filter((item) =>
         item.produto || item.servico || item.origem || Number(item.valor || 0),
@@ -604,7 +653,7 @@ const VendasPage = () => {
       .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
   };
 
-  const isSaving = createVenda.isPending || createFechamento.isPending || createCriativoVenda.isPending || updateVenda.isPending;
+  const isSaving = createVenda.isPending || createFechamento.isPending || createCriativoVenda.isPending || updateVenda.isPending || updateFechamento.isPending || updateCriativoVenda.isPending;
   const isClearing = clearVendas.isPending || clearFechamentos.isPending;
 
   const vendaFormDialog = (
@@ -740,8 +789,7 @@ const VendasPage = () => {
             )}
           </div>
 
-          {!editingVenda && (
-            <div className="mt-4 rounded-lg border border-border/30 bg-secondary/10 p-4 space-y-4">
+          <div className="mt-4 rounded-lg border border-border/30 bg-secondary/10 p-4 space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Situação financeira</Label>
                 <Select
@@ -815,7 +863,6 @@ const VendasPage = () => {
                 <Input value={form.observacao} onChange={(e) => setForm((p) => ({ ...p, observacao: e.target.value }))} placeholder="Ex.: entrada via PIX; boletos enviados por e-mail" />
               </div>
             </div>
-          )}
         </div>
 
         <div className="h-px bg-border/20" />
@@ -1089,7 +1136,7 @@ const VendasPage = () => {
           </div>
         }
       >
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingVenda(null); }}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingVenda(null); setEditingFechamento(null); setEditingCriativoVenda(null); } }}>
           {vendaFormDialog}
         </Dialog>
 
