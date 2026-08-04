@@ -192,7 +192,8 @@ const VendasPage = () => {
     ? +(form.valor * (1 - taxa / 100)).toFixed(2)
     : null;
   const valorBase = valorComJuros ?? form.valor;
-  const comissao = +(valorBase * 0.15).toFixed(2);
+  const valorRecebido = form.condicao_pagamento === "pago" ? valorBase : Number(form.valor_sinal || 0);
+  const comissao = +(valorRecebido * 0.15).toFixed(2);
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
 
@@ -302,7 +303,7 @@ const VendasPage = () => {
         valorLiquido,
         sinal,
         saldo: Math.max(0, valorTotal - sinal),
-        comissao: +(valorLiquido * 0.15).toFixed(2),
+        comissao: +(sinal * 0.15).toFixed(2),
       };
     });
   }, [filtered, fechamentosFiltrados, taxProfile]);
@@ -317,7 +318,7 @@ const VendasPage = () => {
     return {
       taxa: itemTemParcela ? itemTaxa : null,
       valorLiquido,
-      comissao: +(valorLiquido * 0.15).toFixed(2),
+      comissao: +((item.condicao_pagamento === "pago" ? valorLiquido : Number(item.valor_sinal || 0)) * 0.15).toFixed(2),
       parcelas: itemTemParcela ? `${item.parcelas}x (${itemTaxa}%)` : null,
     };
   };
@@ -824,7 +825,7 @@ const VendasPage = () => {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Comissão & Status</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Comissão (15%)</Label>
+              <Label className="text-xs text-muted-foreground">Comissão sobre recebido (15%)</Label>
               <div className="h-10 flex items-center px-3 rounded-md bg-secondary/30 border border-border/30 text-sm font-semibold text-emerald-400">
                 {formatBRL(comissao)}
               </div>
@@ -1316,7 +1317,7 @@ const VendasPage = () => {
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Sinal</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Saldo</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Pagamento</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão (15%)</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão sobre recebido (15%)</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Status</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground w-20"></TableHead>
                 </TableRow>
