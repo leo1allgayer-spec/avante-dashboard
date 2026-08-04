@@ -6,6 +6,7 @@ import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
 import { useFechamentosDiarios, useCreateFechamentoDiario, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
 import { useCreateCriativoVenda, useCriativosVendas, useUpdateCriativoVenda, type CriativoVenda } from "@/hooks/useCriativos";
+import { useMetaAdCreatives } from "@/hooks/useMetaAds";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -160,6 +161,7 @@ const VendasPage = () => {
   const { data: allVendas = [], isLoading } = useVendas();
   const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
   const { data: criativosVendas = [] } = useCriativosVendas();
+  const { data: metaAdCreatives = [], isLoading: isLoadingMetaAds, isError: isMetaAdsError } = useMetaAdCreatives();
   const dateFilter = useLocalDateFilter();
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
@@ -701,6 +703,11 @@ const VendasPage = () => {
         </DialogHeader>
       </div>
       <form onSubmit={handleSubmit} className="max-h-[calc(90vh-118px)] overflow-y-auto overscroll-contain p-6 pr-2 space-y-5">
+        <datalist id="meta-ad-names">
+          {metaAdCreatives.map((ad) => (
+            <option key={ad.id} value={ad.name}>{ad.campaignName}</option>
+          ))}
+        </datalist>
         {/* Informações Principais */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Informações Principais</p>
@@ -748,12 +755,26 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
+              <Select value={metaAdCreatives.some((ad) => ad.name === form.criativo) ? form.criativo : undefined} onValueChange={(criativo) => setForm((p) => ({ ...p, criativo }))}>
+                <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder={isLoadingMetaAds ? "Carregando anúncios..." : "Selecionar anúncio da Meta"} /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {metaAdCreatives.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Input
+                list="meta-ad-names"
                 value={form.criativo}
                 onChange={(event) => setForm((p) => ({ ...p, criativo: event.target.value }))}
                 placeholder="Ex.: 🪵 ou emoji/nome do anúncio"
                 className="bg-secondary/30 border-border/30 focus:border-primary/50"
               />
+              <p className="text-[11px] font-medium text-primary/80">
+                {isLoadingMetaAds
+                  ? "Carregando nomes dos anúncios da Meta..."
+                  : isMetaAdsError
+                    ? "Não foi possível carregar a Meta agora; digite manualmente."
+                    : `${metaAdCreatives.length} anúncio(s) da Meta disponível(is) para selecionar.`}
+              </p>
               <p className="text-[11px] text-muted-foreground/60">
                 Opcional. Digite o emoji ou nome usado para identificar o anúncio.
               </p>
@@ -1069,7 +1090,14 @@ const VendasPage = () => {
 
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
+                          <Select value={metaAdCreatives.some((ad) => ad.name === item.criativo) ? item.criativo : undefined} onValueChange={(criativo) => updateVendaItem(index, { criativo })}>
+                            <SelectTrigger><SelectValue placeholder={isLoadingMetaAds ? "Carregando anúncios..." : "Selecionar anúncio da Meta"} /></SelectTrigger>
+                            <SelectContent className="max-h-72">
+                              {metaAdCreatives.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                           <Input
+                            list="meta-ad-names"
                             value={item.criativo}
                             onChange={(event) => updateVendaItem(index, { criativo: event.target.value })}
                             placeholder="Emoji ou nome do anúncio"

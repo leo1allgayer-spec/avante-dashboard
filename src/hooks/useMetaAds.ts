@@ -95,7 +95,8 @@ export function useMetaAdCreatives() {
       if (metaError) throw metaError;
       if (metaData?.error) throw new Error(metaData.error);
 
-      const campaigns = (metaData?.campaigns || []) as MetaCampaign[];
+      const allCampaigns = (metaData?.campaigns || []) as MetaCampaign[];
+      const campaigns = allCampaigns.filter((campaign) => campaign.status === "ACTIVE");
       const results = await Promise.allSettled(campaigns.map(async (campaign) => {
         const { data, error } = await supabase.functions.invoke("meta-ads-action", {
           body: { action: "get_campaign_details", campaignId: campaign.id },
