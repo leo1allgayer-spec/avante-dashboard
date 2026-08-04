@@ -85,8 +85,8 @@ const COLUMNS: ColDef[] = [
 ];
 
 const TABLE_COLUMN_WIDTHS = [
-  "110px", "72px", "112px", "82px", "100px", "72px", "112px",
-  "122px", "112px", "102px", "132px", "132px", "82px", "92px",
+  "7%", "5%", "8%", "5%", "7%", "4%", "8%",
+  "8%", "7%", "7%", "10%", "10%", "6%", "8%",
 ];
 
 interface MetricRow {
@@ -552,7 +552,7 @@ const PlanilhaPage = () => {
 
                 {hasData && (
                 <div className="overflow-x-auto">
-                  <Table className="min-w-[1430px] table-fixed">
+                  <Table className="w-full table-fixed [&_th]:px-2 [&_td]:px-2">
                     <colgroup>
                       {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
                     </colgroup>
@@ -641,7 +641,7 @@ const PlanilhaPage = () => {
             return (
               <div className="rounded-lg overflow-hidden" style={{ border: "2px solid hsl(var(--accent) / 0.3)" }}>
                 <div className="overflow-x-auto">
-                  <Table className="min-w-[1430px] table-fixed">
+                  <Table className="w-full table-fixed [&_th]:px-2 [&_td]:px-2">
                     <colgroup>
                       {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
                     </colgroup>
