@@ -80,6 +80,11 @@ const COLUMNS: ColDef[] = [
   { key: "cac", label: "CAC", format: "dec", decimals: 2 },
 ];
 
+const TABLE_COLUMN_WIDTHS = [
+  "110px", "72px", "112px", "82px", "100px", "72px", "112px",
+  "122px", "112px", "132px", "132px", "82px", "92px",
+];
+
 interface MetricRow {
   id?: string;
   user_id?: string;
@@ -541,11 +546,14 @@ const PlanilhaPage = () => {
 
                 {hasData && (
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-[1330px] table-fixed">
+                    <colgroup>
+                      {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
+                    </colgroup>
                     <TableHeader>
                       <TableRow className="border-border/30" style={{ background: "hsl(260, 22%, 9%)" }}>
-                        <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold w-[100px]">Dia</TableHead>
-                        <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold w-[60px]">Data</TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">Dia</TableHead>
+                        <TableHead className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold">Data</TableHead>
                         {COLUMNS.map((col) => (
                           <TableHead key={col.key} className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold text-right">{col.label}</TableHead>
                         ))}
@@ -619,11 +627,14 @@ const PlanilhaPage = () => {
             return (
               <div className="rounded-lg overflow-hidden" style={{ border: "2px solid hsl(var(--accent) / 0.3)" }}>
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-[1330px] table-fixed">
+                    <colgroup>
+                      {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
+                    </colgroup>
                     <TableBody>
                       <TableRow style={{ background: "hsl(260, 22%, 13%)" }}>
-                        <TableCell className="text-sm font-bold text-accent py-3 w-[100px]">TOTAL MÊS</TableCell>
-                        <TableCell className="py-3 w-[60px]"></TableCell>
+                        <TableCell className="text-sm font-bold text-accent py-3">TOTAL MÊS</TableCell>
+                        <TableCell className="py-3"></TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold">{formatBRL(t.ads)}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold">{formatNum(t.leads)}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold">{formatBRL(cpl)}</TableCell>
