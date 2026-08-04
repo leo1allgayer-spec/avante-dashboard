@@ -615,6 +615,9 @@ const VendasPage = () => {
       className="sm:max-w-xl max-h-[90vh] overflow-hidden p-0 gap-0 border-border/40 bg-card"
       onWheel={(event) => event.stopPropagation()}
       onTouchMove={(event) => event.stopPropagation()}
+      onInteractOutside={(event) => event.preventDefault()}
+      onPointerDownOutside={(event) => event.preventDefault()}
+      onFocusOutside={(event) => event.preventDefault()}
     >
       <div className="bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 pb-4 border-b border-border/20">
         <DialogHeader>
