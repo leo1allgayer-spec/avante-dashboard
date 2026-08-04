@@ -207,7 +207,9 @@ const VendasPage = () => {
   }, [criativosResumo]);
   const criativosDisponiveis = useMemo(() => {
     if (anunciosMeta.length > 0) {
-      return anunciosMeta.map((anuncio) => ({
+      const ativos = anunciosMeta.filter((anuncio) => anuncio.status === "ACTIVE");
+      const anunciosExibidos = ativos.length > 0 ? ativos : anunciosMeta;
+      return anunciosExibidos.map((anuncio) => ({
         valor: `meta:${anuncio.id}`,
         nome: anuncio.name,
         codigo: anuncio.id,
@@ -700,20 +702,17 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-              <Select value={form.criativo} onValueChange={(criativo) => setForm((p) => ({ ...p, criativo }))}>
-                <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o criativo" /></SelectTrigger>
-                <SelectContent>
-                  {isLoadingAnunciosMeta ? (
-                    <SelectItem value="carregando-criativos" disabled>Carregando anúncios da Meta...</SelectItem>
-                  ) : criativosDisponiveis.length === 0 ? (
-                    <SelectItem value="sem-criativos" disabled>Nenhum anúncio disponível</SelectItem>
-                  ) : criativosDisponiveis.map((criativo) => (
-                    <SelectItem key={criativo.valor} value={criativo.valor}>
-                      {criativo.nome} — {criativo.campanha}{criativo.status === "ACTIVE" ? " (Ativo)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                value={form.criativo}
+                onChange={(event) => setForm((p) => ({ ...p, criativo: event.target.value }))}
+                disabled={isLoadingAnunciosMeta}
+                className="flex h-10 w-full rounded-md border border-border/30 bg-secondary/30 px-3 py-2 text-sm text-foreground outline-none focus:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">{isLoadingAnunciosMeta ? "Carregando anúncios da Meta..." : "Selecione o criativo"}</option>
+                {criativosDisponiveis.map((criativo) => (
+                  <option key={criativo.valor} value={criativo.valor}>{criativo.nome} — {criativo.campanha}</option>
+                ))}
+              </select>
               <p className="text-[11px] text-muted-foreground/60">
                 {isMetaAdsError ? "Meta indisponível: exibindo o cadastro manual." : "Anúncios carregados diretamente da área de Campanhas da Meta."}
               </p>
@@ -1030,20 +1029,17 @@ const VendasPage = () => {
 
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-                          <Select value={item.criativo} onValueChange={(criativo) => updateVendaItem(index, { criativo })}>
-                            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                            <SelectContent>
-                              {isLoadingAnunciosMeta ? (
-                                <SelectItem value="carregando-criativos-extra" disabled>Carregando anúncios...</SelectItem>
-                              ) : criativosDisponiveis.length === 0 ? (
-                                <SelectItem value="sem-criativos" disabled>Nenhum anúncio disponível</SelectItem>
-                              ) : criativosDisponiveis.map((criativo) => (
-                                <SelectItem key={criativo.valor} value={criativo.valor}>
-                                  {criativo.nome} — {criativo.campanha}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <select
+                            value={item.criativo}
+                            onChange={(event) => updateVendaItem(index, { criativo: event.target.value })}
+                            disabled={isLoadingAnunciosMeta}
+                            className="flex h-10 w-full rounded-md border border-border/30 bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary/50 disabled:opacity-50"
+                          >
+                            <option value="">{isLoadingAnunciosMeta ? "Carregando anúncios..." : "Selecione"}</option>
+                            {criativosDisponiveis.map((criativo) => (
+                              <option key={criativo.valor} value={criativo.valor}>{criativo.nome} — {criativo.campanha}</option>
+                            ))}
+                          </select>
                         </div>
 
                         {item.condicao_pagamento !== "pago" && (
