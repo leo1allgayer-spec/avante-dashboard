@@ -286,8 +286,10 @@ const VendasPage = () => {
         item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase(),
       );
-      const sinaisUnicos = [...new Set(fechamentosRelacionados.map((item) => Number(item.valor_sinal || 0)).filter((valor) => valor > 0))];
-      const sinal = Math.min(valorTotal, sinaisUnicos.reduce((total, valor) => total + valor, 0));
+      const sinal = Math.min(
+        valorTotal,
+        fechamentosRelacionados.reduce((total, item) => total + Number(item.valor_sinal || 0), 0),
+      );
 
       return {
         chave,
