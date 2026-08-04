@@ -5,8 +5,7 @@ import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
 import { useFechamentosDiarios, useCreateFechamentoDiario, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
-import { useCriativosResumo, useCreateCriativoVenda } from "@/hooks/useCriativos";
-import { useMetaAdCreatives } from "@/hooks/useMetaAds";
+import { useCreateCriativoVenda } from "@/hooks/useCriativos";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -160,8 +159,6 @@ const defaultVendaItem: VendaItemForm = {
 const VendasPage = () => {
   const { data: allVendas = [], isLoading } = useVendas();
   const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
-  const { data: criativosResumo = [] } = useCriativosResumo();
-  const { data: anunciosMeta = [], isLoading: isLoadingAnunciosMeta, isError: isMetaAdsError } = useMetaAdCreatives();
   const dateFilter = useLocalDateFilter();
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
@@ -198,27 +195,6 @@ const VendasPage = () => {
   const comissao = +(valorBase * 0.15).toFixed(2);
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
-  const criativosManuais = useMemo(() => {
-    const unicos = new Map<string, { nome: string; codigo: string | null }>();
-    criativosResumo
-      .filter((item) => item.status !== "desativo")
-      .forEach((item) => unicos.set(item.criativo, { nome: item.criativo, codigo: item.codigo || null }));
-    return [...unicos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  }, [criativosResumo]);
-  const criativosDisponiveis = useMemo(() => {
-    if (anunciosMeta.length > 0) {
-      const ativos = anunciosMeta.filter((anuncio) => anuncio.status === "ACTIVE");
-      const anunciosExibidos = ativos.length > 0 ? ativos : anunciosMeta;
-      return anunciosExibidos.map((anuncio) => ({
-        valor: `meta:${anuncio.id}`,
-        nome: anuncio.name,
-        codigo: anuncio.id,
-        campanha: anuncio.campaignName,
-        status: anuncio.status,
-      }));
-    }
-    return criativosManuais.map((criativo) => ({ ...criativo, valor: `manual:${criativo.nome}`, campanha: "Cadastro manual", status: "MANUAL" }));
-  }, [anunciosMeta, criativosManuais]);
 
   const dateInRange = (date?: string | null) => !!date && date >= dateFilter.range.start && date <= dateFilter.range.end;
 
@@ -571,13 +547,12 @@ const VendasPage = () => {
     };
 
     const buildCriativoPayload = (item: VendaItemForm) => {
-      const cadastro = criativosDisponiveis.find((criativo) => criativo.valor === item.criativo);
       return {
         user_id: session.user.id,
         nome_aluno: form.cliente,
         data: form.data,
-        criativo: cadastro?.nome || item.criativo,
-        codigo: cadastro?.codigo || null,
+        criativo: item.criativo.trim(),
+        codigo: null,
         valor_curso: Number(item.valor || 0),
         valor_ads: 0,
         roas: 0,
@@ -702,19 +677,14 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-              <select
+              <Input
                 value={form.criativo}
                 onChange={(event) => setForm((p) => ({ ...p, criativo: event.target.value }))}
-                disabled={isLoadingAnunciosMeta}
-                className="flex h-10 w-full rounded-md border border-border/30 bg-secondary/30 px-3 py-2 text-sm text-foreground outline-none focus:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">{isLoadingAnunciosMeta ? "Carregando anúncios da Meta..." : "Selecione o criativo"}</option>
-                {criativosDisponiveis.map((criativo) => (
-                  <option key={criativo.valor} value={criativo.valor}>{criativo.nome} — {criativo.campanha}</option>
-                ))}
-              </select>
+                placeholder="Ex.: 🪵 ou emoji/nome do anúncio"
+                className="bg-secondary/30 border-border/30 focus:border-primary/50"
+              />
               <p className="text-[11px] text-muted-foreground/60">
-                {isMetaAdsError ? "Meta indisponível: exibindo o cadastro manual." : "Anúncios carregados diretamente da área de Campanhas da Meta."}
+                Opcional. Digite o emoji ou nome usado para identificar o anúncio.
               </p>
             </div>
           </div>
@@ -1029,17 +999,11 @@ const VendasPage = () => {
 
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-                          <select
+                          <Input
                             value={item.criativo}
                             onChange={(event) => updateVendaItem(index, { criativo: event.target.value })}
-                            disabled={isLoadingAnunciosMeta}
-                            className="flex h-10 w-full rounded-md border border-border/30 bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary/50 disabled:opacity-50"
-                          >
-                            <option value="">{isLoadingAnunciosMeta ? "Carregando anúncios..." : "Selecione"}</option>
-                            {criativosDisponiveis.map((criativo) => (
-                              <option key={criativo.valor} value={criativo.valor}>{criativo.nome} — {criativo.campanha}</option>
-                            ))}
-                          </select>
+                            placeholder="Emoji ou nome do anúncio"
+                          />
                         </div>
 
                         {item.condicao_pagamento !== "pago" && (
