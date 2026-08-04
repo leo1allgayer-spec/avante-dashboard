@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMonthMetrics, useTodayMetrics } from "@/hooks/useMetrics";
 import { useClients } from "@/hooks/useClients";
+import { useVendas } from "@/hooks/useVendas";
+import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
+import { useMetaAds } from "@/hooks/useMetaAds";
+import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import CountUp from "react-countup";
 import {
@@ -22,6 +27,47 @@ import {
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
 
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const dateInRange = (date: string | null | undefined, start: string, end: string) =>
+  Boolean(date && date >= start && date <= end);
+
+const normalizeStatus = (status?: string | null) =>
+  String(status || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+const getActionValue = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
+  if (!actions?.length) return 0;
+  for (const type of types) {
+    const found = actions.find((action) => action.action_type === type);
+    if (found) return Number(found.value || 0);
+  }
+  return 0;
+};
+
+const getLeadsFromActions = (actions: Array<{ action_type: string; value: string }> | undefined) =>
+  getActionValue(actions, [
+    "lead",
+    "onsite_conversion.lead_grouped",
+    "offsite_conversion.fb_pixel_lead",
+    "offsite_complete_registration_add_meta_leads",
+    "offsite_content_view_add_meta_leads",
+  ]);
+
+const getConversationsFromActions = (actions: Array<{ action_type: string; value: string }> | undefined) =>
+  getActionValue(actions, [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "onsite_conversion.total_messaging_connection",
+    "onsite_conversion.messaging_first_reply",
+  ]);
+
+const getFechamentoTotal = (item: { valor_sinal?: number; valor_a_entrar?: number; valor_recorrente?: number }) =>
+  Number(item.valor_sinal || 0) + Number(item.valor_a_entrar || 0) + Number(item.valor_recorrente || 0);
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
@@ -39,9 +85,14 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const DashboardTVPage = () => {
   const [now, setNow] = useState(new Date());
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: today } = useTodayMetrics();
   const { data: monthData } = useMonthMetrics();
   const { data: clients = [] } = useClients();
+  const { data: vendas = [] } = useVendas();
+  const { data: fechamentos = [] } = useFechamentosDiarios();
+  const { data: metaToday } = useMetaAds({ datePreset: "today" });
+  const { data: metaMonth } = useMetaAds({ datePreset: "this_month" });
 
   const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "hsl(var(--success))", "#f59e0b", "#ef4444", "#8b5cf6"];
 
@@ -50,29 +101,164 @@ const DashboardTVPage = () => {
     return () => clearInterval(id);
   }, []);
 
-  const monthRealized = (monthData || []).reduce((s, d) => s + Number(d.faturamento_dia), 0);
-  const totalLeads = (monthData || []).reduce((s, d) => s + Number(d.leads), 0);
-  const totalMql = (monthData || []).reduce((s, d) => s + Number(d.lead_mql), 0);
+  useEffect(() => {
+    const invalidateLiveData = () => {
+      queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
+      queryClient.invalidateQueries({ queryKey: ["vendas"] });
+      queryClient.invalidateQueries({ queryKey: ["fechamentos_diarios"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+    };
+
+    const interval = window.setInterval(invalidateLiveData, 60 * 1000);
+    const channel = supabase
+      .channel("dashboard-tv-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "daily_metrics" }, invalidateLiveData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vendas" }, invalidateLiveData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fechamentos_diarios" }, invalidateLiveData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "clients" }, invalidateLiveData)
+      .subscribe();
+
+    return () => {
+      window.clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const todayKey = formatLocalDate(now);
+  const monthStart = formatLocalDate(new Date(now.getFullYear(), now.getMonth(), 1));
+  const monthEnd = formatLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+
+  const tvData = useMemo(() => {
+    const vendasMes = vendas.filter((v) => dateInRange(v.data, monthStart, monthEnd));
+    const vendasHoje = vendas.filter((v) => v.data === todayKey);
+    const vendasAprovadasMes = vendasMes.filter((v) => normalizeStatus(v.status) === "aprovada");
+    const vendasAprovadasHoje = vendasHoje.filter((v) => normalizeStatus(v.status) === "aprovada");
+
+    const fechamentosAtivos = fechamentos.filter((f) => normalizeStatus(f.status) !== "cancelado");
+    const fechamentosMes = fechamentosAtivos.filter((f) => dateInRange(f.data, monthStart, monthEnd) || dateInRange(f.previsao_entrada, monthStart, monthEnd));
+    const fechamentosHoje = fechamentosAtivos.filter((f) => f.data === todayKey || f.previsao_entrada === todayKey);
+
+    const faturamentoFeitoMes = vendasAprovadasMes.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
+    const faturamentoFeitoHoje = vendasAprovadasHoje.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
+    const faturamentoMarcadoMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
+    const faturamentoMarcadoHoje = fechamentosHoje.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
+    const aReceberMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
+    const recorrenteMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
+
+    const metaSpendToday = Number(metaToday?.accountInsights?.spend || 0);
+    const metaSpendMonth = Number(metaMonth?.accountInsights?.spend || 0);
+    const leadsTodayMeta = getLeadsFromActions(metaToday?.accountInsights?.actions);
+    const leadsMonthMeta = getLeadsFromActions(metaMonth?.accountInsights?.actions);
+    const conversationsToday = getConversationsFromActions(metaToday?.accountInsights?.actions);
+    const conversationsMonth = getConversationsFromActions(metaMonth?.accountInsights?.actions);
+    const leadsToday = leadsTodayMeta || Number(today?.leads || 0);
+    const leadsMonth = leadsMonthMeta || (monthData || []).reduce((sum, day) => sum + Number(day.leads || 0), 0);
+    const mqlToday = conversationsToday || Number(today?.lead_mql || 0);
+    const mqlMonth = conversationsMonth || (monthData || []).reduce((sum, day) => sum + Number(day.lead_mql || 0), 0);
+
+    const investimentoHoje = metaSpendToday || Number(today?.ads || 0);
+    const investimentoMes = metaSpendMonth || (monthData || []).reduce((sum, day) => sum + Number(day.ads || 0), 0);
+    const faturamentoMes = faturamentoFeitoMes || (monthData || []).reduce((sum, day) => sum + Number(day.faturamento_dia || 0), 0);
+    const faturamentoHoje = faturamentoFeitoHoje || Number(today?.faturamento_dia || 0);
+    const roasMes = investimentoMes > 0 ? faturamentoMes / investimentoMes : Number(today?.roas || 0);
+    const cac = vendasAprovadasMes.length > 0 ? investimentoMes / vendasAprovadasMes.length : Number(today?.cac || 0);
+    const cpl = leadsMonth > 0 ? investimentoMes / leadsMonth : Number(today?.custo_por_lead || 0);
+    const cplMql = mqlMonth > 0 ? investimentoMes / mqlMonth : Number(today?.custo_por_lead_mql || 0);
+    const convRate = leadsMonth > 0 ? (mqlMonth / leadsMonth) * 100 : 0;
+    const origemMap: Record<string, number> = {};
+    vendasMes.forEach((venda) => {
+      const origem = venda.origem || "Nao informado";
+      origemMap[origem] = (origemMap[origem] || 0) + 1;
+    });
+    fechamentosMes.forEach((item) => {
+      const origem = item.origem || "Nao informado";
+      origemMap[origem] = (origemMap[origem] || 0) + 1;
+    });
+    const origemData = Object.entries(origemMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    const consultorMap: Record<string, number> = {};
+    vendasAprovadasMes.forEach((venda) => {
+      const vendedor = venda.vendedor || "Nao informado";
+      consultorMap[vendedor] = (consultorMap[vendedor] || 0) + Number(venda.valor || 0);
+    });
+    fechamentosMes.forEach((item) => {
+      const vendedor = item.vendedor || "Nao informado";
+      consultorMap[vendedor] = (consultorMap[vendedor] || 0) + getFechamentoTotal(item);
+    });
+    const consultorData = Object.entries(consultorMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+
+    const totalOperacoesMes = vendasAprovadasMes.length + fechamentosMes.length;
+    const ticketMedio = totalOperacoesMes > 0 ? (faturamentoMes + faturamentoMarcadoMes + aReceberMes) / totalOperacoesMes : 0;
+
+    return {
+      vendasMes: vendasAprovadasMes,
+      vendasHoje: vendasAprovadasHoje,
+      fechamentosMes,
+      faturamentoMes,
+      faturamentoHoje,
+      faturamentoMarcadoMes,
+      faturamentoMarcadoHoje,
+      aReceberMes,
+      recorrenteMes,
+      investimentoHoje,
+      investimentoMes,
+      leadsToday,
+      leadsMonth,
+      mqlToday,
+      mqlMonth,
+      roasMes,
+      cac,
+      cpl,
+      cplMql,
+      convRate,
+      origemData,
+      consultorData,
+      totalOperacoesMes,
+      ticketMedio,
+    };
+  }, [vendas, fechamentos, metaToday, metaMonth, today, monthData, todayKey, monthStart, monthEnd]);
+
+  const monthRealized = tvData.faturamentoMes;
+  const totalLeads = tvData.leadsMonth;
+  const totalMql = tvData.mqlMonth;
   const metaMensal = today?.meta_mensal_prevista || 0;
   const metaPct = metaMensal > 0 ? Math.min((monthRealized / metaMensal) * 100, 100) : 0;
-  const roas = today?.roas || 0;
-  const convRate = totalLeads > 0 ? ((totalMql / totalLeads) * 100) : 0;
+  const roas = tvData.roasMes;
+  const convRate = tvData.convRate;
   const metaDiaria = today?.meta_diaria_prevista || 0;
-  const metaDiariaReal = today?.meta_diaria_realizada || 0;
+  const metaDiariaReal = tvData.faturamentoHoje;
   const metaDiariaPct = metaDiaria > 0 ? Math.min((metaDiariaReal / metaDiaria) * 100, 100) : 0;
 
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const dateStr = now.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-  // Chart data from monthData
-  const chartData = (monthData || [])
-    .slice(-15)
-    .map((d) => ({
-      dia: new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-      Faturamento: Number(d.faturamento_dia),
-      Leads: Number(d.leads),
-      MQL: Number(d.lead_mql),
-    }));
+  const chartData = useMemo(() => {
+    const days = Array.from({ length: 15 }, (_, index) => {
+      const date = new Date(now);
+      date.setDate(date.getDate() - (14 - index));
+      const key = formatLocalDate(date);
+      const metric = (monthData || []).find((item) => item.date === key);
+      const dayVendas = vendas.filter((venda) => venda.data === key && normalizeStatus(venda.status) === "aprovada");
+      const metaDay = metaMonth?.dailyInsights?.find((item) => item.date_start === key);
+      const faturamento = dayVendas.reduce((sum, venda) => sum + Number(venda.valor || 0), 0) || Number(metric?.faturamento_dia || 0);
+      const leads = getLeadsFromActions(metaDay?.actions) || Number(metric?.leads || 0);
+      const mql = getConversationsFromActions(metaDay?.actions) || Number(metric?.lead_mql || 0);
+
+      return {
+        dia: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+        Faturamento: faturamento,
+        Leads: leads,
+        MQL: mql,
+      };
+    });
+
+    return days;
+  }, [monthData, vendas, metaMonth, now]);
 
   const cardStyle = { background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" };
 
@@ -140,12 +326,12 @@ const DashboardTVPage = () => {
         {/* KPI cards — 7 cols, 3x2 grid */}
         <div className="col-span-12 lg:col-span-7 grid grid-cols-3 grid-rows-2 gap-4 lg:gap-5">
           {[
-            { label: "Faturamento Hoje", value: today?.faturamento_dia || 0, prefix: "R$ ", suffix: "" },
+            { label: "Faturamento Hoje", value: tvData.faturamentoHoje, prefix: "R$ ", suffix: "" },
             { label: "Meta Diária", value: metaDiariaReal, prefix: "R$ ", suffix: "", sub: metaDiaria > 0 ? `de ${formatCurrency(metaDiaria)} · ${metaDiariaPct.toFixed(0)}%` : undefined },
             { label: "ROAS", value: roas, prefix: "", suffix: "x", decimals: 1, badge: roas >= 3 ? "Excelente" : roas >= 1 ? "Positivo" : "Baixo", badgeColor: roas >= 3 ? "text-success" : roas >= 1 ? "text-accent" : "text-destructive" },
-            { label: "Leads Hoje", value: today?.leads || 0, prefix: "", suffix: "", sub: `mês: ${totalLeads}` },
-            { label: "MQL Hoje", value: today?.lead_mql || 0, prefix: "", suffix: "", accent: true, sub: convRate > 0 ? `conversão: ${convRate.toFixed(1)}%` : undefined },
-            { label: "CAC", value: today?.cac || 0, prefix: "R$ ", suffix: "", sub: `CPL: ${formatCurrency(today?.custo_por_lead || 0)}` },
+            { label: "Leads Hoje", value: tvData.leadsToday, prefix: "", suffix: "", sub: `mês: ${totalLeads}` },
+            { label: "Conversas Hoje", value: tvData.mqlToday, prefix: "", suffix: "", accent: true, sub: convRate > 0 ? `conversão: ${convRate.toFixed(1)}%` : undefined },
+            { label: "CAC", value: tvData.cac, prefix: "R$ ", suffix: "", sub: `CPL: ${formatCurrency(tvData.cpl)}` },
           ].map((card, i) => (
             <motion.div
               key={card.label}
@@ -238,9 +424,9 @@ const DashboardTVPage = () => {
           <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/40 font-medium mb-3">Custos & Conversão</p>
           <div className="space-y-4 flex-1 flex flex-col justify-center">
             {[
-              { label: "CAC", value: formatCurrency(today?.cac || 0) },
-              { label: "CPL", value: formatCurrency(today?.custo_por_lead || 0) },
-              { label: "CPL MQL", value: formatCurrency(today?.custo_por_lead_mql || 0) },
+              { label: "CAC", value: formatCurrency(tvData.cac) },
+              { label: "CPL", value: formatCurrency(tvData.cpl) },
+              { label: "CPL Conversa", value: formatCurrency(tvData.cplMql) },
               { label: "Conversão", value: `${convRate.toFixed(1)}%` },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between">
@@ -253,9 +439,7 @@ const DashboardTVPage = () => {
 
         {/* Origem dos Alunos - Pie */}
         {(() => {
-          const origemMap: Record<string, number> = {};
-          clients.forEach((c) => { const o = c.origem || "N/I"; origemMap[o] = (origemMap[o] || 0) + 1; });
-          const origemData = Object.entries(origemMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+          const origemData = tvData.origemData;
           return (
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.6 }}
               className="col-span-12 lg:col-span-4 rounded-2xl p-5 flex flex-col" style={cardStyle}>
@@ -275,9 +459,7 @@ const DashboardTVPage = () => {
 
         {/* Ranking Consultores - Bar */}
         {(() => {
-          const cMap: Record<string, number> = {};
-          clients.forEach((c) => { const con = c.consultor || "N/I"; cMap[con] = (cMap[con] || 0) + Number(c.valor || 0); });
-          const cData = Object.entries(cMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+          const cData = tvData.consultorData;
           return (
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.65 }}
               className="col-span-12 lg:col-span-5 rounded-2xl p-5 flex flex-col" style={cardStyle}>
@@ -297,21 +479,18 @@ const DashboardTVPage = () => {
 
         {/* Ticket + Nota + Exclusividade */}
         {(() => {
-          const totalFat = clients.reduce((s, c) => s + Number(c.valor || 0), 0);
-          const ticket = clients.length > 0 ? totalFat / clients.length : 0;
           const notasV = clients.filter(c => c.nota != null && c.nota > 0);
           const notaM = notasV.length > 0 ? notasV.reduce((s, c) => s + Number(c.nota), 0) / notasV.length : 0;
-          const excl = clients.length > 0 ? (clients.filter(c => c.exclusividade).length / clients.length * 100) : 0;
           return (
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.7 }}
               className="col-span-12 lg:col-span-3 rounded-2xl p-5 flex flex-col justify-between" style={cardStyle}>
               <p className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/40 font-medium mb-3">Análise de Vendas</p>
               <div className="space-y-4 flex-1 flex flex-col justify-center">
                 {[
-                  { label: "Total Alunos", value: String(clients.length) },
-                  { label: "Ticket Médio", value: `R$ ${ticket.toFixed(0)}` },
+                  { label: "Vendas / Fechamentos", value: String(tvData.totalOperacoesMes) },
+                  { label: "Ticket Médio", value: formatCurrency(tvData.ticketMedio) },
                   { label: "Nota Média", value: `${notaM.toFixed(1)} ⭐` },
-                  { label: "Exclusividade", value: `${excl.toFixed(0)}%` },
+                  { label: "A receber", value: formatCurrency(tvData.aReceberMes) },
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground/40">{row.label}</span>
@@ -338,3 +517,4 @@ const DashboardTVPage = () => {
 };
 
 export default DashboardTVPage;
+
