@@ -4,7 +4,7 @@ import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
-import { useFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
+import { useFechamentosDiarios, useUpdateFechamentoDiario, useDeleteFechamentoDiario, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -122,6 +122,8 @@ const VendasPage = () => {
   const updateVenda = useUpdateVenda();
   const deleteVenda = useDeleteVenda();
   const clearVendas = useClearVendas();
+  const updateFechamento = useUpdateFechamentoDiario();
+  const deleteFechamento = useDeleteFechamentoDiario();
   const { session } = useAuth();
   const { toast } = useToast();
 
@@ -291,11 +293,12 @@ const VendasPage = () => {
       recorrente: number;
       feito: number;
       vendas: number;
+      fechamentos: FechamentoDiario[];
     }>();
 
     const getRow = (categoria: string) => {
       if (!map.has(categoria)) {
-        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0 });
+        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0, fechamentos: [] });
       }
       return map.get(categoria)!;
     };
@@ -307,6 +310,7 @@ const VendasPage = () => {
         row.coletado += dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0;
         row.aReceber += getAReceberNoPeriodo(item);
         row.recorrente += Number(item.valor_recorrente || 0);
+        row.fechamentos.push(item);
       });
 
     vendasAprovadas.forEach((venda) => {
@@ -317,6 +321,50 @@ const VendasPage = () => {
 
     return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
   }, [fechamentosFiltrados, vendasAprovadas, dateFilter.range.start, dateFilter.range.end]);
+
+  const renameCategoryFechamentos = async (categoria: string, items: FechamentoDiario[]) => {
+    if (items.length === 0) {
+      toast({
+        title: "Categoria gerada pelas vendas",
+        description: "Edite a categoria diretamente na venda para alterar essa linha.",
+      });
+      return;
+    }
+
+    const nextCategory = window.prompt("Novo nome da categoria", categoria)?.trim();
+    if (!nextCategory || nextCategory === categoria) return;
+
+    try {
+      await Promise.all(items.map((item) => updateFechamento.mutateAsync({
+        id: item.id,
+        categoria: nextCategory,
+        produto_servico: nextCategory,
+      })));
+      toast({ title: "Categoria atualizada", description: `${items.length} lancamento(s) ajustado(s).` });
+    } catch (err: any) {
+      toast({ title: "Erro ao atualizar categoria", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const deleteCategoryFechamentos = async (categoria: string, items: FechamentoDiario[]) => {
+    if (items.length === 0) {
+      toast({
+        title: "Categoria gerada pelas vendas",
+        description: "Essa linha nao tem lancamentos de fechamento para remover.",
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(`Remover ${items.length} lancamento(s) de fechamento da categoria "${categoria}" neste periodo?`);
+    if (!confirmed) return;
+
+    try {
+      await Promise.all(items.map((item) => deleteFechamento.mutateAsync(item.id)));
+      toast({ title: "Lancamentos removidos", description: `${items.length} item(ns) removido(s) da central.` });
+    } catch (err: any) {
+      toast({ title: "Erro ao remover lancamentos", description: err.message, variant: "destructive" });
+    }
+  };
 
 
   const openNewDialog = () => {
@@ -822,6 +870,7 @@ const VendasPage = () => {
                       <TableHead className="text-right">Recorrente</TableHead>
                       <TableHead className="text-right">Faturamento feito</TableHead>
                       <TableHead className="text-center">Vendas feitas</TableHead>
+                      <TableHead className="w-20 text-right">Acoes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -833,6 +882,30 @@ const VendasPage = () => {
                         <TableCell className="text-right font-semibold text-primary">{formatBRL(row.recorrente)}</TableCell>
                         <TableCell className="text-right font-semibold text-foreground">{formatBRL(row.feito)}</TableCell>
                         <TableCell className="text-center">{row.vendas}</TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              title="Editar categoria dos fechamentos"
+                              onClick={() => renameCategoryFechamentos(row.categoria, row.fechamentos)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              title="Remover fechamentos desta categoria"
+                              onClick={() => deleteCategoryFechamentos(row.categoria, row.fechamentos)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
