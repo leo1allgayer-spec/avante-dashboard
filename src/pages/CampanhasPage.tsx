@@ -214,6 +214,7 @@ const CampanhasPage = () => {
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignRow | null>(null);
   const [campaignDetails, setCampaignDetails] = useState<CampaignDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailStage, setDetailStage] = useState<"campaign" | "adsets" | "ads">("adsets");
 
   const metaFilters = useMemo<MetaAdsFilters>(() => ({
     datePreset: datePreset === "last_month" ? "custom" : datePreset,
@@ -393,6 +394,7 @@ const CampanhasPage = () => {
   const openCampaignDetails = async (campaign: CampaignRow) => {
     setSelectedCampaign(campaign);
     setCampaignDetails(null);
+    setDetailStage("adsets");
     setDetailsOpen(true);
     setDetailsLoading(true);
     try {
@@ -729,11 +731,11 @@ const CampanhasPage = () => {
                 Conjuntos de anuncios e anuncios vinculados a campanha selecionada.
               </DialogDescription>
               <div className="flex flex-wrap items-center gap-2 pt-2 text-[10px] font-semibold uppercase tracking-wider">
-                <Badge variant="outline" className="border-primary/40 text-primary">1. Campanha</Badge>
+                <Button type="button" variant="outline" size="sm" onClick={() => setDetailStage("campaign")} className={`h-7 rounded-full px-3 text-[10px] ${detailStage === "campaign" ? "border-primary bg-primary/15 text-primary" : ""}`}>1. Campanha</Button>
                 <span className="text-muted-foreground">→</span>
-                <Badge variant="outline">2. Conjunto de anúncios</Badge>
+                <Button type="button" variant="outline" size="sm" onClick={() => setDetailStage("adsets")} className={`h-7 rounded-full px-3 text-[10px] ${detailStage === "adsets" ? "border-primary bg-primary/15 text-primary" : ""}`}>2. Conjunto de anúncios</Button>
                 <span className="text-muted-foreground">→</span>
-                <Badge variant="outline">3. Anúncio</Badge>
+                <Button type="button" variant="outline" size="sm" onClick={() => setDetailStage("ads")} className={`h-7 rounded-full px-3 text-[10px] ${detailStage === "ads" ? "border-primary bg-primary/15 text-primary" : ""}`}>3. Anúncio</Button>
               </div>
             </DialogHeader>
 
@@ -754,6 +756,33 @@ const CampanhasPage = () => {
 
             {!detailsLoading && campaignDetails && (
               <div className="space-y-6">
+                {detailStage === "campaign" && selectedCampaign && (
+                  <section className="rounded-lg border border-primary/30 bg-primary/5 p-5">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-primary">Etapa 1 · Campanha</p>
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <h4 className="text-base font-semibold text-foreground">{selectedCampaign.name}</h4>
+                      <Badge variant={statusMap[selectedCampaign.status]?.variant || "outline"}>{statusMap[selectedCampaign.status]?.label || selectedCampaign.status}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {[
+                        ["Gasto", formatCurrency(selectedCampaign.spend)],
+                        ["Cliques", formatNumber(selectedCampaign.clicks)],
+                        ["Conversas", formatNumber(selectedCampaign.conversations)],
+                        ["Alcance", formatNumber(selectedCampaign.reach)],
+                        ["Impressões", formatNumber(selectedCampaign.impressions)],
+                        ["CTR", `${selectedCampaign.ctr.toFixed(2)}%`],
+                        ["CPC", formatCurrency(selectedCampaign.cpc)],
+                        ["Orçamento", selectedCampaign.dailyBudget > 0 ? `${formatCurrency(selectedCampaign.dailyBudget)}/dia` : formatCurrency(selectedCampaign.lifetimeBudget)],
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-md bg-background/50 px-3 py-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+                          <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+                {detailStage !== "campaign" && (
                 <section>
                   <div className="mb-3 flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-foreground">Etapas dos conjuntos e anúncios</h4>
@@ -794,7 +823,7 @@ const CampanhasPage = () => {
                             </div>
                           </div>
 
-                          <div className="mt-4 space-y-2">
+                          {detailStage === "ads" && <div className="mt-4 space-y-2">
                             {ads.map((ad) => {
                               const adInsight = firstInsight(ad);
                               const adStatus = statusMap[ad.effective_status || ad.status] || { label: ad.effective_status || ad.status || "-", variant: "outline" as const };
@@ -832,12 +861,12 @@ const CampanhasPage = () => {
                                 Nenhum anuncio encontrado nesse conjunto.
                               </div>
                             )}
-                          </div>
+                          </div>}
                         </div>
                       );
                     })}
 
-                    {(adsByAdset.get("sem-conjunto") || []).length > 0 && (
+                    {detailStage === "ads" && (adsByAdset.get("sem-conjunto") || []).length > 0 && (
                       <div className="rounded-lg border border-border/40 bg-secondary/10 p-4">
                         <p className="mb-3 text-sm font-semibold text-foreground">Anuncios sem conjunto identificado</p>
                         <div className="space-y-2">
@@ -882,6 +911,7 @@ const CampanhasPage = () => {
                     )}
                   </div>
                 </section>
+                )}
               </div>
             )}
             </div>
