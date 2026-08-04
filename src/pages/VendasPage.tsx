@@ -193,7 +193,7 @@ const VendasPage = () => {
     ? +(form.valor * (1 - taxa / 100)).toFixed(2)
     : null;
   const valorBase = valorComJuros ?? form.valor;
-  const comissao = +(valorBase * 0.05).toFixed(2);
+  const comissao = +(valorBase * 0.15).toFixed(2);
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
   const criativosDisponiveis = useMemo(() => {
@@ -269,10 +269,55 @@ const VendasPage = () => {
     const valorLiquido = +(Number(v.valor) * (1 - taxaVenda / 100)).toFixed(2);
     return {
       valorLiquido,
-      comissao: +(valorLiquido * 0.05).toFixed(2),
+      comissao: +(valorLiquido * 0.15).toFixed(2),
       taxa: taxaVenda,
     };
   };
+
+  const vendasAgrupadas = useMemo(() => {
+    const grupos = new Map<string, Venda[]>();
+    filtered.forEach((venda) => {
+      const chave = [venda.data, venda.cliente.trim().toLowerCase(), venda.vendedor.trim().toLowerCase(), venda.pagamento, venda.origem || "", venda.status].join("|");
+      grupos.set(chave, [...(grupos.get(chave) || []), venda]);
+    });
+
+    return [...grupos.entries()].map(([chave, itens]) => {
+      const principal = itens[0];
+      const produtos = [...new Set(itens.map((item) => item.produto).filter(Boolean))];
+      const servicos = [...new Set(itens.map((item) => item.servico).filter(Boolean))];
+      const valoresPositivos = itens.map((item) => Number(item.valor || 0)).filter((valor) => valor > 0);
+      const valoresUnicos = [...new Set(valoresPositivos)];
+      const valorTotal = valoresUnicos.length === 1 && itens.length > 1
+        ? valoresUnicos[0]
+        : valoresPositivos.reduce((total, valor) => total + valor, 0);
+      const liquidosPositivos = itens.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
+      const liquidosUnicos = [...new Set(liquidosPositivos)];
+      const valorLiquido = liquidosUnicos.length === 1 && itens.length > 1
+        ? liquidosUnicos[0]
+        : liquidosPositivos.reduce((total, valor) => total + valor, 0);
+      const fechamentosRelacionados = fechamentosFiltrados.filter((item) =>
+        item.data === principal.data &&
+        item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
+        item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase(),
+      );
+      const sinaisUnicos = [...new Set(fechamentosRelacionados.map((item) => Number(item.valor_sinal || 0)).filter((valor) => valor > 0))];
+      const sinal = Math.min(valorTotal, sinaisUnicos.reduce((total, valor) => total + valor, 0));
+
+      return {
+        chave,
+        principal,
+        itens,
+        produtos,
+        servicos,
+        quantidade: itens.length,
+        valorTotal,
+        valorLiquido,
+        sinal,
+        saldo: Math.max(0, valorTotal - sinal),
+        comissao: +(valorLiquido * 0.15).toFixed(2),
+      };
+    });
+  }, [filtered, fechamentosFiltrados, taxProfile]);
 
   const getItemValores = (item: VendaItemForm) => {
     const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
@@ -284,7 +329,7 @@ const VendasPage = () => {
     return {
       taxa: itemTemParcela ? itemTaxa : null,
       valorLiquido,
-      comissao: +(valorLiquido * 0.05).toFixed(2),
+      comissao: +(valorLiquido * 0.15).toFixed(2),
       parcelas: itemTemParcela ? `${item.parcelas}x (${itemTaxa}%)` : null,
     };
   };
@@ -1285,14 +1330,14 @@ const VendasPage = () => {
                 <TableRow className="border-border/30" style={{ background: "hsl(260, 22%, 9%)" }}>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Data</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Cliente</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Produto</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Serviço</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">Qtd.</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Origem</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Valor</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Valor total</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Sinal</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Saldo</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Pagamento</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">Parcelas</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Valor Líquido</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão (15%)</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Status</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground w-20"></TableHead>
                 </TableRow>
@@ -1302,31 +1347,30 @@ const VendasPage = () => {
                   <TableRow>
                     <TableCell colSpan={12} className="text-center text-muted-foreground py-8">Carregando...</TableCell>
                   </TableRow>
-                ) : filtered.length === 0 ? (
+                ) : vendasAgrupadas.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={12} className="text-center text-muted-foreground py-8">Nenhuma venda encontrada</TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((v) => {
-                    const valores = getVendaValores(v);
+                  vendasAgrupadas.map((grupo) => {
+                    const v = grupo.principal;
+                    const nomes = [...grupo.produtos, ...grupo.servicos];
                     return (
-                    <TableRow key={v.id} className="border-border/20 hover:bg-secondary/20" style={{ background: "hsl(260, 22%, 7%)" }}>
+                    <TableRow key={grupo.chave} className="border-border/20 hover:bg-secondary/20" style={{ background: "hsl(260, 22%, 7%)" }}>
                       <TableCell className="text-sm">{formatDate(v.data)}</TableCell>
-                      <TableCell className="text-sm">{v.cliente}</TableCell>
-                      <TableCell className="text-sm">{v.produto}</TableCell>
-                      <TableCell className="text-sm">{v.servico || "—"}</TableCell>
+                      <TableCell className="text-sm font-semibold">{v.cliente}</TableCell>
+                      <TableCell className="text-sm"><div className="flex max-w-xs flex-wrap gap-1">{nomes.length > 0 ? nomes.map((nome) => <Badge key={nome} variant="secondary" className="font-normal">{nome}</Badge>) : "—"}</div></TableCell>
+                      <TableCell className="text-sm text-center font-semibold">{grupo.quantidade}</TableCell>
                       <TableCell className="text-sm">{v.origem || "—"}</TableCell>
-                      <TableCell className="text-sm text-right font-semibold">{formatBRL(v.valor)}</TableCell>
+                      <TableCell className="text-sm text-right font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
+                      <TableCell className="text-sm text-right font-semibold text-success">{formatBRL(grupo.sinal)}</TableCell>
+                      <TableCell className="text-sm text-right font-semibold text-amber-500">{formatBRL(grupo.saldo)}</TableCell>
                       <TableCell className="text-center">
                         <Badge variant={v.pagamento === "Cartão" ? "secondary" : "outline"} className="text-xs">
                           {v.pagamento}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-center text-muted-foreground">
-                        {v.parcelas ? `${parseInt(v.parcelas)}x (${valores.taxa ?? "—"}%)` : "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-right text-muted-foreground">{formatBRL(valores.valorLiquido)}</TableCell>
-                      <TableCell className="text-sm text-right">{formatBRL(valores.comissao)}</TableCell>
+                      <TableCell className="text-sm text-right">{formatBRL(grupo.comissao)}</TableCell>
                       <TableCell className="text-center">
                         <Badge
                           className="text-xs"
@@ -1342,6 +1386,7 @@ const VendasPage = () => {
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-primary"
                             onClick={() => openEditDialog(v)}
+                            title={grupo.itens.length > 1 ? "Editar o primeiro item desta venda" : "Editar venda"}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -1349,10 +1394,10 @@ const VendasPage = () => {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => deleteVenda.mutate(v.id, {
-                              onSuccess: () => toast({ title: "Venda removida" }),
-                              onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
-                            })}
+                            onClick={() => Promise.all(grupo.itens.map((item) => deleteVenda.mutateAsync(item.id)))
+                              .then(() => toast({ title: grupo.itens.length > 1 ? "Venda e seus itens removidos" : "Venda removida" }))
+                              .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }))}
+                            title={grupo.itens.length > 1 ? "Remover toda a venda agrupada" : "Remover venda"}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -1362,21 +1407,23 @@ const VendasPage = () => {
                     );
                   })
                 )}
-                {filtered.length > 0 && (() => {
-                  const totalValor = filtered.reduce((s, v) => s + Number(v.valor), 0);
-                  const totalLiquido = filtered.reduce((s, v) => s + getVendaValores(v).valorLiquido, 0);
-                  const totalComissao = filtered.reduce((s, v) => s + getVendaValores(v).comissao, 0);
+                {vendasAgrupadas.length > 0 && (() => {
+                  const totalValor = vendasAgrupadas.reduce((s, grupo) => s + grupo.valorTotal, 0);
+                  const totalSinal = vendasAgrupadas.reduce((s, grupo) => s + grupo.sinal, 0);
+                  const totalSaldo = vendasAgrupadas.reduce((s, grupo) => s + grupo.saldo, 0);
+                  const totalComissao = vendasAgrupadas.reduce((s, grupo) => s + grupo.comissao, 0);
+                  const totalServicos = vendasAgrupadas.reduce((s, grupo) => s + grupo.quantidade, 0);
                   return (
                     <TableRow className="border-t-2 border-accent/30" style={{ background: "hsl(260, 22%, 11%)" }}>
                       <TableCell className="text-sm font-bold text-accent py-3">TOTAL</TableCell>
-                      <TableCell className="py-3"></TableCell>
-                      <TableCell className="text-sm font-bold py-3">{filtered.length} vendas</TableCell>
-                      <TableCell className="py-3"></TableCell>
+                      <TableCell className="text-sm font-bold py-3">{vendasAgrupadas.length} clientes</TableCell>
+                      <TableCell className="text-sm font-bold py-3">{totalServicos} serviços</TableCell>
+                      <TableCell className="py-3 text-center font-bold">{totalServicos}</TableCell>
                       <TableCell className="py-3"></TableCell>
                       <TableCell className="text-sm text-right font-bold py-3">{formatBRL(totalValor)}</TableCell>
+                      <TableCell className="text-sm text-right font-bold py-3 text-success">{formatBRL(totalSinal)}</TableCell>
+                      <TableCell className="text-sm text-right font-bold py-3 text-amber-500">{formatBRL(totalSaldo)}</TableCell>
                       <TableCell className="py-3"></TableCell>
-                      <TableCell className="py-3"></TableCell>
-                      <TableCell className="text-sm text-right font-bold py-3">{formatBRL(totalLiquido)}</TableCell>
                       <TableCell className="text-sm text-right font-bold py-3">{formatBRL(totalComissao)}</TableCell>
                       <TableCell className="py-3"></TableCell>
                       <TableCell className="py-3"></TableCell>
