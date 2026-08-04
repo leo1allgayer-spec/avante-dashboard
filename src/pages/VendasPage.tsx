@@ -191,6 +191,10 @@ const VendasPage = () => {
 
   const [form, setForm] = useState({ ...defaultForm });
   const [additionalItems, setAdditionalItems] = useState<VendaItemForm[]>([]);
+  const metaAdsWithEmoji = useMemo(
+    () => metaAdCreatives.filter((ad) => /\p{Extended_Pictographic}/u.test(ad.name) || /\p{Extended_Pictographic}/u.test(ad.campaignName)),
+    [metaAdCreatives],
+  );
 
   const temParcela = PAGAMENTOS_COM_PARCELA.includes(form.pagamento);
   const taxasAtivas = getTaxas(form.pagamento, taxProfile);
@@ -704,7 +708,7 @@ const VendasPage = () => {
       </div>
       <form onSubmit={handleSubmit} className="max-h-[calc(90vh-118px)] overflow-y-auto overscroll-contain p-6 pr-2 space-y-5">
         <datalist id="meta-ad-names">
-          {metaAdCreatives.map((ad) => (
+          {metaAdsWithEmoji.map((ad) => (
             <option key={ad.id} value={ad.name}>{ad.campaignName}</option>
           ))}
         </datalist>
@@ -755,10 +759,10 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-              <Select value={metaAdCreatives.some((ad) => ad.name === form.criativo) ? form.criativo : undefined} onValueChange={(criativo) => setForm((p) => ({ ...p, criativo }))}>
+              <Select value={metaAdsWithEmoji.some((ad) => ad.name === form.criativo) ? form.criativo : undefined} onValueChange={(criativo) => setForm((p) => ({ ...p, criativo }))}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder={isLoadingMetaAds ? "Carregando anúncios..." : "Selecionar anúncio da Meta"} /></SelectTrigger>
                 <SelectContent className="max-h-72">
-                  {metaAdCreatives.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
+                  {metaAdsWithEmoji.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Input
@@ -773,7 +777,7 @@ const VendasPage = () => {
                   ? "Carregando nomes dos anúncios da Meta..."
                   : isMetaAdsError
                     ? "Não foi possível carregar a Meta agora; digite manualmente."
-                    : `${metaAdCreatives.length} anúncio(s) da Meta disponível(is) para selecionar.`}
+                    : `${metaAdsWithEmoji.length} anúncio(s) com emoji disponível(is) para selecionar.`}
               </p>
               <p className="text-[11px] text-muted-foreground/60">
                 Opcional. Digite o emoji ou nome usado para identificar o anúncio.
@@ -1090,10 +1094,10 @@ const VendasPage = () => {
 
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-                          <Select value={metaAdCreatives.some((ad) => ad.name === item.criativo) ? item.criativo : undefined} onValueChange={(criativo) => updateVendaItem(index, { criativo })}>
+                          <Select value={metaAdsWithEmoji.some((ad) => ad.name === item.criativo) ? item.criativo : undefined} onValueChange={(criativo) => updateVendaItem(index, { criativo })}>
                             <SelectTrigger><SelectValue placeholder={isLoadingMetaAds ? "Carregando anúncios..." : "Selecionar anúncio da Meta"} /></SelectTrigger>
                             <SelectContent className="max-h-72">
-                              {metaAdCreatives.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
+                              {metaAdsWithEmoji.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
                             </SelectContent>
                           </Select>
                           <Input
