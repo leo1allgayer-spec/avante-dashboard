@@ -13,6 +13,7 @@ import {
   useFechamentosDiarios,
   useUpdateFechamentoDiario,
 } from "@/hooks/useFechamentosDiarios";
+import { useVendas } from "@/hooks/useVendas";
 import { SERVICE_CATEGORIES } from "@/constants/serviceCategories";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { CalendarClock, CheckCircle2, Clock3, Layers3, Pencil, Plus, Search, Trash2, Wallet } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock3, Layers3, Pencil, Plus, Search, ShoppingCart, Trash2, TrendingUp, Wallet } from "lucide-react";
 
 const STATUS_OPTIONS = ["a receber", "recebido", "cancelado"];
 const ORIGEM_OPTIONS = ["Anuncio", "Upsell", "Indicacao", "Social Seller"];
@@ -89,6 +90,9 @@ const getStoredParcelDates = (item: Pick<FechamentoDiario, "parcelas_datas">) =>
 const getCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
   item.categoria || item.produto_servico || "Sem categoria";
 
+const getVendaCategoria = (item: { servico?: string | null; produto?: string | null }) =>
+  item.servico || item.produto || "Sem categoria";
+
 const nameKey = (value: string) => value.trim().toLowerCase().replace(/^@/, "");
 
 type FechamentoForm = typeof defaultForm;
@@ -107,6 +111,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function FechamentosPage() {
   const { data: fechamentos = [], isLoading } = useFechamentosDiarios();
+  const { data: vendas = [], isLoading: loadingVendas } = useVendas();
   const createFechamento = useCreateFechamentoDiario();
   const updateFechamento = useUpdateFechamentoDiario();
   const deleteFechamento = useDeleteFechamentoDiario();
@@ -198,6 +203,73 @@ export default function FechamentosPage() {
       .map(([categoria, values]) => ({ categoria, ...values }))
       .sort((a, b) => b.total - a.total);
   }, [filtered]);
+
+  const vendasPeriodo = useMemo(() => {
+    return vendas.filter((venda) => dateInRange(venda.data));
+  }, [vendas, dateFilter.range.start, dateFilter.range.end]);
+
+  const vendasFiltradas = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return vendasPeriodo.filter((venda) => {
+      if (statusFilter !== "todos" && venda.status !== statusFilter) return false;
+      if (origemFilter !== "todos" && (venda.origem || "") !== origemFilter) return false;
+      if (!q) return true;
+      return [venda.cliente, venda.vendedor, venda.produto, venda.servico || "", venda.origem || "", venda.pagamento]
+        .some((value) => value.toLowerCase().includes(q));
+    });
+  }, [vendasPeriodo, search, statusFilter, origemFilter]);
+
+  const vendasAprovadas = useMemo(
+    () => vendasFiltradas.filter((venda) => venda.status === "aprovada"),
+    [vendasFiltradas],
+  );
+
+  const vendasTotals = useMemo(() => {
+    const feito = vendasAprovadas.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
+    const liquido = vendasAprovadas.reduce((sum, venda) => sum + Number(venda.valor_com_juros || venda.valor || 0), 0);
+    const comissao = vendasAprovadas.reduce((sum, venda) => sum + Number(venda.comissao || 0), 0);
+    return {
+      feito,
+      liquido,
+      comissao,
+      quantidade: vendasAprovadas.length,
+    };
+  }, [vendasAprovadas]);
+
+  const integratedCategoryRows = useMemo(() => {
+    const map = new Map<string, {
+      categoria: string;
+      coletado: number;
+      aReceber: number;
+      recorrente: number;
+      feito: number;
+      vendas: number;
+    }>();
+
+    const getRow = (categoria: string) => {
+      if (!map.has(categoria)) {
+        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0 });
+      }
+      return map.get(categoria)!;
+    };
+
+    filtered
+      .filter((item) => normalizeStatus(item.status) !== "cancelado")
+      .forEach((item) => {
+        const row = getRow(getCategoria(item));
+        row.coletado += dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0;
+        row.aReceber += getAReceberNoPeriodo(item);
+        row.recorrente += Number(item.valor_recorrente || 0);
+      });
+
+    vendasAprovadas.forEach((venda) => {
+      const row = getRow(getVendaCategoria(venda));
+      row.feito += Number(venda.valor || 0);
+      row.vendas += 1;
+    });
+
+    return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
+  }, [filtered, vendasAprovadas, dateFilter.range.start, dateFilter.range.end]);
 
   const openNewDialog = () => {
     setEditing(null);
@@ -426,6 +498,69 @@ export default function FechamentosPage() {
 
         <Card className="border-border/50 bg-card/70">
           <CardHeader>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Resumo integrado de vendas e fechamentos</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Bate o faturamento marcado/coletado com o faturamento feito por categoria no mesmo periodo.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
+                  <span className="text-muted-foreground">Coletado</span>
+                  <strong className="block text-success">{formatBRL(totals.coletado)}</strong>
+                </div>
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                  <span className="text-muted-foreground">A receber</span>
+                  <strong className="block text-amber-500">{formatBRL(totals.aReceber)}</strong>
+                </div>
+                <div className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2">
+                  <span className="text-muted-foreground">Feito</span>
+                  <strong className="block text-primary">{formatBRL(vendasTotals.feito)}</strong>
+                </div>
+                <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2">
+                  <span className="text-muted-foreground">Vendas</span>
+                  <strong className="block text-accent">{vendasTotals.quantidade}</strong>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {integratedCategoryRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma venda ou fechamento encontrado no periodo.</p>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border/40">
+                <Table className="text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-right">Marcado / coletado</TableHead>
+                      <TableHead className="text-right">A receber</TableHead>
+                      <TableHead className="text-right">Recorrente</TableHead>
+                      <TableHead className="text-right">Faturamento feito</TableHead>
+                      <TableHead className="text-center">Vendas feitas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {integratedCategoryRows.map((row) => (
+                      <TableRow key={row.categoria}>
+                        <TableCell className="font-semibold">{row.categoria}</TableCell>
+                        <TableCell className="text-right font-semibold text-success">{formatBRL(row.coletado)}</TableCell>
+                        <TableCell className="text-right font-semibold text-amber-500">{formatBRL(row.aReceber)}</TableCell>
+                        <TableCell className="text-right font-semibold text-primary">{formatBRL(row.recorrente)}</TableCell>
+                        <TableCell className="text-right font-semibold text-foreground">{formatBRL(row.feito)}</TableCell>
+                        <TableCell className="text-center">{row.vendas}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 bg-card/70">
+          <CardHeader>
             <CardTitle>Totais por categoria</CardTitle>
           </CardHeader>
           <CardContent>
@@ -446,6 +581,102 @@ export default function FechamentosPage() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/50 bg-card/70">
+          <CardHeader>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5 text-primary" />
+                  Vendas registradas no periodo
+                </CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Vendas puxadas da tela de Vendas para facilitar a conferencia junto dos fechamentos.
+                </p>
+              </div>
+              <div className="flex gap-2 text-xs">
+                <div className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2">
+                  <span className="text-muted-foreground">Faturamento feito</span>
+                  <strong className="block text-primary">{formatBRL(vendasTotals.feito)}</strong>
+                </div>
+                <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
+                  <span className="text-muted-foreground">Liquido</span>
+                  <strong className="block text-success">{formatBRL(vendasTotals.liquido)}</strong>
+                </div>
+                <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2">
+                  <span className="text-muted-foreground">Comissao</span>
+                  <strong className="block text-accent">{formatBRL(vendasTotals.comissao)}</strong>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-hidden rounded-xl border border-border/40">
+              <Table className="table-fixed text-xs">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[8%]">Data</TableHead>
+                    <TableHead className="w-[18%]">Cliente</TableHead>
+                    <TableHead className="w-[18%]">Categoria</TableHead>
+                    <TableHead className="w-[12%]">Origem</TableHead>
+                    <TableHead className="w-[12%]">Pagamento</TableHead>
+                    <TableHead className="w-[10%] text-right">Valor</TableHead>
+                    <TableHead className="w-[10%] text-right">Liquido</TableHead>
+                    <TableHead className="w-[8%] text-center">Status</TableHead>
+                    <TableHead className="w-[4%] text-center">
+                      <TrendingUp className="mx-auto h-4 w-4" />
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loadingVendas ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Carregando vendas...</TableCell>
+                    </TableRow>
+                  ) : vendasFiltradas.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada no periodo.</TableCell>
+                    </TableRow>
+                  ) : (
+                    vendasFiltradas.map((venda) => (
+                      <TableRow key={venda.id}>
+                        <TableCell className="whitespace-nowrap">{formatDate(venda.data)}</TableCell>
+                        <TableCell>
+                          <div className="truncate font-medium" title={venda.cliente}>{venda.cliente}</div>
+                          <div className="truncate text-[11px] text-muted-foreground" title={venda.vendedor}>{venda.vendedor}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="truncate font-medium" title={getVendaCategoria(venda)}>{getVendaCategoria(venda)}</div>
+                          {venda.produto && venda.servico && (
+                            <div className="truncate text-[11px] text-muted-foreground" title={venda.produto}>{venda.produto}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="truncate" title={venda.origem || "-"}>{venda.origem || "-"}</TableCell>
+                        <TableCell>
+                          <div className="truncate" title={venda.pagamento}>{venda.pagamento}</div>
+                          {venda.parcelas && <div className="truncate text-[11px] text-muted-foreground">{venda.parcelas}</div>}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">{formatBRL(Number(venda.valor || 0))}</TableCell>
+                        <TableCell className="text-right font-semibold text-success">{formatBRL(Number(venda.valor_com_juros || venda.valor || 0))}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            variant={venda.status === "aprovada" ? "default" : venda.status === "cancelada" ? "destructive" : "outline"}
+                            className="text-[11px]"
+                          >
+                            {venda.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center text-muted-foreground">
+                          {venda.status === "aprovada" ? "feito" : "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 

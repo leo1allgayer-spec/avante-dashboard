@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, ChevronLeft, ChevronRight, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { findFutureStudentByCpf, type FutureStudent } from "@/hooks/useFutureStudents";
 
 const STEPS = ["Sobre Você", "Jornada de Compra", "Atendimento"];
 
@@ -58,6 +59,9 @@ const FORMA_ATENDIMENTO = [
 
 const VALOR_CURSO = ["Muito caro", "Preço justo", "Muito barato"];
 const COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/Dv3za8lv0gz1QfU4wgPRj9?s=cl&p=a&ilr=1&amv=2";
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
 
 const CURSOS_REALIZADOS = [
   "Curso Meta Ads",
@@ -175,9 +179,45 @@ const PesquisaPage = () => {
   const [form, setForm] = useState<FormData>(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [linkedFutureStudent, setLinkedFutureStudent] = useState<FutureStudent | null>(null);
+  const [checkingCpf, setCheckingCpf] = useState(false);
   const { toast } = useToast();
 
   const set = (key: keyof FormData, val: string | number) => setForm((p) => ({ ...p, [key]: val }));
+
+  const handleCpfBlur = async () => {
+    const cpfLimpo = form.cpf.replace(/\D/g, "");
+    if (cpfLimpo.length < 11) {
+      setLinkedFutureStudent(null);
+      return;
+    }
+
+    setCheckingCpf(true);
+    try {
+      const student = await findFutureStudentByCpf(form.cpf);
+      setLinkedFutureStudent(student);
+
+      if (student) {
+        setForm((prev) => ({
+          ...prev,
+          nome: prev.nome.trim() ? prev.nome : student.nome,
+          whatsapp: prev.whatsapp.trim() ? prev.whatsapp : student.telefone,
+        }));
+        toast({
+          title: "Sinal encontrado",
+          description: `${student.nome} tem sinal registrado de ${formatCurrency(student.valor_sinal)}.`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Não foi possível buscar o CPF",
+        description: error?.message || "Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
+    } finally {
+      setCheckingCpf(false);
+    }
+  };
 
   const validateStep = (s: number): string | null => {
     if (s === 0) {
@@ -319,7 +359,21 @@ const PesquisaPage = () => {
               </div>
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">CPF *</Label>
-                <Input value={form.cpf} onChange={(e) => set("cpf", e.target.value)} placeholder="Somente números" className="bg-secondary/30 border-border/40" />
+                <Input
+                  value={form.cpf}
+                  onChange={(e) => set("cpf", e.target.value)}
+                  onBlur={handleCpfBlur}
+                  placeholder="Somente números"
+                  className="bg-secondary/30 border-border/40"
+                />
+                {checkingCpf && (
+                  <p className="mt-2 text-xs text-muted-foreground">Buscando sinal registrado...</p>
+                )}
+                {linkedFutureStudent && (
+                  <div className="mt-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2 text-xs text-success">
+                    Sinal encontrado: {formatCurrency(linkedFutureStudent.valor_sinal)} em nome de {linkedFutureStudent.nome}.
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

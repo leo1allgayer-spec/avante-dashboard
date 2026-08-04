@@ -55,6 +55,7 @@ import {
 } from "recharts";
 
 type CampaignStatusFilter = "all" | "ACTIVE" | "PAUSED" | "ARCHIVED" | "DELETED";
+type MetaDatePreset = MetaAdsFilters["datePreset"] | "last_month";
 type CampaignDetails = {
   adsets: Array<Record<string, any>>;
   ads: Array<Record<string, any>>;
@@ -115,11 +116,12 @@ function getStatusStyle(status?: string) {
   };
 }
 
-const presetLabels: Record<MetaAdsFilters["datePreset"], string> = {
+const presetLabels: Record<MetaDatePreset, string> = {
   today: "Hoje",
   yesterday: "Ontem",
   last_7d: "7 dias",
   last_30d: "30 dias",
+  last_month: "Mes passado",
   this_month: "Este mes",
   custom: "Personalizado",
 };
@@ -135,6 +137,16 @@ function getMonthStart() {
   const date = new Date();
   date.setDate(1);
   return formatLocalDate(date);
+}
+
+function getLastMonthRange() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+  return {
+    since: formatLocalDate(firstDay),
+    until: formatLocalDate(lastDay),
+  };
 }
 
 function numberValue(value?: string) {
@@ -154,20 +166,37 @@ function getActionValue(actions: Array<{ action_type: string; value: string }> |
   }, 0);
 }
 
+function getFirstActionValue(actions: Array<{ action_type: string; value: string }> | undefined, actionTypes: string[]) {
+  if (!actions) return 0;
+  for (const actionType of actionTypes) {
+    const found = actions.find((action) => action.action_type.toLowerCase() === actionType);
+    if (found) return numberValue(found.value);
+  }
+  return 0;
+}
+
 function getLeadsFromActions(actions?: Array<{ action_type: string; value: string }>) {
-  return getActionValue(actions, (actionType) =>
-    actionType === "lead" ||
-    actionType === "onsite_conversion.lead_grouped" ||
-    actionType === "offsite_conversion.fb_pixel_lead"
-  );
+  return getFirstActionValue(actions, [
+    "lead",
+    "onsite_conversion.lead_grouped",
+    "offsite_conversion.fb_pixel_lead",
+    "offsite_complete_registration_add_meta_leads",
+    "offsite_content_view_add_meta_leads",
+  ]);
 }
 
 function getConversationsFromActions(actions?: Array<{ action_type: string; value: string }>) {
+  const started = getFirstActionValue(actions, [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "onsite_conversion.total_messaging_connection",
+    "onsite_conversion.messaging_first_reply",
+  ]);
+
+  if (started > 0) return started;
+
   return getActionValue(actions, (actionType) =>
-    actionType.includes("messaging_conversation") ||
     actionType.includes("conversation_started") ||
-    actionType.includes("whatsapp") ||
-    (actionType.includes("messaging") && actionType.includes("conversation"))
+    actionType.includes("whatsapp")
   );
 }
 
@@ -175,7 +204,7 @@ const CampanhasPage = () => {
   const { toast } = useToast();
   const { data: today } = useTodayMetrics();
   const { data: monthData } = useMonthMetrics();
-  const [datePreset, setDatePreset] = useState<MetaAdsFilters["datePreset"]>("this_month");
+  const [datePreset, setDatePreset] = useState<MetaDatePreset>("this_month");
   const [since, setSince] = useState(getMonthStart());
   const [until, setUntil] = useState(formatLocalDate(new Date()));
   const [statusFilter, setStatusFilter] = useState<CampaignStatusFilter>("all");
@@ -187,7 +216,7 @@ const CampanhasPage = () => {
   const [detailsLoading, setDetailsLoading] = useState(false);
 
   const metaFilters = useMemo<MetaAdsFilters>(() => ({
-    datePreset,
+    datePreset: datePreset === "last_month" ? "custom" : datePreset,
     since,
     until,
   }), [datePreset, since, until]);
@@ -212,6 +241,7 @@ const CampanhasPage = () => {
 
   const campaignRows = useMemo(() => {
     return (metaData?.campaignInsights || [])
+      .filter((campaign) => campaignDetailsById.has(campaign.campaign_id))
       .map((campaign) => {
         const details = campaignDetailsById.get(campaign.campaign_id);
         return {
@@ -242,38 +272,24 @@ const CampanhasPage = () => {
   }, [metaData?.campaigns, normalizedSearch, statusFilter]);
 
   const displayedMetaTotals = useMemo(() => {
-    if (statusFilter !== "all" || normalizedSearch) {
-      const spend = campaignRows.reduce((total, campaign) => total + campaign.spend, 0);
-      const impressions = campaignRows.reduce((total, campaign) => total + campaign.impressions, 0);
-      const clicks = campaignRows.reduce((total, campaign) => total + campaign.clicks, 0);
-      const reach = campaignRows.reduce((total, campaign) => total + campaign.reach, 0);
-      const leads = campaignRows.reduce((total, campaign) => total + campaign.leads, 0);
-      const conversations = campaignRows.reduce((total, campaign) => total + campaign.conversations, 0);
+    const spend = campaignRows.reduce((total, campaign) => total + campaign.spend, 0);
+    const impressions = campaignRows.reduce((total, campaign) => total + campaign.impressions, 0);
+    const clicks = campaignRows.reduce((total, campaign) => total + campaign.clicks, 0);
+    const reach = campaignRows.reduce((total, campaign) => total + campaign.reach, 0);
+    const leads = campaignRows.reduce((total, campaign) => total + campaign.leads, 0);
+    const conversations = campaignRows.reduce((total, campaign) => total + campaign.conversations, 0);
 
-      return {
-        spend,
-        impressions,
-        clicks,
-        reach,
-        leads,
-        conversations,
-        cpc: clicks > 0 ? spend / clicks : 0,
-        ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
-      };
-    }
-
-    const insights = metaData?.accountInsights;
     return {
-      spend: insights ? numberValue(insights.spend) : 0,
-      impressions: insights ? numberValue(insights.impressions) : 0,
-      clicks: insights ? numberValue(insights.clicks) : 0,
-      reach: insights ? numberValue(insights.reach) : 0,
-      leads: insights ? getLeadsFromActions(insights.actions) : 0,
-      conversations: insights ? getConversationsFromActions(insights.actions) : 0,
-      cpc: insights ? numberValue(insights.cpc) : 0,
-      ctr: insights ? numberValue(insights.ctr) : 0,
+      spend,
+      impressions,
+      clicks,
+      reach,
+      leads,
+      conversations,
+      cpc: clicks > 0 ? spend / clicks : 0,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
     };
-  }, [campaignRows, metaData?.accountInsights, normalizedSearch, statusFilter]);
+  }, [campaignRows]);
 
   const costPerLead = displayedMetaTotals.leads > 0 ? displayedMetaTotals.spend / displayedMetaTotals.leads : 0;
   const costPerConversation = displayedMetaTotals.conversations > 0 ? displayedMetaTotals.spend / displayedMetaTotals.conversations : 0;
@@ -293,9 +309,13 @@ const CampanhasPage = () => {
 
   const hasMetaData = !!metaData && !metaError;
 
-  const setQuickPeriod = (preset: MetaAdsFilters["datePreset"]) => {
+  const setQuickPeriod = (preset: MetaDatePreset) => {
     setDatePreset(preset);
-    if (preset !== "custom") {
+    if (preset === "last_month") {
+      const range = getLastMonthRange();
+      setSince(range.since);
+      setUntil(range.until);
+    } else if (preset !== "custom") {
       setSince(getMonthStart());
       setUntil(formatLocalDate(new Date()));
     }
@@ -436,7 +456,7 @@ const CampanhasPage = () => {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[180px_150px_150px_180px_220px_auto] xl:flex xl:items-end">
-              <Select value={datePreset} onValueChange={(value) => setQuickPeriod(value as MetaAdsFilters["datePreset"])}>
+              <Select value={datePreset} onValueChange={(value) => setQuickPeriod(value as MetaDatePreset)}>
                 <SelectTrigger className="h-10 min-w-[170px]">
                   <SelectValue placeholder="Periodo" />
                 </SelectTrigger>
@@ -446,6 +466,7 @@ const CampanhasPage = () => {
                   <SelectItem value="last_7d">Ultimos 7 dias</SelectItem>
                   <SelectItem value="last_30d">Ultimos 30 dias</SelectItem>
                   <SelectItem value="this_month">Este mes</SelectItem>
+                  <SelectItem value="last_month">Mes passado</SelectItem>
                   <SelectItem value="custom">Personalizado</SelectItem>
                 </SelectContent>
               </Select>

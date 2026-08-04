@@ -4,6 +4,7 @@ import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
+import { useFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,10 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, Search, Pencil } from "lucide-react";
+import { CalendarClock, Clock3, Layers3, Pencil, Plus, Search, ShoppingCart, Trash2, TrendingUp, Wallet } from "lucide-react";
 import { SERVICE_CATEGORIES } from "@/constants/serviceCategories";
 
 
@@ -67,6 +69,17 @@ const formatDate = (d: string) => {
   return `${day}/${m}/${y}`;
 };
 
+const normalizeFechamentoStatus = (status?: string | null) => (status === "para entrar" ? "a receber" : status || "a receber");
+
+const getStoredParcelDates = (item: Pick<FechamentoDiario, "parcelas_datas">) =>
+  Array.isArray(item.parcelas_datas) ? item.parcelas_datas.filter((date): date is string => typeof date === "string" && !!date) : [];
+
+const getFechamentoCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
+  item.categoria || item.produto_servico || "Sem categoria";
+
+const getVendaCategoria = (item: Pick<Venda, "servico" | "produto">) =>
+  item.servico || item.produto || "Sem categoria";
+
 const defaultForm = {
   data: new Date().toISOString().split("T")[0],
   vendedor: "",
@@ -80,8 +93,29 @@ const defaultForm = {
   origem: "",
 };
 
+type VendaItemForm = {
+  produto: string;
+  servico: string;
+  origem: string;
+  valor: number;
+  pagamento: string;
+  parcelas: number;
+  status: string;
+};
+
+const defaultVendaItem: VendaItemForm = {
+  produto: "",
+  servico: "",
+  origem: "",
+  valor: 0,
+  pagamento: "Dinheiro",
+  parcelas: 1,
+  status: "pendente",
+};
+
 const VendasPage = () => {
   const { data: allVendas = [], isLoading } = useVendas();
+  const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
   const dateFilter = useLocalDateFilter();
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
@@ -95,11 +129,13 @@ const VendasPage = () => {
   const [statusFilter, setStatusFilter] = useState("todos");
   const [vendedorFilter, setVendedorFilter] = useState("todos");
   const [pagamentoFilter, setPagamentoFilter] = useState("todos");
+  const [origemFilter, setOrigemFilter] = useState("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVenda, setEditingVenda] = useState<Venda | null>(null);
   const [taxProfile, setTaxProfile] = useState<TaxProfile>("opcao1");
 
   const [form, setForm] = useState({ ...defaultForm });
+  const [additionalItems, setAdditionalItems] = useState<VendaItemForm[]>([]);
 
   const temParcela = PAGAMENTOS_COM_PARCELA.includes(form.pagamento);
   const taxasAtivas = getTaxas(form.pagamento, taxProfile);
@@ -112,15 +148,53 @@ const VendasPage = () => {
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
 
+  const dateInRange = (date?: string | null) => !!date && date >= dateFilter.range.start && date <= dateFilter.range.end;
+
+  const getAReceberNoPeriodo = (item: FechamentoDiario) => {
+    const parcelasNoPeriodo = getStoredParcelDates(item).filter(dateInRange);
+    if (parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
+      return parcelasNoPeriodo.length * Number(item.valor_parcela || 0);
+    }
+    if (dateInRange(item.previsao_entrada)) return Number(item.valor_a_entrar || 0);
+    if (dateInRange(item.data) && !item.previsao_entrada && getStoredParcelDates(item).length === 0) {
+      return Number(item.valor_a_entrar || 0);
+    }
+    return 0;
+  };
+
+  const fechamentosPeriodo = useMemo(() => {
+    return fechamentos.filter((item) => {
+      const hasRecurringInPeriod = Number(item.valor_recorrente || 0) > 0 && item.data <= dateFilter.range.end;
+      return (
+        dateInRange(item.data) ||
+        dateInRange(item.previsao_entrada) ||
+        getStoredParcelDates(item).some(dateInRange) ||
+        hasRecurringInPeriod
+      );
+    });
+  }, [fechamentos, dateFilter.range.start, dateFilter.range.end]);
+
   const filtered = useMemo(() => {
     return vendas.filter((v) => {
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== "todos" && v.status !== statusFilter) return false;
       if (vendedorFilter !== "todos" && v.vendedor !== vendedorFilter) return false;
       if (pagamentoFilter !== "todos" && v.pagamento !== pagamentoFilter) return false;
+      if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
       return true;
     });
-  }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter]);
+  }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter]);
+
+  const fechamentosFiltrados = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return fechamentosPeriodo.filter((item) => {
+      if (origemFilter !== "todos" && (item.origem || "") !== origemFilter) return false;
+      if (statusFilter === "cancelada" && normalizeFechamentoStatus(item.status) !== "cancelado") return false;
+      if (!q) return true;
+      return [item.cliente, item.vendedor, item.origem || "", getFechamentoCategoria(item), item.produto_servico, item.observacao || ""]
+        .some((value) => value.toLowerCase().includes(q));
+    });
+  }, [fechamentosPeriodo, search, origemFilter, statusFilter]);
 
   const getVendaValores = (v: Venda) => {
     const parcelasNum = v.parcelas ? parseInt(v.parcelas) : 1;
@@ -144,10 +218,111 @@ const VendasPage = () => {
     };
   };
 
+  const getItemValores = (item: VendaItemForm) => {
+    const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
+    const itemTaxa = itemTemParcela ? (getTaxas(item.pagamento, taxProfile)[item.parcelas] || 0) : 0;
+    const valorLiquido = itemTemParcela
+      ? +(Number(item.valor || 0) * (1 - itemTaxa / 100)).toFixed(2)
+      : Number(item.valor || 0);
+
+    return {
+      taxa: itemTemParcela ? itemTaxa : null,
+      valorLiquido,
+      comissao: +(valorLiquido * 0.05).toFixed(2),
+      parcelas: itemTemParcela ? `${item.parcelas}x (${itemTaxa}%)` : null,
+    };
+  };
+
+  const getPrimaryItem = (): VendaItemForm => ({
+    produto: form.produto,
+    servico: form.servico,
+    origem: form.origem,
+    valor: form.valor,
+    pagamento: form.pagamento,
+    parcelas: form.parcelas,
+    status: form.status,
+  });
+
+  const addVendaItem = () => {
+    setAdditionalItems((prev) => [...prev, { ...defaultVendaItem }]);
+  };
+
+  const updateVendaItem = (index: number, updates: Partial<VendaItemForm>) => {
+    setAdditionalItems((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item));
+  };
+
+  const removeVendaItem = (index: number) => {
+    setAdditionalItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const vendasAprovadas = useMemo(() => filtered.filter((v) => v.status === "aprovada"), [filtered]);
+
+  const fechamentoTotals = useMemo(() => {
+    const ativos = fechamentosFiltrados.filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado");
+    const coletado = ativos.reduce((sum, item) => sum + (dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0), 0);
+    const aReceber = ativos.reduce((sum, item) => sum + getAReceberNoPeriodo(item), 0);
+    const recorrente = ativos.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
+    return {
+      coletado,
+      aReceber,
+      recorrente,
+      totalPrevisto: coletado + aReceber,
+      quantidade: ativos.length,
+    };
+  }, [fechamentosFiltrados, dateFilter.range.start, dateFilter.range.end]);
+
+  const vendaTotals = useMemo(() => {
+    const feito = vendasAprovadas.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
+    const liquido = vendasAprovadas.reduce((sum, venda) => sum + getVendaValores(venda).valorLiquido, 0);
+    const comissao = vendasAprovadas.reduce((sum, venda) => sum + getVendaValores(venda).comissao, 0);
+    return {
+      feito,
+      liquido,
+      comissao,
+      quantidade: vendasAprovadas.length,
+    };
+  }, [vendasAprovadas, taxProfile]);
+
+  const integratedCategoryRows = useMemo(() => {
+    const map = new Map<string, {
+      categoria: string;
+      coletado: number;
+      aReceber: number;
+      recorrente: number;
+      feito: number;
+      vendas: number;
+    }>();
+
+    const getRow = (categoria: string) => {
+      if (!map.has(categoria)) {
+        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0 });
+      }
+      return map.get(categoria)!;
+    };
+
+    fechamentosFiltrados
+      .filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado")
+      .forEach((item) => {
+        const row = getRow(getFechamentoCategoria(item));
+        row.coletado += dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0;
+        row.aReceber += getAReceberNoPeriodo(item);
+        row.recorrente += Number(item.valor_recorrente || 0);
+      });
+
+    vendasAprovadas.forEach((venda) => {
+      const row = getRow(getVendaCategoria(venda));
+      row.feito += Number(venda.valor || 0);
+      row.vendas += 1;
+    });
+
+    return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
+  }, [fechamentosFiltrados, vendasAprovadas, dateFilter.range.start, dateFilter.range.end]);
+
 
   const openNewDialog = () => {
     setEditingVenda(null);
     setForm({ ...defaultForm });
+    setAdditionalItems([]);
     setDialogOpen(true);
   };
 
@@ -166,6 +341,7 @@ const VendasPage = () => {
       servico: v.servico || "",
       origem: v.origem || "",
     });
+    setAdditionalItems([]);
     setDialogOpen(true);
   };
 
@@ -173,44 +349,57 @@ const VendasPage = () => {
     e.preventDefault();
     if (!session?.user?.id) return;
 
-    const payload = {
+    const buildPayload = (item: VendaItemForm) => {
+      const itemValores = getItemValores(item);
+      return {
       user_id: session.user.id,
       data: form.data,
       vendedor: form.vendedor,
       cliente: form.cliente,
-      produto: form.produto,
-      valor: form.valor,
-      pagamento: form.pagamento,
-      parcelas: temParcela ? `${form.parcelas}x (${taxa}%)` : null,
-      valor_com_juros: valorComJuros,
-      comissao,
-      status: form.status,
-      servico: form.servico,
-      origem: form.origem,
+      produto: item.produto,
+      valor: Number(item.valor || 0),
+      pagamento: item.pagamento,
+      parcelas: itemValores.parcelas,
+      valor_com_juros: itemValores.parcelas ? itemValores.valorLiquido : null,
+      comissao: itemValores.comissao,
+      status: item.status,
+      servico: item.servico,
+      origem: item.origem,
+    };
     };
 
     if (editingVenda) {
       updateVenda.mutate(
-        { id: editingVenda.id, ...payload },
+        { id: editingVenda.id, ...buildPayload(getPrimaryItem()) },
         {
           onSuccess: () => {
             toast({ title: "Venda atualizada!" });
             setDialogOpen(false);
             setEditingVenda(null);
             setForm({ ...defaultForm });
+            setAdditionalItems([]);
           },
           onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
         }
       );
     } else {
-      createVenda.mutate(payload, {
-        onSuccess: () => {
-          toast({ title: "Venda registrada!" });
+      const saleItems = [getPrimaryItem(), ...additionalItems].filter((item) =>
+        item.produto || item.servico || item.origem || Number(item.valor || 0),
+      );
+
+      if (saleItems.length === 0) {
+        toast({ title: "Preencha pelo menos um item da venda", variant: "destructive" });
+        return;
+      }
+
+      Promise.all(saleItems.map((item) => createVenda.mutateAsync(buildPayload(item))))
+        .then(() => {
+          toast({ title: saleItems.length > 1 ? "Vendas registradas!" : "Venda registrada!" });
           setDialogOpen(false);
           setForm({ ...defaultForm });
-        },
-        onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
-      });
+          setAdditionalItems([]);
+        })
+        .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
     }
   };
 
@@ -224,7 +413,11 @@ const VendasPage = () => {
   const isSaving = createVenda.isPending || updateVenda.isPending;
 
   const vendaFormDialog = (
-    <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-border/40 bg-card">
+    <DialogContent
+      className="sm:max-w-xl max-h-[90vh] overflow-hidden p-0 gap-0 border-border/40 bg-card"
+      onWheel={(event) => event.stopPropagation()}
+      onTouchMove={(event) => event.stopPropagation()}
+    >
       <div className="bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 pb-4 border-b border-border/20">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
@@ -238,7 +431,7 @@ const VendasPage = () => {
           </DialogDescription>
         </DialogHeader>
       </div>
-      <form onSubmit={handleSubmit} className="p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="max-h-[calc(90vh-118px)] overflow-y-auto overscroll-contain p-6 pr-2 space-y-5">
         {/* Informações Principais */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Informações Principais</p>
@@ -364,6 +557,149 @@ const VendasPage = () => {
           </div>
         </div>
 
+        {!editingVenda && (
+          <div className="rounded-xl border border-border/30 bg-secondary/10 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Itens extras</p>
+                <p className="text-xs text-muted-foreground/70">Adicione outros produtos ou servicos para o mesmo cliente.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addVendaItem}>
+                <Plus className="h-4 w-4" />
+                Adicionar item
+              </Button>
+            </div>
+
+            {additionalItems.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/40 px-4 py-3 text-sm text-muted-foreground">
+                Nenhum item extra adicionado.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {additionalItems.map((item, index) => {
+                  const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
+                  const itemValores = getItemValores(item);
+
+                  return (
+                    <div key={index} className="rounded-lg border border-border/30 bg-background/50 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-sm font-semibold">Item {index + 2}</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => removeVendaItem(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Produto</Label>
+                          <Select value={item.produto} onValueChange={(produto) => updateVendaItem(index, { produto })}>
+                            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              {PRODUTOS.map((produto) => <SelectItem key={produto} value={produto}>{produto}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Servico</Label>
+                          <Select value={item.servico} onValueChange={(servico) => updateVendaItem(index, { servico })}>
+                            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              {SERVICOS.map((servico) => <SelectItem key={servico} value={servico}>{servico}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Origem</Label>
+                          <Select value={item.origem} onValueChange={(origem) => updateVendaItem(index, { origem })}>
+                            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              {ORIGENS.map((origem) => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Valor (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={item.valor || ""}
+                            onChange={(e) => updateVendaItem(index, { valor: Number(e.target.value) })}
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Pagamento</Label>
+                          <Select
+                            value={item.pagamento}
+                            onValueChange={(pagamento) => updateVendaItem(index, {
+                              pagamento,
+                              parcelas: PAGAMENTOS_COM_PARCELA.includes(pagamento) ? item.parcelas : 1,
+                            })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                              <SelectItem value="PIX">PIX</SelectItem>
+                              <SelectItem value="Débito">Debito</SelectItem>
+                              <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem>
+                              <SelectItem value="Elo/Amex">Elo/Amex</SelectItem>
+                              <SelectItem value="Link Gateway">Link Gateway</SelectItem>
+                              <SelectItem value="Boleto">Boleto</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Status</Label>
+                          <Select value={item.status} onValueChange={(status) => updateVendaItem(index, { status })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pendente">Pendente</SelectItem>
+                              <SelectItem value="aprovada">Aprovada</SelectItem>
+                              <SelectItem value="recusada">Recusada</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {itemTemParcela && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">Parcelas</Label>
+                              <Select value={item.parcelas.toString()} onValueChange={(value) => updateVendaItem(index, { parcelas: Number(value) })}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {[1,2,3,4,5,6,7,8,9,10,11,12].map((n) => (
+                                    <SelectItem key={n} value={n.toString()}>{n}x</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">Valor liquido</Label>
+                              <div className="flex h-10 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">
+                                {formatBRL(itemValores.valorLiquido)}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <Button type="submit" className="w-full h-11 text-sm font-semibold mt-2" disabled={isSaving}>
           {isSaving ? "Salvando..." : editingVenda ? "✓ Atualizar Venda" : "✓ Registrar Venda"}
         </Button>
@@ -407,6 +743,104 @@ const VendasPage = () => {
         </Dialog>
 
         <DateFilterBar mode={dateFilter.mode} onModeChange={dateFilter.setMode} label={dateFilter.label} onBack={dateFilter.goBack} onForward={dateFilter.goForward} />
+
+        <div className="grid gap-4 mb-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card className="border-border/50 bg-card/70">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Wallet className="h-4 w-4 text-success" /> Coletado
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.coletado)}</CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/70">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Clock3 className="h-4 w-4 text-amber-500" /> A receber
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.aReceber)}</CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/70">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <ShoppingCart className="h-4 w-4 text-primary" /> Faturamento feito
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(vendaTotals.feito)}</CardContent>
+          </Card>
+          <Card className="border-border/50 bg-card/70">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <Layers3 className="h-4 w-4 text-accent" /> Recorrente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.recorrente)}</CardContent>
+          </Card>
+        </div>
+
+        <Card className="mb-4 border-border/50 bg-card/70">
+          <CardHeader>
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Central de vendas e fechamentos</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Conferencia por categoria: valores coletados, a receber, recorrentes e faturamento feito.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
+                  <span className="text-muted-foreground">Coletado</span>
+                  <strong className="block text-success">{formatBRL(fechamentoTotals.coletado)}</strong>
+                </div>
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
+                  <span className="text-muted-foreground">A receber</span>
+                  <strong className="block text-amber-500">{formatBRL(fechamentoTotals.aReceber)}</strong>
+                </div>
+                <div className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2">
+                  <span className="text-muted-foreground">Feito</span>
+                  <strong className="block text-primary">{formatBRL(vendaTotals.feito)}</strong>
+                </div>
+                <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2">
+                  <span className="text-muted-foreground">Vendas</span>
+                  <strong className="block text-accent">{vendaTotals.quantidade}</strong>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {integratedCategoryRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma venda ou fechamento encontrado no periodo.</p>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border/40">
+                <Table className="text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-right">Marcado / coletado</TableHead>
+                      <TableHead className="text-right">A receber</TableHead>
+                      <TableHead className="text-right">Recorrente</TableHead>
+                      <TableHead className="text-right">Faturamento feito</TableHead>
+                      <TableHead className="text-center">Vendas feitas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {integratedCategoryRows.map((row) => (
+                      <TableRow key={row.categoria}>
+                        <TableCell className="font-semibold">{row.categoria}</TableCell>
+                        <TableCell className="text-right font-semibold text-success">{formatBRL(row.coletado)}</TableCell>
+                        <TableCell className="text-right font-semibold text-amber-500">{formatBRL(row.aReceber)}</TableCell>
+                        <TableCell className="text-right font-semibold text-primary">{formatBRL(row.recorrente)}</TableCell>
+                        <TableCell className="text-right font-semibold text-foreground">{formatBRL(row.feito)}</TableCell>
+                        <TableCell className="text-center">{row.vendas}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 rounded-lg border border-border/30 bg-secondary/20 px-3 py-3">
           <div>
@@ -477,6 +911,17 @@ const VendasPage = () => {
               <SelectItem value="Cartão">Cartão</SelectItem>
               <SelectItem value="PIX">PIX</SelectItem>
               <SelectItem value="Boleto">Boleto</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={origemFilter} onValueChange={setOrigemFilter}>
+            <SelectTrigger className="w-[160px] h-9 text-sm bg-secondary/30 border-border/30">
+              <SelectValue placeholder="Todas origens" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas origens</SelectItem>
+              {ORIGENS.map((origem) => (
+                <SelectItem key={origem} value={origem}>{origem}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
