@@ -728,7 +728,7 @@ const VendasPage = () => {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Valores & Pagamento</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Valor (R$)</Label>
+              <Label className="text-xs text-muted-foreground">Valor total (R$)</Label>
               <Input type="number" step="0.01" value={form.valor || ""} onChange={(e) => setForm((p) => ({ ...p, valor: Number(e.target.value) }))} placeholder="0,00" className="bg-secondary/30 border-border/30 focus:border-primary/50 font-semibold" />
             </div>
             <div className="space-y-1.5">
