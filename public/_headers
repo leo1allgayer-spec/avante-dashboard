@@ -15,3 +15,9 @@
 
 /planilha/*
   Cache-Control: no-cache, no-store, must-revalidate
+
+/campanhas
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/campanhas/*
+  Cache-Control: no-cache, no-store, must-revalidate

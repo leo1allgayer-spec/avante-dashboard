@@ -731,11 +731,11 @@ const CampanhasPage = () => {
                 Conjuntos de anuncios e anuncios vinculados a campanha selecionada.
               </DialogDescription>
               <div className="flex flex-wrap items-center gap-2 pt-2 text-[10px] font-semibold uppercase tracking-wider">
-                <Button type="button" variant="outline" size="sm" onClick={() => setDetailStage("campaign")} className={`h-7 rounded-full px-3 text-[10px] ${detailStage === "campaign" ? "border-primary bg-primary/15 text-primary" : ""}`}>1. Campanha</Button>
+                <Button type="button" variant="outline" size="sm" aria-pressed={detailStage === "campaign"} onClick={() => setDetailStage("campaign")} className={`relative z-10 h-8 cursor-pointer rounded-full px-4 text-[10px] ${detailStage === "campaign" ? "border-primary bg-primary text-primary-foreground shadow-md" : "hover:border-primary/60 hover:text-primary"}`}>1. Campanha</Button>
                 <span className="text-muted-foreground">→</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => setDetailStage("adsets")} className={`h-7 rounded-full px-3 text-[10px] ${detailStage === "adsets" ? "border-primary bg-primary/15 text-primary" : ""}`}>2. Conjunto de anúncios</Button>
+                <Button type="button" variant="outline" size="sm" aria-pressed={detailStage === "adsets"} onClick={() => setDetailStage("adsets")} className={`relative z-10 h-8 cursor-pointer rounded-full px-4 text-[10px] ${detailStage === "adsets" ? "border-primary bg-primary text-primary-foreground shadow-md" : "hover:border-primary/60 hover:text-primary"}`}>2. Conjunto de anúncios</Button>
                 <span className="text-muted-foreground">→</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => setDetailStage("ads")} className={`h-7 rounded-full px-3 text-[10px] ${detailStage === "ads" ? "border-primary bg-primary/15 text-primary" : ""}`}>3. Anúncio</Button>
+                <Button type="button" variant="outline" size="sm" aria-pressed={detailStage === "ads"} onClick={() => setDetailStage("ads")} className={`relative z-10 h-8 cursor-pointer rounded-full px-4 text-[10px] ${detailStage === "ads" ? "border-primary bg-primary text-primary-foreground shadow-md" : "hover:border-primary/60 hover:text-primary"}`}>3. Anúncio</Button>
               </div>
             </DialogHeader>
 
