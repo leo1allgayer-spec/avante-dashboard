@@ -4,7 +4,7 @@ import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
-import { useFechamentosDiarios, useUpdateFechamentoDiario, useDeleteFechamentoDiario, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
+import { useFechamentosDiarios, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -124,6 +124,7 @@ const VendasPage = () => {
   const clearVendas = useClearVendas();
   const updateFechamento = useUpdateFechamentoDiario();
   const deleteFechamento = useDeleteFechamentoDiario();
+  const clearFechamentos = useClearFechamentosDiarios();
   const { session } = useAuth();
   const { toast } = useToast();
 
@@ -452,13 +453,13 @@ const VendasPage = () => {
   };
 
   const handleClear = () => {
-    clearVendas.mutate(undefined, {
-      onSuccess: () => toast({ title: "Dados limpos!" }),
-      onError: (err) => toast({ title: "Erro", description: err.message, variant: "destructive" }),
-    });
+    Promise.all([clearVendas.mutateAsync(), clearFechamentos.mutateAsync()])
+      .then(() => toast({ title: "Dados limpos!", description: "Vendas e fechamentos foram removidos." }))
+      .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
   };
 
   const isSaving = createVenda.isPending || updateVenda.isPending;
+  const isClearing = clearVendas.isPending || clearFechamentos.isPending;
 
   const vendaFormDialog = (
     <DialogContent
@@ -771,11 +772,13 @@ const VendasPage = () => {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Limpar todos os dados?</AlertDialogTitle>
-                  <AlertDialogDescription>Todas as vendas serão removidas permanentemente.</AlertDialogDescription>
+                  <AlertDialogDescription>Todas as vendas e fechamentos serao removidos permanentemente.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClear}>Limpar</AlertDialogAction>
+                  <AlertDialogAction onClick={handleClear} disabled={isClearing}>
+                    {isClearing ? "Limpando..." : "Limpar tudo"}
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

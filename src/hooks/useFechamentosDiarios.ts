@@ -83,3 +83,14 @@ export function useDeleteFechamentoDiario() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["fechamentos_diarios"] }),
   });
 }
+
+export function useClearFechamentosDiarios() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("fechamentos_diarios").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["fechamentos_diarios"] }),
+  });
+}
