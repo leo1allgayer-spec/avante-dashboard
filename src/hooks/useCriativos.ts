@@ -7,6 +7,7 @@ export interface CriativoVenda {
   nome_aluno: string;
   data: string;
   criativo: string;
+  codigo: string | null;
   valor_curso: number;
   valor_ads: number;
   roas: number;

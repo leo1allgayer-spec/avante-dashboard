@@ -5,6 +5,7 @@ import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
 import { useFechamentosDiarios, useCreateFechamentoDiario, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
+import { useCriativosResumo, useCreateCriativoVenda } from "@/hooks/useCriativos";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -103,6 +104,7 @@ const defaultForm = {
   status: "pendente",
   servico: "",
   origem: "",
+  criativo: "",
   valor_sinal: 0,
   valor_a_entrar: 0,
   valor_recorrente: 0,
@@ -118,6 +120,7 @@ type VendaItemForm = {
   produto: string;
   servico: string;
   origem: string;
+  criativo: string;
   valor: number;
   pagamento: string;
   parcelas: number;
@@ -137,6 +140,7 @@ const defaultVendaItem: VendaItemForm = {
   produto: "",
   servico: "",
   origem: "",
+  criativo: "",
   valor: 0,
   pagamento: "Dinheiro",
   parcelas: 1,
@@ -155,10 +159,12 @@ const defaultVendaItem: VendaItemForm = {
 const VendasPage = () => {
   const { data: allVendas = [], isLoading } = useVendas();
   const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
+  const { data: criativosResumo = [] } = useCriativosResumo();
   const dateFilter = useLocalDateFilter();
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
   const createFechamento = useCreateFechamentoDiario();
+  const createCriativoVenda = useCreateCriativoVenda();
   const updateVenda = useUpdateVenda();
   const deleteVenda = useDeleteVenda();
   const clearVendas = useClearVendas();
@@ -190,6 +196,13 @@ const VendasPage = () => {
   const comissao = +(valorBase * 0.05).toFixed(2);
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
+  const criativosDisponiveis = useMemo(() => {
+    const unicos = new Map<string, { nome: string; codigo: string | null }>();
+    criativosResumo
+      .filter((item) => item.status !== "desativo")
+      .forEach((item) => unicos.set(item.criativo, { nome: item.criativo, codigo: item.codigo || null }));
+    return [...unicos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [criativosResumo]);
 
   const dateInRange = (date?: string | null) => !!date && date >= dateFilter.range.start && date <= dateFilter.range.end;
 
@@ -280,6 +293,7 @@ const VendasPage = () => {
     produto: form.produto,
     servico: form.servico,
     origem: form.origem,
+    criativo: form.criativo,
     valor: form.valor,
     pagamento: form.pagamento,
     parcelas: form.parcelas,
@@ -495,6 +509,23 @@ const VendasPage = () => {
       };
     };
 
+    const buildCriativoPayload = (item: VendaItemForm) => {
+      const cadastro = criativosDisponiveis.find((criativo) => criativo.nome === item.criativo);
+      return {
+        user_id: session.user.id,
+        nome_aluno: form.cliente,
+        data: form.data,
+        criativo: item.criativo,
+        codigo: cadastro?.codigo || null,
+        valor_curso: Number(item.valor || 0),
+        valor_ads: 0,
+        roas: 0,
+        sinal: item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0),
+        status: item.status,
+        quantidade_cursos: 1,
+      };
+    };
+
     if (editingVenda) {
       updateVenda.mutate(
         { id: editingVenda.id, ...buildPayload(getPrimaryItem()) },
@@ -522,6 +553,7 @@ const VendasPage = () => {
       Promise.all(saleItems.flatMap((item) => [
         createVenda.mutateAsync(buildPayload(item)),
         createFechamento.mutateAsync(buildFechamentoPayload(item)),
+        ...(item.criativo ? [createCriativoVenda.mutateAsync(buildCriativoPayload(item))] : []),
       ]))
         .then(() => {
           toast({ title: saleItems.length > 1 ? "Vendas registradas!" : "Venda registrada!" });
@@ -539,7 +571,7 @@ const VendasPage = () => {
       .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
   };
 
-  const isSaving = createVenda.isPending || createFechamento.isPending || updateVenda.isPending;
+  const isSaving = createVenda.isPending || createFechamento.isPending || createCriativoVenda.isPending || updateVenda.isPending;
   const isClearing = clearVendas.isPending || clearFechamentos.isPending;
 
   const vendaFormDialog = (
@@ -606,6 +638,22 @@ const VendasPage = () => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
+              <Select value={form.criativo} onValueChange={(criativo) => setForm((p) => ({ ...p, criativo }))}>
+                <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o criativo" /></SelectTrigger>
+                <SelectContent>
+                  {criativosDisponiveis.length === 0 ? (
+                    <SelectItem value="sem-criativos" disabled>Nenhum criativo ativo cadastrado</SelectItem>
+                  ) : criativosDisponiveis.map((criativo) => (
+                    <SelectItem key={criativo.nome} value={criativo.nome}>
+                      {criativo.codigo ? `${criativo.codigo} — ` : ""}{criativo.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground/60">Opcional. A venda será vinculada ao relatório de Criativos.</p>
             </div>
           </div>
         </div>
@@ -913,6 +961,22 @@ const VendasPage = () => {
                               <SelectItem value="sinal">Sinal pago + saldo a receber</SelectItem>
                               <SelectItem value="a_receber">Total a receber</SelectItem>
                               <SelectItem value="boleto">Boleto parcelado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
+                          <Select value={item.criativo} onValueChange={(criativo) => updateVendaItem(index, { criativo })}>
+                            <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              {criativosDisponiveis.length === 0 ? (
+                                <SelectItem value="sem-criativos" disabled>Nenhum criativo ativo</SelectItem>
+                              ) : criativosDisponiveis.map((criativo) => (
+                                <SelectItem key={criativo.nome} value={criativo.nome}>
+                                  {criativo.codigo ? `${criativo.codigo} — ` : ""}{criativo.nome}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
