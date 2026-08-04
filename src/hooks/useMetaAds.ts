@@ -66,6 +66,11 @@ export interface MetaAdCreative {
   status: string;
   campaignId: string;
   campaignName: string;
+  spend: number;
+  clicks: number;
+  impressions: number;
+  reach: number;
+  conversations: number;
 }
 
 export function useMetaAds(filters: MetaAdsFilters = { datePreset: "this_month" }) {
@@ -103,13 +108,26 @@ export function useMetaAdCreatives() {
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
-        return ((data?.ads || []) as Array<Record<string, unknown>>).map((ad) => ({
+        return ((data?.ads || []) as Array<Record<string, any>>).map((ad) => {
+          const insight = ad?.insights?.data?.[0] || {};
+          const actions = (insight.actions || []) as Array<{ action_type: string; value: string }>;
+          const preferredConversation = actions.find((action) => action.action_type.toLowerCase() === "onsite_conversion.messaging_conversation_started_7d");
+          const conversations = preferredConversation
+            ? Number(preferredConversation.value || 0)
+            : actions.filter((action) => action.action_type.toLowerCase().includes("conversation_started") || action.action_type.toLowerCase().includes("whatsapp")).reduce((sum, action) => sum + Number(action.value || 0), 0);
+          return {
           id: String(ad.id || ""),
           name: String(ad.name || "Anúncio sem nome"),
           status: String(ad.status || "UNKNOWN"),
           campaignId: campaign.id,
           campaignName: campaign.name,
-        }));
+          spend: Number(insight.spend || 0),
+          clicks: Number(insight.clicks || 0),
+          impressions: Number(insight.impressions || 0),
+          reach: Number(insight.reach || 0),
+          conversations,
+          };
+        });
       }));
 
       const creatives = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);

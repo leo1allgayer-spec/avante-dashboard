@@ -602,15 +602,16 @@ const VendasPage = () => {
     };
 
     const buildCriativoPayload = (item: VendaItemForm) => {
+      const metaAd = metaAdCreatives.find((ad) => ad.name === item.criativo);
       return {
         user_id: session.user.id,
         nome_aluno: form.cliente,
         data: form.data,
         criativo: item.criativo.trim(),
-        codigo: null,
+        codigo: metaAd?.id || null,
         valor_curso: Number(item.valor || 0),
-        valor_ads: 0,
-        roas: 0,
+        valor_ads: Number(metaAd?.spend || 0),
+        roas: Number(metaAd?.spend || 0) > 0 ? Number(item.valor || 0) / Number(metaAd?.spend || 0) : 0,
         sinal: item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0),
         status: item.status,
         quantidade_cursos: 1,

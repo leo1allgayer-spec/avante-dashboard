@@ -6,6 +6,7 @@ import MetricCard from "@/components/MetricCard";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useAuth } from "@/hooks/useAuth";
+import { useMetaAdCreatives } from "@/hooks/useMetaAds";
 import { useToast } from "@/hooks/use-toast";
 import {
   useCriativosVendas,
@@ -85,6 +86,7 @@ const CriativosPage = () => {
   const [filtroRoasMin, setFiltroRoasMin] = useState<string>("");
   const [filtroRoasMax, setFiltroRoasMax] = useState<string>("");
   const { data: allVendas = [], isLoading: loadingVendas } = useCriativosVendas();
+  const { data: metaAds = [], isLoading: loadingMetaAds } = useMetaAdCreatives();
   const mesAnoFromFilter = useMemo(() => {
     const d = parseLocalDate(filter.range.start);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -138,6 +140,17 @@ const CriativosPage = () => {
     return items;
   }, [vendas, filtroCriativo, filtroAdsMin, filtroAdsMax, filtroRoasMin, filtroRoasMax]);
 
+  const metaAdsById = useMemo(() => new Map(metaAds.map((ad) => [ad.id, ad])), [metaAds]);
+  const metaAdsByName = useMemo(() => new Map(metaAds.map((ad) => [ad.name, ad])), [metaAds]);
+  const linkedMetaAds = useMemo(() => {
+    const linked = new Map<string, typeof metaAds[number]>();
+    vendasFiltradas.forEach((venda) => {
+      const ad = (venda.codigo ? metaAdsById.get(venda.codigo) : undefined) || metaAdsByName.get(venda.criativo);
+      if (ad) linked.set(ad.id, ad);
+    });
+    return [...linked.values()];
+  }, [vendasFiltradas, metaAdsById, metaAdsByName]);
+
   const resumosFiltrados = useMemo(() => {
     let items = filtroCriativo === "todos" ? resumos : resumos.filter((r) => r.criativo === filtroCriativo);
     if (filtroAdsMin) items = items.filter((r) => Number(r.valor_gasto) >= Number(filtroAdsMin));
@@ -150,7 +163,8 @@ const CriativosPage = () => {
   // KPIs
   const totalVendas = vendasFiltradas.length;
   const totalValorCursoVendas = vendasFiltradas.reduce((s, v) => s + Number(v.valor_curso), 0);
-  const totalValorAdsVendas = vendasFiltradas.reduce((s, v) => s + Number(v.valor_ads), 0);
+  const automaticAdSpend = linkedMetaAds.reduce((sum, ad) => sum + ad.spend, 0);
+  const totalValorAdsVendas = automaticAdSpend > 0 ? automaticAdSpend : vendasFiltradas.reduce((s, v) => s + Number(v.valor_ads), 0);
   const totalSinal = vendasFiltradas.reduce((s, v) => s + Number(v.sinal || 0), 0);
   const totalRestante = totalValorCursoVendas - totalSinal;
   const roasVendas = totalValorAdsVendas > 0 ? totalValorCursoVendas / totalValorAdsVendas : 0;
@@ -159,20 +173,28 @@ const CriativosPage = () => {
 
   const totalFechamentos = resumosFiltrados.reduce((s, r) => s + Number(r.quantidade_fechamentos), 0) || totalVendas;
   const totalValorFechado = resumosFiltrados.reduce((s, r) => s + Number(r.valor_fechado), 0) || totalValorCursoVendas;
-  const totalValorGasto = resumosFiltrados.reduce((s, r) => s + Number(r.valor_gasto), 0) || totalValorAdsVendas;
+  const totalValorGasto = automaticAdSpend > 0 ? automaticAdSpend : (resumosFiltrados.reduce((s, r) => s + Number(r.valor_gasto), 0) || totalValorAdsVendas);
   const avgRoasResumo = resumosFiltrados.length > 0
     ? resumosFiltrados.filter(r => Number(r.roas) > 0).reduce((s, r) => s + Number(r.roas), 0) / (resumosFiltrados.filter(r => Number(r.roas) > 0).length || 1)
     : 0;
-  const avgRoas = avgRoasResumo > 0 ? avgRoasResumo : roasVendas;
+  const avgRoas = automaticAdSpend > 0 ? roasVendas : (avgRoasResumo > 0 ? avgRoasResumo : roasVendas);
   const totalCursosComprados = resumosFiltrados.reduce((s, r) => s + Number(r.quantidade_cursos || 0), 0) || totalVendas;
   const cacMedio = totalFechamentos > 0 ? totalValorGasto / totalFechamentos : 0;
 
   const criativoAggregated = useMemo(() => {
-    const map = new Map<string, { vendas: number; custoTotal: number; valorTotal: number }>();
+    const map = new Map<string, { vendas: number; custoTotal: number; valorTotal: number; clicks: number; conversations: number; impressions: number }>();
     vendasFiltradas.forEach((v) => {
-      const existing = map.get(v.criativo) || { vendas: 0, custoTotal: 0, valorTotal: 0 };
+      const metaAd = (v.codigo ? metaAdsById.get(v.codigo) : undefined) || metaAdsByName.get(v.criativo);
+      const existing = map.get(v.criativo) || { vendas: 0, custoTotal: 0, valorTotal: 0, clicks: 0, conversations: 0, impressions: 0 };
       existing.vendas += 1;
-      existing.custoTotal += Number(v.valor_ads);
+      if (metaAd) {
+        existing.custoTotal = metaAd.spend;
+        existing.clicks = metaAd.clicks;
+        existing.conversations = metaAd.conversations;
+        existing.impressions = metaAd.impressions;
+      } else {
+        existing.custoTotal += Number(v.valor_ads);
+      }
       existing.valorTotal += Number(v.valor_curso);
       map.set(v.criativo, existing);
     });
@@ -186,13 +208,16 @@ const CriativosPage = () => {
         valor: d.valorTotal,
         roas: d.custoTotal > 0 ? d.valorTotal / d.custoTotal : 0,
         cac: d.vendas > 0 ? d.custoTotal / d.vendas : 0,
+        clicks: d.clicks,
+        conversations: d.conversations,
+        impressions: d.impressions,
       }));
-  }, [vendasFiltradas]);
+  }, [vendasFiltradas, metaAdsById, metaAdsByName]);
 
   const chartData = useMemo(() => criativoAggregated.slice(0, 10).map(d => ({ ...d, name: d.shortName })), [criativoAggregated]);
 
   const top5Criativos = useMemo(() => {
-    if (resumosFiltrados.length > 0) {
+    if (resumosFiltrados.length > 0 && criativoAggregated.length === 0) {
       return resumosFiltrados
         .map((r) => ({
           name: r.criativo,
