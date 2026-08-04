@@ -111,6 +111,7 @@ const defaultForm = {
   previsao_entrada: "",
   parcelas_datas: [] as string[],
   observacao: "",
+  condicao_pagamento: "pago",
 };
 
 type VendaItemForm = {
@@ -129,6 +130,7 @@ type VendaItemForm = {
   previsao_entrada: string;
   parcelas_datas: string[];
   observacao: string;
+  condicao_pagamento: string;
 };
 
 const defaultVendaItem: VendaItemForm = {
@@ -147,6 +149,7 @@ const defaultVendaItem: VendaItemForm = {
   previsao_entrada: "",
   parcelas_datas: [],
   observacao: "",
+  condicao_pagamento: "pago",
 };
 
 const VendasPage = () => {
@@ -155,6 +158,7 @@ const VendasPage = () => {
   const dateFilter = useLocalDateFilter();
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
+  const createFechamento = useCreateFechamentoDiario();
   const updateVenda = useUpdateVenda();
   const deleteVenda = useDeleteVenda();
   const clearVendas = useClearVendas();
@@ -288,6 +292,7 @@ const VendasPage = () => {
     previsao_entrada: form.previsao_entrada,
     parcelas_datas: form.parcelas_datas,
     observacao: form.observacao,
+    condicao_pagamento: form.condicao_pagamento,
   });
 
   const addVendaItem = () => {
@@ -462,6 +467,34 @@ const VendasPage = () => {
     };
     };
 
+    const buildFechamentoPayload = (item: VendaItemForm) => {
+      const valorTotal = Number(item.valor || 0);
+      const pagoIntegralmente = item.condicao_pagamento === "pago";
+      const valorSinal = pagoIntegralmente ? valorTotal : Math.min(Number(item.valor_sinal || 0), valorTotal);
+      const valorAEntrar = pagoIntegralmente ? 0 : Math.max(0, valorTotal - valorSinal);
+      const parcelasTotal = item.condicao_pagamento === "boleto" ? Math.max(1, Number(item.parcelas_total || 1)) : null;
+      const parcelasDatas = parcelasTotal ? buildParcelDates(parcelasTotal, item.previsao_entrada || form.data, item.parcelas_datas) : [];
+
+      return {
+        user_id: session.user.id,
+        data: form.data,
+        vendedor: form.vendedor,
+        cliente: form.cliente,
+        produto_servico: item.servico || item.produto || "Sem categoria",
+        categoria: item.servico || item.produto || null,
+        origem: item.origem || null,
+        valor_sinal: valorSinal,
+        valor_a_entrar: valorAEntrar,
+        valor_recorrente: 0,
+        parcelas_total: parcelasTotal,
+        valor_parcela: parcelasTotal ? Number(item.valor_parcela || valorAEntrar / parcelasTotal) : 0,
+        previsao_entrada: pagoIntegralmente ? null : (item.previsao_entrada || parcelasDatas[0] || null),
+        parcelas_datas: parcelasDatas,
+        status: item.status === "cancelada" ? "cancelado" : pagoIntegralmente ? "recebido" : "a receber",
+        observacao: item.observacao || null,
+      };
+    };
+
     if (editingVenda) {
       updateVenda.mutate(
         { id: editingVenda.id, ...buildPayload(getPrimaryItem()) },
@@ -486,7 +519,10 @@ const VendasPage = () => {
         return;
       }
 
-      Promise.all(saleItems.map((item) => createVenda.mutateAsync(buildPayload(item))))
+      Promise.all(saleItems.flatMap((item) => [
+        createVenda.mutateAsync(buildPayload(item)),
+        createFechamento.mutateAsync(buildFechamentoPayload(item)),
+      ]))
         .then(() => {
           toast({ title: saleItems.length > 1 ? "Vendas registradas!" : "Venda registrada!" });
           setDialogOpen(false);
@@ -503,7 +539,7 @@ const VendasPage = () => {
       .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
   };
 
-  const isSaving = createVenda.isPending || updateVenda.isPending;
+  const isSaving = createVenda.isPending || createFechamento.isPending || updateVenda.isPending;
   const isClearing = clearVendas.isPending || clearFechamentos.isPending;
 
   const vendaFormDialog = (
@@ -586,7 +622,7 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Pagamento</Label>
-              <Select value={form.pagamento} onValueChange={(v) => setForm((p) => ({ ...p, pagamento: v, parcelas: !PAGAMENTOS_COM_PARCELA.includes(v) ? 1 : p.parcelas }))}>
+              <Select value={form.pagamento} onValueChange={(v) => setForm((p) => ({ ...p, pagamento: v, parcelas: !PAGAMENTOS_COM_PARCELA.includes(v) ? 1 : p.parcelas, condicao_pagamento: v === "Boleto" ? "boleto" : p.condicao_pagamento }))}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Dinheiro">💵 Dinheiro</SelectItem>
@@ -623,6 +659,81 @@ const VendasPage = () => {
               </>
             )}
           </div>
+
+          {!editingVenda && (
+            <div className="mt-4 rounded-lg border border-border/30 bg-secondary/10 p-4 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Situação financeira</Label>
+                <Select
+                  value={form.condicao_pagamento}
+                  onValueChange={(condicao_pagamento) => setForm((p) => ({
+                    ...p,
+                    condicao_pagamento,
+                    valor_sinal: condicao_pagamento === "pago" ? p.valor : condicao_pagamento === "a_receber" ? 0 : p.valor_sinal,
+                    parcelas_total: condicao_pagamento === "boleto" ? (p.parcelas_total || "1") : "",
+                    valor_parcela: condicao_pagamento === "boleto" ? p.valor_parcela : 0,
+                    parcelas_datas: condicao_pagamento === "boleto" ? p.parcelas_datas : [],
+                  }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pago">Pago integralmente</SelectItem>
+                    <SelectItem value="sinal">Sinal pago + saldo a receber</SelectItem>
+                    <SelectItem value="a_receber">Total a receber</SelectItem>
+                    <SelectItem value="boleto">Boleto parcelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.condicao_pagamento !== "pago" && (
+                <div className="grid grid-cols-2 gap-3">
+                  {(form.condicao_pagamento === "sinal" || form.condicao_pagamento === "boleto") && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Valor do sinal pago (R$)</Label>
+                      <Input type="number" min="0" max={form.valor} step="0.01" value={form.valor_sinal || ""} onChange={(e) => setForm((p) => ({ ...p, valor_sinal: Number(e.target.value) }))} placeholder="0,00" />
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Saldo restante</Label>
+                    <div className="h-10 flex items-center px-3 rounded-md bg-secondary/30 border border-border/30 text-sm font-semibold text-amber-400">
+                      {formatBRL(Math.max(0, Number(form.valor || 0) - Number(form.valor_sinal || 0)))}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">{form.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Data prevista do saldo"}</Label>
+                    <Input type="date" value={form.previsao_entrada} onChange={(e) => setForm((p) => ({ ...p, previsao_entrada: e.target.value, parcelas_datas: p.condicao_pagamento === "boleto" ? buildParcelDates(p.parcelas_total, e.target.value, p.parcelas_datas) : p.parcelas_datas }))} />
+                  </div>
+                  {form.condicao_pagamento === "boleto" && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Quantidade de parcelas</Label>
+                        <Input type="number" min="1" max="48" value={form.parcelas_total} onChange={(e) => { const parcelas_total = e.target.value; setForm((p) => ({ ...p, parcelas_total, parcelas_datas: buildParcelDates(parcelas_total, p.previsao_entrada, p.parcelas_datas), valor_parcela: Number(parcelas_total) ? +(Math.max(0, p.valor - p.valor_sinal) / Number(parcelas_total)).toFixed(2) : 0 })); }} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">Valor de cada parcela (R$)</Label>
+                        <Input type="number" min="0" step="0.01" value={form.valor_parcela || ""} onChange={(e) => setForm((p) => ({ ...p, valor_parcela: Number(e.target.value) }))} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {form.condicao_pagamento === "boleto" && form.parcelas_datas.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
+                  {form.parcelas_datas.map((date, index) => (
+                    <div key={index} className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Vencimento {index + 1}</Label>
+                      <Input type="date" value={date} onChange={(e) => setForm((p) => ({ ...p, parcelas_datas: p.parcelas_datas.map((item, itemIndex) => itemIndex === index ? e.target.value : item) }))} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Observação financeira</Label>
+                <Input value={form.observacao} onChange={(e) => setForm((p) => ({ ...p, observacao: e.target.value }))} placeholder="Ex.: entrada via PIX; boletos enviados por e-mail" />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="h-px bg-border/20" />
@@ -737,6 +848,7 @@ const VendasPage = () => {
                             onValueChange={(pagamento) => updateVendaItem(index, {
                               pagamento,
                               parcelas: PAGAMENTOS_COM_PARCELA.includes(pagamento) ? item.parcelas : 1,
+                              condicao_pagamento: pagamento === "Boleto" ? "boleto" : item.condicao_pagamento,
                             })}
                           >
                             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -783,6 +895,56 @@ const VendasPage = () => {
                                 {formatBRL(itemValores.valorLiquido)}
                               </div>
                             </div>
+                          </>
+                        )}
+
+                        <div className="col-span-2 space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Situação financeira</Label>
+                          <Select value={item.condicao_pagamento} onValueChange={(condicao_pagamento) => updateVendaItem(index, {
+                            condicao_pagamento,
+                            valor_sinal: condicao_pagamento === "pago" ? item.valor : condicao_pagamento === "a_receber" ? 0 : item.valor_sinal,
+                            parcelas_total: condicao_pagamento === "boleto" ? (item.parcelas_total || "1") : "",
+                          })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pago">Pago integralmente</SelectItem>
+                              <SelectItem value="sinal">Sinal pago + saldo a receber</SelectItem>
+                              <SelectItem value="a_receber">Total a receber</SelectItem>
+                              <SelectItem value="boleto">Boleto parcelado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {item.condicao_pagamento !== "pago" && (
+                          <>
+                            {(item.condicao_pagamento === "sinal" || item.condicao_pagamento === "boleto") && (
+                              <div className="space-y-1.5">
+                                <Label className="text-xs text-muted-foreground">Sinal pago (R$)</Label>
+                                <Input type="number" min="0" max={item.valor} step="0.01" value={item.valor_sinal || ""} onChange={(e) => updateVendaItem(index, { valor_sinal: Number(e.target.value) })} />
+                              </div>
+                            )}
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">Saldo restante</Label>
+                              <div className="flex h-10 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-amber-400">
+                                {formatBRL(Math.max(0, Number(item.valor || 0) - Number(item.valor_sinal || 0)))}
+                              </div>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs text-muted-foreground">{item.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Data prevista"}</Label>
+                              <Input type="date" value={item.previsao_entrada} onChange={(e) => updateVendaItem(index, { previsao_entrada: e.target.value, parcelas_datas: item.condicao_pagamento === "boleto" ? buildParcelDates(item.parcelas_total, e.target.value, item.parcelas_datas) : item.parcelas_datas })} />
+                            </div>
+                            {item.condicao_pagamento === "boleto" && (
+                              <>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs text-muted-foreground">Quantidade de boletos</Label>
+                                  <Input type="number" min="1" max="48" value={item.parcelas_total} onChange={(e) => { const parcelas_total = e.target.value; updateVendaItem(index, { parcelas_total, parcelas_datas: buildParcelDates(parcelas_total, item.previsao_entrada, item.parcelas_datas), valor_parcela: Number(parcelas_total) ? +(Math.max(0, item.valor - item.valor_sinal) / Number(parcelas_total)).toFixed(2) : 0 }); }} />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs text-muted-foreground">Valor por boleto (R$)</Label>
+                                  <Input type="number" min="0" step="0.01" value={item.valor_parcela || ""} onChange={(e) => updateVendaItem(index, { valor_parcela: Number(e.target.value) })} />
+                                </div>
+                              </>
+                            )}
                           </>
                         )}
                       </div>
