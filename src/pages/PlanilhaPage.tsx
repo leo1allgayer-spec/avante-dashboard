@@ -48,6 +48,8 @@ const formatNum = (v: number | null | undefined, decimals = 0) => {
   return Number(v).toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
 
+const formatPercent = (v: number) => v ? `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : "";
+
 const parseInputNum = (s: string): number => {
   if (!s.trim()) return 0;
   const clean = s.replace(/R\$\s*/g, "").replace(/\./g, "").replace(",", ".").trim();
@@ -56,14 +58,15 @@ const parseInputNum = (s: string): number => {
 };
 
 // Column definitions for editable fields
-type ColKey = "ads" | "leads" | "custo_por_lead" | "lead_mql" | "custo_por_lead_mql" | "curso_marcado" | "curso_feito" | "faturamento_marcado" | "faturamento_dia" | "roas" | "cac";
+type ColKey = "ads" | "leads" | "custo_por_lead" | "lead_mql" | "custo_por_lead_mql" | "curso_marcado" | "curso_feito" | "taxa_conversao" | "faturamento_marcado" | "faturamento_dia" | "roas" | "cac";
 
 interface ColDef {
   key: ColKey;
   label: string;
-  format: "brl" | "int" | "dec";
+  format: "brl" | "int" | "dec" | "pct";
   decimals?: number;
   colorClass?: string;
+  computed?: boolean;
 }
 
 const COLUMNS: ColDef[] = [
@@ -74,6 +77,7 @@ const COLUMNS: ColDef[] = [
   { key: "custo_por_lead_mql", label: "CPL MQL", format: "brl" },
   { key: "curso_marcado", label: "Curso Marcado", format: "int" },
   { key: "curso_feito", label: "Curso Feito", format: "int" },
+  { key: "taxa_conversao", label: "Conversão", format: "pct", computed: true, colorClass: "text-emerald-400" },
   { key: "faturamento_marcado", label: "Fat. Marcado", format: "brl", colorClass: "font-semibold text-foreground" },
   { key: "faturamento_dia", label: "Fat. Feito", format: "brl", colorClass: "font-semibold text-foreground" },
   { key: "roas", label: "ROAS", format: "dec", decimals: 2 },
@@ -82,7 +86,7 @@ const COLUMNS: ColDef[] = [
 
 const TABLE_COLUMN_WIDTHS = [
   "110px", "72px", "112px", "82px", "100px", "72px", "112px",
-  "122px", "112px", "132px", "132px", "82px", "92px",
+  "122px", "112px", "102px", "132px", "132px", "82px", "92px",
 ];
 
 interface MetricRow {
@@ -112,7 +116,7 @@ const EditableCell = ({
   onSave,
 }: {
   value: number;
-  format: "brl" | "int" | "dec";
+  format: "brl" | "int" | "dec" | "pct";
   decimals?: number;
   colorClass?: string;
   onSave: (v: number) => void;
@@ -121,7 +125,7 @@ const EditableCell = ({
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const display = format === "brl" ? formatBRL(value) : format === "int" ? formatNum(value) : formatNum(value, decimals);
+  const display = format === "brl" ? formatBRL(value) : format === "int" ? formatNum(value) : format === "pct" ? formatPercent(value) : formatNum(value, decimals);
 
   const startEdit = () => {
     setEditing(true);
@@ -411,6 +415,7 @@ const PlanilhaPage = () => {
   const getCellValue = (r: MetricRow | undefined, col: ColDef): number => {
     if (!r) return 0;
     if (col.key === "ads") return getAds(r);
+    if (col.key === "taxa_conversao") return Number(r.leads || 0) > 0 ? (Number(r.curso_feito || 0) / Number(r.leads || 0)) * 100 : 0;
     return Number((r as any)[col.key] || 0);
   };
 
@@ -513,6 +518,7 @@ const PlanilhaPage = () => {
             const totalCpl = totals.leads > 0 ? totals.ads / totals.leads : 0;
             const totalRoas = totals.ads > 0 ? (Number(totals.faturamento_marcado || 0) + Number(totals.faturamento_dia || 0)) / totals.ads : 0;
             const totalCac = totals.curso_feito > 0 ? totals.ads / totals.curso_feito : 0;
+            const totalConversao = totals.leads > 0 ? (totals.curso_feito / totals.leads) * 100 : 0;
 
             return (
               <div key={wi} className="rounded-lg overflow-hidden" style={{ border: "1px solid hsl(260, 18%, 14%)" }}>
@@ -546,7 +552,7 @@ const PlanilhaPage = () => {
 
                 {hasData && (
                 <div className="overflow-x-auto">
-                  <Table className="min-w-[1330px] table-fixed">
+                  <Table className="min-w-[1430px] table-fixed">
                     <colgroup>
                       {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
                     </colgroup>
@@ -575,13 +581,19 @@ const PlanilhaPage = () => {
                               const extraColor = col.key === "roas" ? getRoasColor(val) : (col.colorClass || "");
                               return (
                                 <TableCell key={col.key} className="py-1.5">
-                                  <EditableCell
-                                    value={val}
-                                    format={col.format}
-                                    decimals={col.decimals}
-                                    colorClass={extraColor}
-                                    onSave={(v) => saveCell(key, col.key, v)}
-                                  />
+                                  {col.computed ? (
+                                    <div className={`px-1 py-0.5 text-right text-xs font-semibold tabular-nums ${extraColor}`}>
+                                      {formatPercent(val) || <span className="text-muted-foreground/20">—</span>}
+                                    </div>
+                                  ) : (
+                                    <EditableCell
+                                      value={val}
+                                      format={col.format}
+                                      decimals={col.decimals}
+                                      colorClass={extraColor}
+                                      onSave={(v) => saveCell(key, col.key, v)}
+                                    />
+                                  )}
                                 </TableCell>
                               );
                             })}
@@ -600,6 +612,7 @@ const PlanilhaPage = () => {
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold">{totals.lead_mql > 0 ? formatBRL(totals.ads / totals.lead_mql) : ""}</TableCell>
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold">{formatNum(totals.curso_marcado)}</TableCell>
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold">{formatNum(totals.curso_feito)}</TableCell>
+                        <TableCell className="text-xs text-right tabular-nums py-2 font-bold text-emerald-400">{formatPercent(totalConversao)}</TableCell>
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold text-foreground">{formatBRL(totals.faturamento_marcado)}</TableCell>
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold text-foreground">{formatBRL(totals.faturamento_dia)}</TableCell>
                         <TableCell className={`text-xs text-right tabular-nums py-2 font-bold ${getRoasColor(totalRoas)}`}>{totalRoas ? totalRoas.toFixed(2) : ""}</TableCell>
@@ -623,11 +636,12 @@ const PlanilhaPage = () => {
             const cpl = t.leads > 0 ? t.ads / t.leads : 0;
             const roas = t.ads > 0 ? (Number(t.faturamento_marcado || 0) + Number(t.faturamento_dia || 0)) / t.ads : 0;
             const cac = t.curso_feito > 0 ? t.ads / t.curso_feito : 0;
+            const conversao = t.leads > 0 ? (t.curso_feito / t.leads) * 100 : 0;
 
             return (
               <div className="rounded-lg overflow-hidden" style={{ border: "2px solid hsl(var(--accent) / 0.3)" }}>
                 <div className="overflow-x-auto">
-                  <Table className="min-w-[1330px] table-fixed">
+                  <Table className="min-w-[1430px] table-fixed">
                     <colgroup>
                       {TABLE_COLUMN_WIDTHS.map((width, index) => <col key={index} style={{ width }} />)}
                     </colgroup>
@@ -642,6 +656,7 @@ const PlanilhaPage = () => {
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold">{t.lead_mql > 0 ? formatBRL(t.ads / t.lead_mql) : ""}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold">{formatNum(t.curso_marcado)}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold">{formatNum(t.curso_feito)}</TableCell>
+                        <TableCell className="text-sm text-right tabular-nums py-3 font-bold text-emerald-400">{formatPercent(conversao)}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold text-foreground">{formatBRL(t.faturamento_marcado)}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold text-foreground">{formatBRL(t.faturamento_dia)}</TableCell>
                         <TableCell className={`text-sm text-right tabular-nums py-3 font-bold ${getRoasColor(roas)}`}>{roas ? roas.toFixed(2) : ""}</TableCell>
