@@ -722,14 +722,29 @@ const CampanhasPage = () => {
         )}
 
         <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-          <DialogContent className="max-h-[88vh] max-w-5xl overflow-y-auto">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[88vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+            <DialogHeader className="shrink-0 border-b border-border/30 px-6 py-5 pr-12">
               <DialogTitle>{selectedCampaign?.name || "Detalhes da campanha"}</DialogTitle>
               <DialogDescription>
                 Conjuntos de anuncios e anuncios vinculados a campanha selecionada.
               </DialogDescription>
+              <div className="flex flex-wrap items-center gap-2 pt-2 text-[10px] font-semibold uppercase tracking-wider">
+                <Badge variant="outline" className="border-primary/40 text-primary">1. Campanha</Badge>
+                <span className="text-muted-foreground">→</span>
+                <Badge variant="outline">2. Conjunto de anúncios</Badge>
+                <span className="text-muted-foreground">→</span>
+                <Badge variant="outline">3. Anúncio</Badge>
+              </div>
             </DialogHeader>
 
+            <div
+              className="min-h-0 flex-1 overflow-y-scroll overscroll-contain px-6 py-5"
+              onWheel={(event) => {
+                event.stopPropagation();
+                event.currentTarget.scrollTop += event.deltaY;
+              }}
+              onTouchMove={(event) => event.stopPropagation()}
+            >
             {detailsLoading && (
               <div className="flex items-center gap-2 rounded-lg border border-border/40 p-4 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -741,7 +756,7 @@ const CampanhasPage = () => {
               <div className="space-y-6">
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-foreground">Conjuntos e anuncios</h4>
+                    <h4 className="text-sm font-semibold text-foreground">Etapas dos conjuntos e anúncios</h4>
                     <span className="text-xs text-muted-foreground">{campaignDetails.adsets.length} conjuntos · {campaignDetails.ads.length} anuncios</span>
                   </div>
 
@@ -755,6 +770,7 @@ const CampanhasPage = () => {
                         <div key={adset.id} className={`rounded-lg border p-4 ${statusStyle.card}`}>
                           <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.5fr)_minmax(0,2fr)] lg:items-center">
                             <div className="min-w-0">
+                              <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-primary/80">Etapa 2 · Conjunto de anúncios</p>
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className={`h-2.5 w-2.5 rounded-full ${statusStyle.dot}`} />
                                 <p className="truncate text-sm font-semibold text-foreground">{adset.name}</p>
@@ -786,6 +802,7 @@ const CampanhasPage = () => {
                               return (
                                 <div key={ad.id} className={`grid gap-3 rounded-md border px-3 py-3 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center ${adStatusStyle.child}`}>
                                   <div className="min-w-0">
+                                    <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-sky-400/80">Etapa 3 · Anúncio</p>
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span className={`h-2 w-2 rounded-full ${adStatusStyle.dot}`} />
                                       <p className="truncate text-sm font-medium text-foreground">{ad.name}</p>
@@ -867,6 +884,7 @@ const CampanhasPage = () => {
                 </section>
               </div>
             )}
+            </div>
           </DialogContent>
         </Dialog>
       </DashboardLayout>
