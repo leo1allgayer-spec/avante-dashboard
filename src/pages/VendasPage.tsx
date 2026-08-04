@@ -6,6 +6,7 @@ import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
 import { useFechamentosDiarios, useCreateFechamentoDiario, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
 import { useCriativosResumo, useCreateCriativoVenda } from "@/hooks/useCriativos";
+import { useMetaAdCreatives } from "@/hooks/useMetaAds";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -160,6 +161,7 @@ const VendasPage = () => {
   const { data: allVendas = [], isLoading } = useVendas();
   const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
   const { data: criativosResumo = [] } = useCriativosResumo();
+  const { data: anunciosMeta = [], isLoading: isLoadingAnunciosMeta, isError: isMetaAdsError } = useMetaAdCreatives();
   const dateFilter = useLocalDateFilter();
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
@@ -196,13 +198,25 @@ const VendasPage = () => {
   const comissao = +(valorBase * 0.15).toFixed(2);
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
-  const criativosDisponiveis = useMemo(() => {
+  const criativosManuais = useMemo(() => {
     const unicos = new Map<string, { nome: string; codigo: string | null }>();
     criativosResumo
       .filter((item) => item.status !== "desativo")
       .forEach((item) => unicos.set(item.criativo, { nome: item.criativo, codigo: item.codigo || null }));
     return [...unicos.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   }, [criativosResumo]);
+  const criativosDisponiveis = useMemo(() => {
+    if (anunciosMeta.length > 0) {
+      return anunciosMeta.map((anuncio) => ({
+        valor: `meta:${anuncio.id}`,
+        nome: anuncio.name,
+        codigo: anuncio.id,
+        campanha: anuncio.campaignName,
+        status: anuncio.status,
+      }));
+    }
+    return criativosManuais.map((criativo) => ({ ...criativo, valor: `manual:${criativo.nome}`, campanha: "Cadastro manual", status: "MANUAL" }));
+  }, [anunciosMeta, criativosManuais]);
 
   const dateInRange = (date?: string | null) => !!date && date >= dateFilter.range.start && date <= dateFilter.range.end;
 
@@ -555,12 +569,12 @@ const VendasPage = () => {
     };
 
     const buildCriativoPayload = (item: VendaItemForm) => {
-      const cadastro = criativosDisponiveis.find((criativo) => criativo.nome === item.criativo);
+      const cadastro = criativosDisponiveis.find((criativo) => criativo.valor === item.criativo);
       return {
         user_id: session.user.id,
         nome_aluno: form.cliente,
         data: form.data,
-        criativo: item.criativo,
+        criativo: cadastro?.nome || item.criativo,
         codigo: cadastro?.codigo || null,
         valor_curso: Number(item.valor || 0),
         valor_ads: 0,
@@ -689,16 +703,20 @@ const VendasPage = () => {
               <Select value={form.criativo} onValueChange={(criativo) => setForm((p) => ({ ...p, criativo }))}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o criativo" /></SelectTrigger>
                 <SelectContent>
-                  {criativosDisponiveis.length === 0 ? (
-                    <SelectItem value="sem-criativos" disabled>Nenhum criativo ativo cadastrado</SelectItem>
+                  {isLoadingAnunciosMeta ? (
+                    <SelectItem value="carregando-criativos" disabled>Carregando anúncios da Meta...</SelectItem>
+                  ) : criativosDisponiveis.length === 0 ? (
+                    <SelectItem value="sem-criativos" disabled>Nenhum anúncio disponível</SelectItem>
                   ) : criativosDisponiveis.map((criativo) => (
-                    <SelectItem key={criativo.nome} value={criativo.nome}>
-                      {criativo.codigo ? `${criativo.codigo} — ` : ""}{criativo.nome}
+                    <SelectItem key={criativo.valor} value={criativo.valor}>
+                      {criativo.nome} — {criativo.campanha}{criativo.status === "ACTIVE" ? " (Ativo)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground/60">Opcional. A venda será vinculada ao relatório de Criativos.</p>
+              <p className="text-[11px] text-muted-foreground/60">
+                {isMetaAdsError ? "Meta indisponível: exibindo o cadastro manual." : "Anúncios carregados diretamente da área de Campanhas da Meta."}
+              </p>
             </div>
           </div>
         </div>
@@ -1015,11 +1033,13 @@ const VendasPage = () => {
                           <Select value={item.criativo} onValueChange={(criativo) => updateVendaItem(index, { criativo })}>
                             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
-                              {criativosDisponiveis.length === 0 ? (
-                                <SelectItem value="sem-criativos" disabled>Nenhum criativo ativo</SelectItem>
+                              {isLoadingAnunciosMeta ? (
+                                <SelectItem value="carregando-criativos-extra" disabled>Carregando anúncios...</SelectItem>
+                              ) : criativosDisponiveis.length === 0 ? (
+                                <SelectItem value="sem-criativos" disabled>Nenhum anúncio disponível</SelectItem>
                               ) : criativosDisponiveis.map((criativo) => (
-                                <SelectItem key={criativo.nome} value={criativo.nome}>
-                                  {criativo.codigo ? `${criativo.codigo} — ` : ""}{criativo.nome}
+                                <SelectItem key={criativo.valor} value={criativo.valor}>
+                                  {criativo.nome} — {criativo.campanha}
                                 </SelectItem>
                               ))}
                             </SelectContent>
