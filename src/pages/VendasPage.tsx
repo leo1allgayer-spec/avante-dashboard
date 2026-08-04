@@ -355,7 +355,15 @@ const VendasPage = () => {
   });
 
   const addVendaItem = () => {
-    setAdditionalItems((prev) => [...prev, { ...defaultVendaItem }]);
+    setAdditionalItems((prev) => [...prev, {
+      ...defaultVendaItem,
+      origem: form.origem,
+      criativo: form.criativo,
+    }]);
+  };
+
+  const syncSaleOrigin = (updates: Pick<VendaItemForm, "origem"> | Pick<VendaItemForm, "criativo">) => {
+    setAdditionalItems((prev) => prev.map((item) => ({ ...item, ...updates })));
   };
 
   const updateVendaItem = (index: number, updates: Partial<VendaItemForm>) => {
@@ -749,7 +757,7 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Origem</Label>
-              <Select value={form.origem} onValueChange={(v) => setForm((p) => ({ ...p, origem: v }))}>
+              <Select value={form.origem} onValueChange={(origem) => { setForm((p) => ({ ...p, origem })); syncSaleOrigin({ origem }); }}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione a origem" /></SelectTrigger>
                 <SelectContent>
                   {ORIGENS.map((o) => (
@@ -760,7 +768,7 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-              <Select value={metaAdsWithEmoji.some((ad) => ad.name === form.criativo) ? form.criativo : undefined} onValueChange={(criativo) => setForm((p) => ({ ...p, criativo }))}>
+              <Select value={metaAdsWithEmoji.some((ad) => ad.name === form.criativo) ? form.criativo : undefined} onValueChange={(criativo) => { setForm((p) => ({ ...p, criativo })); syncSaleOrigin({ criativo }); }}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder={isLoadingMetaAds ? "Carregando anúncios..." : "Selecionar anúncio da Meta"} /></SelectTrigger>
                 <SelectContent className="max-h-72">
                   {metaAdsWithEmoji.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
@@ -769,7 +777,7 @@ const VendasPage = () => {
               <Input
                 list="meta-ad-names"
                 value={form.criativo}
-                onChange={(event) => setForm((p) => ({ ...p, criativo: event.target.value }))}
+                onChange={(event) => { const criativo = event.target.value; setForm((p) => ({ ...p, criativo })); syncSaleOrigin({ criativo }); }}
                 placeholder="Ex.: 🪵 ou emoji/nome do anúncio"
                 className="bg-secondary/30 border-border/30 focus:border-primary/50"
               />
