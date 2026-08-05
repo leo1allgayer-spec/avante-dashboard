@@ -1,3 +1,25 @@
+-- A página pública precisa ler somente as regras de disponibilidade. Essas
+-- tabelas não contêm dados pessoais de alunos.
+drop policy if exists "Public can view booking settings" on public.booking_settings;
+create policy "Public can view booking settings"
+  on public.booking_settings for select to anon using (true);
+
+drop policy if exists "Public can view blocked dates" on public.course_blocked_dates;
+create policy "Public can view blocked dates"
+  on public.course_blocked_dates for select to anon using (true);
+
+drop policy if exists "Public can view disabled days" on public.course_disabled_days;
+create policy "Public can view disabled days"
+  on public.course_disabled_days for select to anon using (true);
+
+drop policy if exists "Public can view course slots" on public.course_slots;
+create policy "Public can view course slots"
+  on public.course_slots for select to anon using (true);
+
+drop policy if exists "Public can view Meta Ads exceptions" on public.meta_ads_exceptions;
+create policy "Public can view Meta Ads exceptions"
+  on public.meta_ads_exceptions for select to anon using (true);
+
 create or replace function public.create_public_course_booking(
   p_course_name text,
   p_date text,

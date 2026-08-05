@@ -91,7 +91,7 @@ export default function BookingPublic() {
         supabase.from("course_blocked_dates").select("*"),
         supabase.from("course_disabled_days").select("*").eq("course_name", selectedCourse),
         supabase.rpc("get_booking_counts", { p_course_name: selectedCourse }),
-        supabase.from("booking_settings").select("*").limit(1).single(),
+        supabase.from("booking_settings").select("*").limit(1).maybeSingle(),
       ] as const;
 
       const baseResults = await Promise.all(fetchPromises);
