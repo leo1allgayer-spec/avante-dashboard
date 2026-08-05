@@ -134,7 +134,7 @@ export async function resendMessage(log: WhatsAppLog) {
     }
   }
 
-  const { error } = await supabase.functions.invoke("whatsapp-send", {
+  const { data, error } = await supabase.functions.invoke("whatsapp-send", {
     body: {
       phone,
       bookingId: log.bookingId,
@@ -148,7 +148,7 @@ export async function resendMessage(log: WhatsAppLog) {
     toast.error("Erro ao reenviar mensagem");
     return false;
   }
-  toast.success("Mensagem reenviada");
+  toast.success(data?.status === "pending" ? "Mensagem aceita e aguardando entrega" : "Mensagem reenviada");
   return true;
 }
 
@@ -160,6 +160,6 @@ export async function sendManualMessage(phone: string, bookingId: string | null,
     toast.error("Erro ao enviar mensagem");
     return false;
   }
-  toast.success("Mensagem enviada");
+  toast.success(data?.status === "pending" ? "Mensagem aceita e aguardando entrega" : "Mensagem enviada");
   return true;
 }

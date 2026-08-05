@@ -875,7 +875,7 @@ export default function AdminBookings() {
                             </TableCell>
                             <TableCell>
                               <Badge variant={log.status === "sent" ? "default" : log.status === "error" ? "destructive" : "secondary"}>
-                                {log.status === "sent" ? "✅ Enviado" : log.status === "error" ? "❌ Erro" : "⏳ Pendente"}
+                                {log.status === "sent" ? "✅ Enviado" : log.status === "error" ? "❌ Erro" : "⏳ Aguardando entrega"}
                               </Badge>
                               {log.errorMessage && (
                                 <p className="text-xs text-destructive mt-1 max-w-[200px] truncate" title={log.errorMessage}>{log.errorMessage}</p>

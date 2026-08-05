@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
       .from("whatsapp_message_logs")
       .select("message_type")
       .eq("booking_id", bookingId)
-      .eq("status", "sent");
+      .in("status", ["sent", "pending"]);
 
     const sentMessageTypes = new Set(
       (existingLogs || []).map((log) => log.message_type)
@@ -178,7 +178,8 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("WhatsApp trigger error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

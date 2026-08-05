@@ -43,13 +43,18 @@ async function resolveInstanceName(baseUrl: string, configuredName: string, toke
     const r = await fetch(`${baseUrl}/instance/connectionState/${encodeURIComponent(configuredName)}`, {
       headers: { "apikey": token },
     });
+    const responseText = await r.text();
     if (r.ok) {
-      await r.text();
+      let connection: any = {};
+      try { connection = JSON.parse(responseText); } catch { /* resposta inesperada */ }
+      const state = String(connection?.instance?.state ?? connection?.state ?? "").toLowerCase();
+      if (state && state !== "open") {
+        throw new Error(`Instância Evolution desconectada (status: ${state})`);
+      }
       RESOLVED_INSTANCE = configuredName;
-      console.log(`Evolution instance resolved (direct): "${configuredName}"`);
+      console.log(`Evolution instance resolved (direct): "${configuredName}" (${state || "status não informado"})`);
       return configuredName;
     }
-    await r.text();
   } catch (_) { /* segue para fallback */ }
 
   // Fallback: lista todas as instâncias e procura por name OU profileName
@@ -72,6 +77,10 @@ async function resolveInstanceName(baseUrl: string, configuredName: string, toke
   if (!match?.name) {
     const available = arr.map((i: any) => i?.name).filter(Boolean).join(", ");
     throw new Error(`Instância "${configuredName}" não encontrada. Disponíveis: ${available || "(nenhuma)"}`);
+  }
+  const matchState = String(match?.connectionStatus ?? match?.state ?? match?.instance?.state ?? "").toLowerCase();
+  if (matchState && matchState !== "open") {
+    throw new Error(`Instância Evolution desconectada (status: ${matchState})`);
   }
   RESOLVED_INSTANCE = match.name;
   console.log(`Evolution instance resolved (via fetchInstances): "${configuredName}" -> "${match.name}"`);
@@ -114,15 +123,16 @@ async function sendViaEvolution(phone: string, text: string) {
 
   // Evolution pode responder 200/201 mas com erro lógico no corpo.
   // Considera falha quando: HTTP não-ok, status textual de erro, ou ausência de key/messageTimestamp.
-  let ok = response.ok;
-  if (ok && result && typeof result === "object") {
-    const innerStatus = String(result?.status ?? "").toUpperCase();
-    const hasError = !!result?.error || innerStatus === "ERROR" || innerStatus === "FAILED";
+  let accepted = response.ok;
+  let providerStatus = String(result?.status ?? "").toUpperCase();
+  if (accepted && result && typeof result === "object") {
+    const hasError = !!result?.error || providerStatus === "ERROR" || providerStatus === "FAILED";
     const looksLikeAck = !!(result?.key?.id || result?.messageTimestamp);
-    if (hasError || !looksLikeAck) ok = false;
+    if (hasError || !looksLikeAck) accepted = false;
   }
 
-  return { ok, status: response.status, result, resultText };
+  const deliveryStatus = accepted && providerStatus === "PENDING" ? "pending" : accepted ? "sent" : "error";
+  return { accepted, deliveryStatus, status: response.status, result, resultText };
 }
 
 function buildErrorMessage(status: number, resultText: string, result: any): string {
@@ -215,7 +225,7 @@ Deno.serve(async (req) => {
 
     const formattedPhone = formatPhone(phone);
 
-    const { ok: success, status, result, resultText } = await sendViaEvolution(formattedPhone, messageText);
+    const { accepted, deliveryStatus, status, result, resultText } = await sendViaEvolution(formattedPhone, messageText);
 
     await supabase.from("whatsapp_message_logs").insert({
       booking_id: bookingId || null,
@@ -224,18 +234,19 @@ Deno.serve(async (req) => {
       course_name: body.courseName || "",
       message_type: messageType,
       message_text: messageText,
-      status: success ? "sent" : "error",
-      error_message: success ? null : buildErrorMessage(status, resultText, result),
-      sent_at: success ? new Date().toISOString() : null,
+      status: deliveryStatus,
+      error_message: accepted ? null : buildErrorMessage(status, resultText, result),
+      sent_at: deliveryStatus === "sent" ? new Date().toISOString() : null,
     });
 
-    return new Response(JSON.stringify({ success, result }), {
-      status: success ? 200 : 500,
+    return new Response(JSON.stringify({ success: accepted, status: deliveryStatus, result }), {
+      status: accepted ? 200 : 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("WhatsApp send error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
