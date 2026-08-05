@@ -54,6 +54,8 @@ export default function BookingPublic() {
   const [dateShifts, setDateShifts] = useState<DateShift[]>([]);
   const [selectedShift, setSelectedShift] = useState<DateShift | null>(null);
   const [loading, setLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [availabilityReload, setAvailabilityReload] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", phone: "55", instagram: "", certificateName: "" });
   const [errors, setErrors] = useState({ name: "", email: "", phone: "", instagram: "", certificateName: "" });
@@ -72,8 +74,11 @@ export default function BookingPublic() {
 
   useEffect(() => {
     if (!selectedCourse) return;
+    let cancelled = false;
     setLoading(true);
+    setAvailabilityError("");
     (async () => {
+      try {
       // Fetch blocked dates, disabled days, bookings, and settings in parallel
       // Meta Ads and Meta Ads Avançado are mutually exclusive
       const EXCLUSIVE_PAIRS: Record<string, string> = {
@@ -95,6 +100,9 @@ export default function BookingPublic() {
       const { data: countsData } = baseResults[2];
       const { data: settingsData } = baseResults[3];
 
+      const baseError = baseResults.find((result) => result.error)?.error;
+      if (baseError) throw baseError;
+
       let siblingCountsData: any[] | null = null;
       let siblingSlotsData: any[] | null = null;
       let exceptionsData: any[] | null = null;
@@ -107,10 +115,12 @@ export default function BookingPublic() {
         siblingCountsData = countsRes.data as any[] | null;
         siblingSlotsData = slotsRes.data as any[] | null;
         exceptionsData = exceptionsRes.data as any[] | null;
+        const siblingError = countsRes.error || slotsRes.error || exceptionsRes.error;
+        if (siblingError) throw siblingError;
       }
       const exceptionSet = new Set<string>();
       (exceptionsData || []).forEach((e: any) => {
-        if (e.shift) exceptionSet.add(`${e.date}|${e.shift}`);
+        if (e.shift) exceptionSet.add(`${e.date}|${normalizeShift(e.shift)}`);
         else { exceptionSet.add(`${e.date}|Manhã`); exceptionSet.add(`${e.date}|Tarde`); }
       });
 
@@ -119,7 +129,7 @@ export default function BookingPublic() {
       // Count bookings per date+shift
       const countMap: Record<string, number> = {};
       (countsData || []).forEach((b: any) => {
-        const key = `${b.booking_date}|${b.booking_time}`;
+        const key = `${b.booking_date}|${normalizeShift(b.booking_time)}`;
         countMap[key] = (b.booking_count || 0);
       });
 
@@ -142,9 +152,10 @@ export default function BookingPublic() {
 
       // Disabled weekdays for this course (with shift support)
       const disabledEntries = (disabledData || []) as Array<{ day_of_week: number; shift: string | null }>;
-      const isWeekdayShiftDisabled = (dayOfWeek: number, shift: string) => {
+      const isWeekdayShiftDisabled = (dayOfWeek: number, shift: string, shiftTime: string) => {
         return disabledEntries.some(d =>
-          d.day_of_week === dayOfWeek && (d.shift === null || d.shift === shift)
+          d.day_of_week === dayOfWeek &&
+          (d.shift === null || normalizeShift(d.shift) === shift || d.shift === shiftTime)
         );
       };
 
@@ -153,7 +164,7 @@ export default function BookingPublic() {
         return (blockedData || []).some((b: any) => {
           if (b.date !== date) return false;
           if (b.course_name !== null && b.course_name !== selectedCourse) return false;
-          if (b.shift !== null && b.shift !== shift) return false;
+          if (b.shift !== null && normalizeShift(b.shift) !== shift) return false;
           return true;
         });
       };
@@ -175,7 +186,7 @@ export default function BookingPublic() {
           const shiftDateTime = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
           if (shiftDateTime.getTime() - now.getTime() < minAdvanceMs) continue;
 
-          if (isWeekdayShiftDisabled(dayOfWeek, shiftTime)) continue;
+          if (isWeekdayShiftDisabled(dayOfWeek, shift, shiftTime)) continue;
           if (isBlocked(dateStr, shift)) continue;
           // Mutual exclusion: if sibling course has bookings, block this slot (unless exception)
           const siblingKey = `${dateStr}|${shift}`;
@@ -191,10 +202,21 @@ export default function BookingPublic() {
         }
       }
 
-      setDateShifts(shifts);
-      setLoading(false);
+      if (!cancelled) setDateShifts(shifts);
+      } catch (error) {
+        console.error("Erro ao carregar disponibilidade", error);
+        if (!cancelled) {
+          setDateShifts([]);
+          setSelectedDate(null);
+          setSelectedShift(null);
+          setAvailabilityError("Não foi possível carregar as regras de agendamento. Tente novamente.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
-  }, [selectedCourse]);
+    return () => { cancelled = true; };
+  }, [selectedCourse, availabilityReload]);
 
   const handleSelectCourse = (c: string) => {
     setSelectedCourse(c);
@@ -477,6 +499,15 @@ export default function BookingPublic() {
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
+              ) : availabilityError ? (
+                <Card className="rounded-2xl border-destructive/40 bg-card/70">
+                  <CardContent className="space-y-4 p-8 text-center">
+                    <p className="text-sm text-destructive">{availabilityError}</p>
+                    <Button variant="outline" onClick={() => setAvailabilityReload((value) => value + 1)}>
+                      Tentar novamente
+                    </Button>
+                  </CardContent>
+                </Card>
               ) : Object.keys(availableDatesMap).length === 0 ? (
                 <Card className="rounded-2xl border-border/60 bg-card/70">
                   <CardContent className="p-8 text-center text-muted-foreground">
