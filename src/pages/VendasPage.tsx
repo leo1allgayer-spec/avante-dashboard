@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { CalendarClock, Clock3, Layers3, Pencil, Plus, Search, ShoppingCart, Trash2, TrendingUp, Wallet } from "lucide-react";
+import { CalendarClock, Clock3, Layers3, Pencil, Plus, Search, Trash2, TrendingUp, Wallet } from "lucide-react";
 import { SERVICE_CATEGORIES } from "@/constants/serviceCategories";
 
 
@@ -1205,7 +1205,7 @@ const VendasPage = () => {
 
         <DateFilterBar mode={dateFilter.mode} onModeChange={dateFilter.setMode} label={dateFilter.label} onBack={dateFilter.goBack} onForward={dateFilter.goForward} />
 
-        <div className="grid gap-4 mb-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 mb-4 md:grid-cols-3">
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -1221,14 +1221,6 @@ const VendasPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.aReceber)}</CardContent>
-          </Card>
-          <Card className="border-border/50 bg-card/70">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                <ShoppingCart className="h-4 w-4 text-primary" /> Faturamento feito
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(vendaTotals.feito)}</CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
@@ -1249,7 +1241,7 @@ const VendasPage = () => {
                   Conferencia por categoria: valores coletados, a receber, recorrentes e faturamento feito.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                 <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
                   <span className="text-muted-foreground">Coletado</span>
                   <strong className="block text-success">{formatBRL(fechamentoTotals.coletado)}</strong>
@@ -1257,10 +1249,6 @@ const VendasPage = () => {
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
                   <span className="text-muted-foreground">A receber</span>
                   <strong className="block text-amber-500">{formatBRL(fechamentoTotals.aReceber)}</strong>
-                </div>
-                <div className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2">
-                  <span className="text-muted-foreground">Feito</span>
-                  <strong className="block text-primary">{formatBRL(vendaTotals.feito)}</strong>
                 </div>
                 <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2">
                   <span className="text-muted-foreground">Vendas</span>
@@ -1424,7 +1412,7 @@ const VendasPage = () => {
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Qtd.</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Origem</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Valor total</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Sinal</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Coletado</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Saldo</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Pagamento</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão sobre recebido (15%)</TableHead>
