@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import MonthlyMetricsTimeline from "@/components/MonthlyMetricsTimeline";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
@@ -298,6 +299,8 @@ const Dashboard = () => {
           <div className="flex items-center gap-3">
             <p className="text-sm font-medium text-muted-foreground">{filter.label}</p>
           </div>
+
+          <MonthlyMetricsTimeline />
 
           {/* ROW 1: Hero + side cards */}
           <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-12 md:auto-rows-auto">

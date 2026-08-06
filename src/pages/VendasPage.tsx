@@ -884,8 +884,16 @@ const VendasPage = () => {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">{form.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Data prevista do saldo"}</Label>
-                    <Input type="date" value={form.previsao_entrada} onChange={(e) => setForm((p) => ({ ...p, previsao_entrada: e.target.value, parcelas_datas: p.condicao_pagamento === "boleto" ? buildParcelDates(p.parcelas_total, e.target.value, p.parcelas_datas) : p.parcelas_datas }))} />
+                    <Label className="text-xs text-muted-foreground">{form.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Mês previsto do saldo"}</Label>
+                    <Input
+                      type={form.condicao_pagamento === "boleto" ? "date" : "month"}
+                      value={form.condicao_pagamento === "boleto" ? form.previsao_entrada : form.previsao_entrada.slice(0, 7)}
+                      onChange={(e) => setForm((p) => ({
+                        ...p,
+                        previsao_entrada: p.condicao_pagamento === "boleto" ? e.target.value : `${e.target.value}-01`,
+                        parcelas_datas: p.condicao_pagamento === "boleto" ? buildParcelDates(p.parcelas_total, e.target.value, p.parcelas_datas) : p.parcelas_datas,
+                      }))}
+                    />
                   </div>
                   {form.condicao_pagamento === "boleto" && (
                     <>
@@ -1238,7 +1246,7 @@ const VendasPage = () => {
               <div>
                 <CardTitle>Central de vendas e fechamentos</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Conferencia por categoria: valores coletados, a receber, recorrentes e faturamento feito.
+                  Conferencia por categoria: valores coletados, a receber e recorrentes.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
@@ -1269,7 +1277,6 @@ const VendasPage = () => {
                       <TableHead className="text-right">Marcado / coletado</TableHead>
                       <TableHead className="text-right">A receber</TableHead>
                       <TableHead className="text-right">Recorrente</TableHead>
-                      <TableHead className="text-right">Faturamento feito</TableHead>
                       <TableHead className="text-center">Vendas feitas</TableHead>
                       <TableHead className="w-20 text-right">Acoes</TableHead>
                     </TableRow>
@@ -1281,7 +1288,6 @@ const VendasPage = () => {
                         <TableCell className="text-right font-semibold text-success">{formatBRL(row.coletado)}</TableCell>
                         <TableCell className="text-right font-semibold text-amber-500">{formatBRL(row.aReceber)}</TableCell>
                         <TableCell className="text-right font-semibold text-primary">{formatBRL(row.recorrente)}</TableCell>
-                        <TableCell className="text-right font-semibold text-foreground">{formatBRL(row.feito)}</TableCell>
                         <TableCell className="text-center">{row.vendas}</TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-1">

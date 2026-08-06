@@ -11,6 +11,7 @@ import MetricCard from "@/components/MetricCard";
 import { Target, TrendingUp, GraduationCap, CalendarDays, Globe, MapPin, Database, ArrowUpCircle } from "lucide-react";
 import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import MonthlyMetricsTimeline from "@/components/MonthlyMetricsTimeline";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -209,6 +210,8 @@ const MetasPage = () => {
       <DashboardLayout title="Metas" subtitle="Acompanhe suas metas mensais e diárias" actions={<MetricsForm currentData={today} />}>
         <DateFilterBar mode={filter.mode} onModeChange={filter.setMode} label={filter.label} onBack={filter.goBack} onForward={filter.goForward} />
 
+        <MonthlyMetricsTimeline />
+
         <StaggerContainer className="grid gap-5 sm:grid-cols-2">
           <StaggerItem>
             <GoalProgress label={filter.mode === "dia" ? "Meta do Dia" : filter.mode === "semana" ? "Meta da Semana" : "Meta Mensal"} prevista={calcData.periodMeta} realizada={periodRealized} superMeta={filter.mode === "mes" ? Number(superMetaMensal) : undefined} />
@@ -319,10 +322,6 @@ const MetasPage = () => {
                       <div>
                         <p className="text-[10px] text-muted-foreground/50">Valor Líquido</p>
                         <p className="font-display text-sm font-semibold text-accent">{formatCurrency(valorLiquido)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground/50">Feitos</p>
-                        <p className="font-display text-sm font-semibold text-accent">{realizado}</p>
                       </div>
                     </div>
                   </div>
