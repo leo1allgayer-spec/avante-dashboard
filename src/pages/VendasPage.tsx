@@ -1475,7 +1475,7 @@ const VendasPage = () => {
         </div>
 
         {/* Compact cards keep every action visible without horizontal scrolling. */}
-        <div className="space-y-3 xl:hidden">
+        <div className="grid gap-3 xl:grid-cols-2">
           {isLoading ? (
             <div className="rounded-lg border border-border/30 p-8 text-center text-muted-foreground">Carregando...</div>
           ) : vendasAgrupadas.length === 0 ? (
@@ -1527,8 +1527,8 @@ const VendasPage = () => {
           })}
         </div>
 
-        {/* Full table for wide screens. */}
-        <div className="hidden rounded-lg overflow-hidden border border-border/30 xl:block">
+        {/* Legacy table retained in the DOM only for future export work. */}
+        <div className="hidden rounded-lg overflow-hidden border border-border/30">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
