@@ -43,6 +43,7 @@ type TimelineRow = {
   label: string;
   faturamento: number;
   vendas: number;
+  cursosFeitos: number;
   leads: number;
   ads: number;
 };
@@ -58,7 +59,7 @@ export default function MonthlyMetricsTimeline() {
     queryKey: ["monthly-metrics-timeline", startDate],
     queryFn: async () => {
       const [metricsResult, vendasResult, metaResult] = await Promise.all([
-        supabase.from("daily_metrics").select("date, leads, ads, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
+        supabase.from("daily_metrics").select("date, leads, ads, curso_feito, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
         supabase.from("vendas").select("data, valor, status").gte("data", startDate),
         supabase.functions.invoke("meta-ads", { body: { datePreset: "custom", since: startDate, until: localDateKey(new Date()) } }),
       ]);
@@ -78,7 +79,7 @@ export default function MonthlyMetricsTimeline() {
     for (let offset = 5; offset >= 0; offset -= 1) {
       const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      rows.set(key, { key, label: monthLabel.format(date).replace(" de ", "/"), faturamento: 0, vendas: 0, leads: 0, ads: 0 });
+      rows.set(key, { key, label: monthLabel.format(date).replace(" de ", "/"), faturamento: 0, vendas: 0, cursosFeitos: 0, leads: 0, ads: 0 });
     }
     const metaMonths = new Set((data?.meta?.dailyInsights || []).map((item) => item.date_start.slice(0, 7)));
     data?.metrics.forEach((item) => {
@@ -90,6 +91,7 @@ export default function MonthlyMetricsTimeline() {
           row.leads += Number(item.leads || 0);
           row.ads += Number(item.ads || 0);
         }
+        row.cursosFeitos += Number(item.curso_feito || 0);
         row.faturamento += Number(item.faturamento_marcado || 0);
       }
     });
@@ -131,7 +133,8 @@ export default function MonthlyMetricsTimeline() {
                   <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Vendas</span><strong className="text-right font-semibold text-accent">{month.vendas}</strong></div>
                   <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Leads</span><strong className="text-right font-semibold text-foreground">{month.leads}</strong></div>
                   <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Anúncios</span><strong className="text-right font-semibold text-amber-400">{money.format(month.ads)}</strong></div>
-                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">CAC</span><strong className="text-right font-semibold text-foreground">{month.vendas > 0 ? money.format(month.ads / month.vendas) : "—"}</strong></div>
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">CAC total</span><strong className="text-right font-semibold text-foreground">{month.vendas > 0 ? money.format(month.ads / month.vendas) : "—"}</strong></div>
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">CAC cursos</span><strong className="text-right font-semibold text-primary">{month.cursosFeitos > 0 ? money.format(month.ads / month.cursosFeitos) : "—"}</strong></div>
                   <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">ROAS</span><strong className="text-right font-semibold text-emerald-400">{month.ads > 0 ? `${(month.faturamento / month.ads).toFixed(2).replace(".", ",")}x` : "—"}</strong></div>
                 </div>
               </div>
