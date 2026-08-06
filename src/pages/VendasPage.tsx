@@ -1475,7 +1475,7 @@ const VendasPage = () => {
         </div>
 
         {/* Compact cards keep every action visible without horizontal scrolling. */}
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="hidden">
           {isLoading ? (
             <div className="rounded-lg border border-border/30 p-8 text-center text-muted-foreground">Carregando...</div>
           ) : vendasAgrupadas.length === 0 ? (
@@ -1527,35 +1527,28 @@ const VendasPage = () => {
           })}
         </div>
 
-        {/* Legacy table retained in the DOM only for future export work. */}
-        <div className="hidden rounded-lg overflow-hidden border border-border/30">
-          <div className="overflow-x-auto">
+        {/* Compact table keeps all sale information visible without horizontal scrolling. */}
+        <div className="rounded-lg overflow-hidden border border-border/30">
+          <div>
             <Table>
               <TableHeader>
                 <TableRow className="border-border/30" style={{ background: "hsl(260, 22%, 9%)" }}>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Data</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Cliente</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">Qtd.</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground">Origem</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Valor total</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Coletado</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Saldo</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">Pagamento</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão sobre recebido (15%)</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">Status comissão</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">Status</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground w-20"></TableHead>
+                  <TableHead className="w-[20%] px-3 text-xs font-semibold text-muted-foreground">Cliente / venda</TableHead>
+                  <TableHead className="w-[22%] px-3 text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
+                  <TableHead className="w-[22%] px-3 text-xs font-semibold text-muted-foreground">Valores</TableHead>
+                  <TableHead className="w-[16%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
+                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Status</TableHead>
+                  <TableHead className="w-[6%] px-2 text-xs font-semibold text-muted-foreground"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8">Carregando...</TableCell>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Carregando...</TableCell>
                   </TableRow>
                 ) : vendasAgrupadas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8">Nenhuma venda encontrada</TableCell>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhuma venda encontrada</TableCell>
                   </TableRow>
                 ) : (
                   vendasAgrupadas.map((grupo) => {
@@ -1563,42 +1556,46 @@ const VendasPage = () => {
                     const nomes = [...grupo.produtos, ...grupo.servicos];
                     return (
                     <TableRow key={grupo.chave} className="border-border/20 hover:bg-secondary/20" style={{ background: "hsl(260, 22%, 7%)" }}>
-                      <TableCell className="text-sm">{formatDate(v.data)}</TableCell>
-                      <TableCell className="text-sm font-semibold">{v.cliente}</TableCell>
-                      <TableCell className="text-sm"><div className="flex max-w-xs flex-wrap gap-1">{nomes.length > 0 ? nomes.map((nome) => <Badge key={nome} variant="secondary" className="font-normal">{nome}</Badge>) : "—"}</div></TableCell>
-                      <TableCell className="text-sm text-center font-semibold">{grupo.quantidade}</TableCell>
-                      <TableCell className="text-sm">{v.origem || "—"}</TableCell>
-                      <TableCell className="text-sm text-right font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
-                      <TableCell className="text-sm text-right font-semibold text-success">{formatBRL(grupo.sinal)}</TableCell>
-                      <TableCell className="text-sm text-right font-semibold text-amber-500">{formatBRL(grupo.saldo)}</TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="px-3 py-3 align-top">
+                        <p className="text-sm font-semibold leading-tight">{v.cliente}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
+                      </TableCell>
+                      <TableCell className="px-3 py-3 align-top">
+                        <div className="flex flex-wrap gap-1">{nomes.length > 0 ? nomes.map((nome) => <Badge key={nome} variant="secondary" className="font-normal">{nome}</Badge>) : "—"}</div>
+                        <p className="mt-1 text-xs text-muted-foreground">{grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}</p>
+                      </TableCell>
+                      <TableCell className="px-3 py-3 align-top text-xs">
+                        <p><span className="text-muted-foreground">Total: </span><strong>{formatBRL(grupo.valorTotal)}</strong></p>
+                        <p className="mt-1"><span className="text-muted-foreground">Coletado: </span><strong className="text-success">{formatBRL(grupo.sinal)}</strong></p>
+                        <p className="mt-1"><span className="text-muted-foreground">Saldo: </span><strong className="text-amber-500">{formatBRL(grupo.saldo)}</strong></p>
+                      </TableCell>
+                      <TableCell className="px-3 py-3 align-top">
                         <Badge variant={v.pagamento === "Cartão" ? "secondary" : "outline"} className="text-xs">
                           {v.pagamento}
                         </Badge>
+                        {v.pagamento_saldo && <p className="mt-1 text-xs text-muted-foreground">Saldo: {v.pagamento_saldo}</p>}
+                        <p className="mt-2 text-xs"><span className="text-muted-foreground">Comissão: </span><strong>{formatBRL(grupo.comissao)}</strong></p>
                       </TableCell>
-                      <TableCell className="text-sm text-right">{formatBRL(grupo.comissao)}</TableCell>
-                      <TableCell className="min-w-[130px] text-center">
+                      <TableCell className="px-3 py-3 align-top">
                         <Select
                           value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"}
                           onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}
                         >
-                          <SelectTrigger className="h-7 border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="pendente">Pendente</SelectItem>
                             <SelectItem value="paga">Paga</SelectItem>
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell className="text-center">
                         <Badge
-                          className="text-xs"
+                          className="mt-2 text-xs"
                           variant={v.status === "aprovada" ? "default" : v.status === "cancelada" ? "destructive" : "outline"}
                         >
                           {v.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
+                      <TableCell className="px-2 py-3 align-top">
+                        <div className="flex flex-col items-center gap-1">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1633,19 +1630,16 @@ const VendasPage = () => {
                   const totalServicos = vendasAgrupadas.reduce((s, grupo) => s + grupo.quantidade, 0);
                   return (
                     <TableRow className="border-t-2 border-accent/30" style={{ background: "hsl(260, 22%, 11%)" }}>
-                      <TableCell className="text-sm font-bold text-accent py-3">TOTAL</TableCell>
-                      <TableCell className="text-sm font-bold py-3">{vendasAgrupadas.length} clientes</TableCell>
-                      <TableCell className="text-sm font-bold py-3">{totalServicos} serviços</TableCell>
-                      <TableCell className="py-3 text-center font-bold">{totalServicos}</TableCell>
-                      <TableCell className="py-3"></TableCell>
-                      <TableCell className="text-sm text-right font-bold py-3">{formatBRL(totalValor)}</TableCell>
-                      <TableCell className="text-sm text-right font-bold py-3 text-success">{formatBRL(totalSinal)}</TableCell>
-                      <TableCell className="text-sm text-right font-bold py-3 text-amber-500">{formatBRL(totalSaldo)}</TableCell>
-                      <TableCell className="py-3"></TableCell>
-                      <TableCell className="text-sm text-right font-bold py-3">{formatBRL(totalComissao)}</TableCell>
-                      <TableCell className="py-3"></TableCell>
-                      <TableCell className="py-3"></TableCell>
-                      <TableCell className="py-3"></TableCell>
+                      <TableCell className="px-3 py-3 text-sm font-bold text-accent">TOTAL</TableCell>
+                      <TableCell className="px-3 py-3 text-sm font-bold">{vendasAgrupadas.length} clientes · {totalServicos} serviços</TableCell>
+                      <TableCell className="px-3 py-3 text-xs font-bold">
+                        <p>Total: {formatBRL(totalValor)}</p>
+                        <p className="mt-1 text-success">Coletado: {formatBRL(totalSinal)}</p>
+                        <p className="mt-1 text-amber-500">Saldo: {formatBRL(totalSaldo)}</p>
+                      </TableCell>
+                      <TableCell className="px-3 py-3 text-xs font-bold">Comissão: {formatBRL(totalComissao)}</TableCell>
+                      <TableCell className="px-3 py-3"></TableCell>
+                      <TableCell className="px-2 py-3"></TableCell>
                     </TableRow>
                   );
                 })()}
