@@ -32,7 +32,7 @@ export default function MonthlyMetricsTimeline() {
     queryKey: ["monthly-metrics-timeline", startDate],
     queryFn: async () => {
       const [metricsResult, vendasResult] = await Promise.all([
-        supabase.from("daily_metrics").select("date, leads, ads, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
+        supabase.from("daily_metrics").select("date, leads, ads, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
         supabase.from("vendas").select("data, valor, status").gte("data", startDate),
       ]);
       if (metricsResult.error) throw metricsResult.error;
@@ -56,6 +56,7 @@ export default function MonthlyMetricsTimeline() {
       if (row) {
         row.leads += Number(item.leads || 0);
         row.ads += Number(item.ads || 0);
+        row.faturamento += Number(item.faturamento_marcado || 0);
       }
     });
     data?.vendas.forEach((item) => {
