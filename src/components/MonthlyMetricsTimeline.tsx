@@ -9,6 +9,15 @@ const money = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
   maximumFractionDigits: 0,
 });
+const compactMoney = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const localDateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 type TimelineRow = {
   key: string;
@@ -23,14 +32,14 @@ export default function MonthlyMetricsTimeline() {
   const startDate = useMemo(() => {
     const date = new Date();
     date.setMonth(date.getMonth() - 5, 1);
-    return date.toISOString().slice(0, 10);
+    return localDateKey(date);
   }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["monthly-metrics-timeline", startDate],
     queryFn: async () => {
       const [metricsResult, vendasResult] = await Promise.all([
-        supabase.from("daily_metrics").select("date, leads, ads").gte("date", startDate),
+        supabase.from("daily_metrics").select("date, leads, ads, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
         supabase.from("vendas").select("data, valor, status").gte("data", startDate),
       ]);
       if (metricsResult.error) throw metricsResult.error;
@@ -48,6 +57,8 @@ export default function MonthlyMetricsTimeline() {
       rows.set(key, { key, label: monthLabel.format(date).replace(" de ", "/"), faturamento: 0, vendas: 0, leads: 0, ads: 0 });
     }
     data?.metrics.forEach((item) => {
+      const isMetaRow = Number(item.meta_mensal_prevista || 0) > 0 || Number(item.super_meta_mensal || 0) > 0;
+      if (isMetaRow) return;
       const row = rows.get(item.date.slice(0, 7));
       if (row) {
         row.leads += Number(item.leads || 0);
@@ -55,7 +66,7 @@ export default function MonthlyMetricsTimeline() {
       }
     });
     data?.vendas.forEach((item) => {
-      if (item.status !== "aprovada") return;
+      if (item.status === "recusada" || item.status === "cancelada") return;
       const row = rows.get(item.data.slice(0, 7));
       if (row) {
         row.faturamento += Number(item.valor || 0);
@@ -75,19 +86,19 @@ export default function MonthlyMetricsTimeline() {
         </div>
       </div>
       <div className="overflow-x-auto pb-2">
-        <div className="flex min-w-max items-stretch">
+        <div className="flex min-w-max items-stretch gap-2 lg:grid lg:min-w-0 lg:grid-cols-6 lg:gap-3">
           {months.map((month, index) => (
-            <div key={month.key} className="flex items-center">
-              <div className="w-44 rounded-xl border border-border/40 bg-secondary/20 p-3">
+            <div key={month.key} className="flex min-w-0 items-center">
+              <div className="w-48 min-w-0 rounded-xl border border-border/40 bg-secondary/20 p-3 lg:w-full">
                 <p className="mb-2 text-xs font-semibold capitalize text-primary">{month.label}</p>
-                <p className="font-display text-base font-bold text-foreground">{money.format(month.faturamento)}</p>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                  <div><strong className="block text-sm text-accent">{month.vendas}</strong><span className="text-[9px] text-muted-foreground">vendas</span></div>
-                  <div><strong className="block text-sm text-foreground">{month.leads}</strong><span className="text-[9px] text-muted-foreground">leads</span></div>
-                  <div><strong className="block text-sm text-amber-400">{money.format(month.ads)}</strong><span className="text-[9px] text-muted-foreground">ads</span></div>
+                <p className="truncate font-display text-base font-bold text-foreground" title={money.format(month.faturamento)}>{compactMoney.format(month.faturamento)}</p>
+                <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 text-center">
+                  <div className="min-w-0"><strong className="block truncate text-sm text-accent">{month.vendas}</strong><span className="text-[9px] text-muted-foreground">vendas</span></div>
+                  <div className="min-w-0"><strong className="block truncate text-sm text-foreground">{month.leads}</strong><span className="text-[9px] text-muted-foreground">leads</span></div>
+                  <div className="min-w-0"><strong className="block truncate text-xs text-amber-400" title={money.format(month.ads)}>{compactMoney.format(month.ads)}</strong><span className="text-[9px] text-muted-foreground">ads</span></div>
                 </div>
               </div>
-              {index < months.length - 1 && <ArrowRight className="mx-2 h-4 w-4 shrink-0 text-muted-foreground/40" />}
+              {index < months.length - 1 && <ArrowRight className="ml-2 h-4 w-4 shrink-0 text-muted-foreground/40 lg:hidden" />}
             </div>
           ))}
         </div>
