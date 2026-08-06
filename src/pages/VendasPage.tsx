@@ -405,6 +405,7 @@ const VendasPage = () => {
           id: venda.id,
           pagamento_saldo: paymentLabel,
           comissao: +(valorTotal * 0.15).toFixed(2),
+          status: "aprovada",
         }));
 
         const fechamentoPayload = {
@@ -1633,6 +1634,7 @@ const VendasPage = () => {
                   vendasAgrupadas.map((grupo) => {
                     const v = grupo.principal;
                     const nomes = [...grupo.produtos, ...grupo.servicos];
+                    const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
                     return (
                     <TableRow key={grupo.chave} className="border-border/20 hover:bg-secondary/20" style={{ background: "hsl(260, 22%, 7%)" }}>
                       <TableCell className="px-3 py-3 align-top">
@@ -1711,9 +1713,9 @@ const VendasPage = () => {
                         <p className="mb-1 mt-3 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status da venda</p>
                         <Badge
                           className="text-xs"
-                          variant={v.status === "aprovada" ? "default" : v.status === "cancelada" ? "destructive" : "outline"}
+                          variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}
                         >
-                          {v.status}
+                          {statusVenda === "paga" ? "pago" : statusVenda}
                         </Badge>
                       </TableCell>
                       <TableCell className="px-2 py-3 align-top">
