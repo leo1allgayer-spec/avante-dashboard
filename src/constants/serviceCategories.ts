@@ -1,6 +1,5 @@
 export const COURSE_PRODUCTS = [
   "Curso de Meta Ads",
-  "Mentoria Meta Ads",
   "Curso Google Ads",
   "Curso de Social Midia",
   "Curso de IA",
@@ -9,6 +8,7 @@ export const COURSE_PRODUCTS = [
 ];
 
 export const SERVICE_OPTIONS = [
+  "Mentoria Meta Ads",
   "Assessoria 360",
   "Gestao de Trafego",
   "Captacao/Edicao de Conteudo",
