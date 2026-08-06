@@ -1474,8 +1474,61 @@ const VendasPage = () => {
           </Select>
         </div>
 
-        {/* Table */}
-        <div className="rounded-lg overflow-hidden border border-border/30">
+        {/* Compact cards keep every action visible without horizontal scrolling. */}
+        <div className="space-y-3 xl:hidden">
+          {isLoading ? (
+            <div className="rounded-lg border border-border/30 p-8 text-center text-muted-foreground">Carregando...</div>
+          ) : vendasAgrupadas.length === 0 ? (
+            <div className="rounded-lg border border-border/30 p-8 text-center text-muted-foreground">Nenhuma venda encontrada</div>
+          ) : vendasAgrupadas.map((grupo) => {
+            const v = grupo.principal;
+            const nomes = [...grupo.produtos, ...grupo.servicos];
+            return (
+              <div key={grupo.chave} className="rounded-xl border border-border/30 bg-[hsl(260,22%,7%)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">{v.cliente}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEditDialog(grupo.itens)} title="Editar venda">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => Promise.all(grupo.itens.map((item) => deleteVenda.mutateAsync(item.id))).then(() => toast({ title: "Venda removida" })).catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }))} title="Remover venda">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {nomes.length > 0 ? nomes.map((nome) => <Badge key={nome} variant="secondary" className="font-normal">{nome}</Badge>) : <span className="text-xs text-muted-foreground">Sem produto ou serviço</span>}
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 rounded-lg border border-border/20 bg-background/25 p-3 text-center">
+                  <div><span className="block text-[10px] uppercase text-muted-foreground">Total</span><strong className="mt-1 block text-sm text-foreground">{formatBRL(grupo.valorTotal)}</strong></div>
+                  <div><span className="block text-[10px] uppercase text-muted-foreground">Coletado</span><strong className="mt-1 block text-sm text-success">{formatBRL(grupo.sinal)}</strong></div>
+                  <div><span className="block text-[10px] uppercase text-muted-foreground">Saldo</span><strong className="mt-1 block text-sm text-amber-500">{formatBRL(grupo.saldo)}</strong></div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                  <div><span className="text-muted-foreground">Pagamento</span><p className="mt-1 font-medium">{v.pagamento}{v.pagamento_saldo ? ` / saldo: ${v.pagamento_saldo}` : ""}</p></div>
+                  <div><span className="text-muted-foreground">Comissão (15%)</span><p className="mt-1 font-medium">{formatBRL(grupo.comissao)}</p></div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <Select value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}>
+                    <SelectTrigger className="h-9 border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="pendente">Comissão pendente</SelectItem><SelectItem value="paga">Comissão paga</SelectItem></SelectContent>
+                  </Select>
+                  <div className="flex h-9 items-center justify-center rounded-md border border-border/30 bg-secondary/20 text-xs capitalize">{v.status}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Full table for wide screens. */}
+        <div className="hidden rounded-lg overflow-hidden border border-border/30 xl:block">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
