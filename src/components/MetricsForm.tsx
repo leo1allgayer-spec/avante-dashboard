@@ -121,6 +121,17 @@ const formatDateLabel = (date: string) => {
   return new Date(year, month - 1, day).toLocaleDateString("pt-BR", { day: "2-digit", month: "long" });
 };
 
+const countWorkingDaysInMonth = (date: string) => {
+  const [year, month] = date.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  let total = 0;
+  for (let day = 1; day <= lastDay; day += 1) {
+    const weekDay = new Date(year, month - 1, day).getDay();
+    if (weekDay >= 1 && weekDay <= 6) total += 1;
+  }
+  return total;
+};
+
 const MetricsForm = ({ currentData }: MetricsFormProps) => {
   const today = formatLocalDate(new Date());
   const yesterday = formatLocalDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
@@ -141,7 +152,18 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
   }, [activeData, open, selectedDate]);
 
   const handleChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: Number(value) || 0 }));
+    const numericValue = Number(value) || 0;
+    setForm((prev) => {
+      const next = { ...prev, [field]: numericValue };
+      const workingDays = countWorkingDaysInMonth(selectedDate);
+      if (field === "meta_mensal_prevista") {
+        next.meta_diaria_prevista = workingDays > 0 ? Number((numericValue / workingDays).toFixed(2)) : 0;
+      }
+      if (field === "super_meta_mensal") {
+        next.super_meta_diaria = workingDays > 0 ? Number((numericValue / workingDays).toFixed(2)) : 0;
+      }
+      return next;
+    });
   };
 
   const handleCalculateCosts = () => {

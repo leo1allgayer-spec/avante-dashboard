@@ -19,11 +19,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CalendarClock, Clock3, Layers3, Pencil, Plus, Search, Trash2, TrendingUp, Wallet } from "lucide-react";
-import { SERVICE_CATEGORIES } from "@/constants/serviceCategories";
+import { COURSE_PRODUCTS, SERVICE_OPTIONS } from "@/constants/serviceCategories";
 
 
-const PRODUTOS = SERVICE_CATEGORIES;
-const SERVICOS = SERVICE_CATEGORIES;
+const PRODUTOS = COURSE_PRODUCTS;
+const SERVICOS = SERVICE_OPTIONS;
 const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller"];
 
 const TAXAS_CARTAO_GATEWAY: Record<number, number> = {
@@ -332,6 +332,15 @@ const VendasPage = () => {
       comissao: +((item.condicao_pagamento === "pago" ? valorLiquido : Number(item.valor_sinal || 0)) * 0.15).toFixed(2),
       parcelas: itemTemParcela ? `${item.parcelas}x (${itemTaxa}%)` : null,
     };
+  };
+
+  const updateCommissionStatus = async (items: Venda[], status_comissao: string) => {
+    try {
+      await Promise.all(items.map((item) => updateVenda.mutateAsync({ id: item.id, status_comissao })));
+      toast({ title: status_comissao === "paga" ? "Comissão marcada como paga" : "Comissão marcada como pendente" });
+    } catch (error) {
+      toast({ title: "Erro ao atualizar comissão", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
   };
 
   const getPrimaryItem = (): VendaItemForm => ({
@@ -1422,6 +1431,7 @@ const VendasPage = () => {
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Saldo</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Pagamento</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão sobre recebido (15%)</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-center">Status comissão</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-center">Status</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground w-20"></TableHead>
                 </TableRow>
@@ -1429,11 +1439,11 @@ const VendasPage = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">Carregando...</TableCell>
+                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8">Carregando...</TableCell>
                   </TableRow>
                 ) : vendasAgrupadas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">Nenhuma venda encontrada</TableCell>
+                    <TableCell colSpan={13} className="text-center text-muted-foreground py-8">Nenhuma venda encontrada</TableCell>
                   </TableRow>
                 ) : (
                   vendasAgrupadas.map((grupo) => {
@@ -1455,6 +1465,18 @@ const VendasPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-right">{formatBRL(grupo.comissao)}</TableCell>
+                      <TableCell className="min-w-[130px] text-center">
+                        <Select
+                          value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"}
+                          onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}
+                        >
+                          <SelectTrigger className="h-7 border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pendente">Pendente</SelectItem>
+                            <SelectItem value="paga">Paga</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
                       <TableCell className="text-center">
                         <Badge
                           className="text-xs"
@@ -1509,6 +1531,7 @@ const VendasPage = () => {
                       <TableCell className="text-sm text-right font-bold py-3 text-amber-500">{formatBRL(totalSaldo)}</TableCell>
                       <TableCell className="py-3"></TableCell>
                       <TableCell className="text-sm text-right font-bold py-3">{formatBRL(totalComissao)}</TableCell>
+                      <TableCell className="py-3"></TableCell>
                       <TableCell className="py-3"></TableCell>
                       <TableCell className="py-3"></TableCell>
                     </TableRow>

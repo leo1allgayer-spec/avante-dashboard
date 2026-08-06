@@ -645,6 +645,7 @@ export type Database = {
         Row: {
           cliente: string
           comissao: number
+          status_comissao: string
           created_at: string
           data: string
           id: string
@@ -663,6 +664,7 @@ export type Database = {
         Insert: {
           cliente: string
           comissao?: number
+          status_comissao?: string
           created_at?: string
           data?: string
           id?: string
@@ -681,6 +683,7 @@ export type Database = {
         Update: {
           cliente?: string
           comissao?: number
+          status_comissao?: string
           created_at?: string
           data?: string
           id?: string
