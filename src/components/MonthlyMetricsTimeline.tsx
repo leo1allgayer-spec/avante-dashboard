@@ -9,13 +9,6 @@ const money = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
   maximumFractionDigits: 0,
 });
-const compactMoney = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
 const localDateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
@@ -89,13 +82,13 @@ export default function MonthlyMetricsTimeline() {
         <div className="flex min-w-max items-stretch gap-2 lg:grid lg:min-w-0 lg:grid-cols-6 lg:gap-3">
           {months.map((month, index) => (
             <div key={month.key} className="flex min-w-0 items-center">
-              <div className="w-48 min-w-0 rounded-xl border border-border/40 bg-secondary/20 p-3 lg:w-full">
-                <p className="mb-2 text-xs font-semibold capitalize text-primary">{month.label}</p>
-                <p className="truncate font-display text-base font-bold text-foreground" title={money.format(month.faturamento)}>{compactMoney.format(month.faturamento)}</p>
-                <div className="mt-2 grid min-w-0 grid-cols-3 gap-1 text-center">
-                  <div className="min-w-0"><strong className="block truncate text-sm text-accent">{month.vendas}</strong><span className="text-[9px] text-muted-foreground">vendas</span></div>
-                  <div className="min-w-0"><strong className="block truncate text-sm text-foreground">{month.leads}</strong><span className="text-[9px] text-muted-foreground">leads</span></div>
-                  <div className="min-w-0"><strong className="block truncate text-xs text-amber-400" title={money.format(month.ads)}>{compactMoney.format(month.ads)}</strong><span className="text-[9px] text-muted-foreground">ads</span></div>
+              <div className="w-56 min-w-0 rounded-xl border border-border/40 bg-secondary/20 p-3 lg:w-full">
+                <p className="mb-3 text-xs font-semibold capitalize text-primary">{month.label}</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Faturamento</span><strong className="text-right font-semibold text-foreground">{money.format(month.faturamento)}</strong></div>
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Vendas</span><strong className="text-right font-semibold text-accent">{month.vendas}</strong></div>
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Leads</span><strong className="text-right font-semibold text-foreground">{month.leads}</strong></div>
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Anúncios</span><strong className="text-right font-semibold text-amber-400">{money.format(month.ads)}</strong></div>
                 </div>
               </div>
               {index < months.length - 1 && <ArrowRight className="ml-2 h-4 w-4 shrink-0 text-muted-foreground/40 lg:hidden" />}
