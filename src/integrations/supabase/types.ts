@@ -583,6 +583,8 @@ export type Database = {
           data: string
           id: string
           observacao: string | null
+          pagamento_saldo: string | null
+          pagamento_sinal: string | null
           origem: string | null
           parcelas_datas: Json | null
           parcelas_total: number | null
@@ -604,6 +606,8 @@ export type Database = {
           data?: string
           id?: string
           observacao?: string | null
+          pagamento_saldo?: string | null
+          pagamento_sinal?: string | null
           origem?: string | null
           parcelas_datas?: Json | null
           parcelas_total?: number | null
@@ -625,6 +629,8 @@ export type Database = {
           data?: string
           id?: string
           observacao?: string | null
+          pagamento_saldo?: string | null
+          pagamento_sinal?: string | null
           origem?: string | null
           parcelas_datas?: Json | null
           parcelas_total?: number | null
@@ -651,6 +657,7 @@ export type Database = {
           id: string
           origem: string
           pagamento: string
+          pagamento_saldo: string | null
           parcelas: string | null
           produto: string
           servico: string
@@ -670,6 +677,7 @@ export type Database = {
           id?: string
           origem?: string
           pagamento?: string
+          pagamento_saldo?: string | null
           parcelas?: string | null
           produto?: string
           servico?: string
@@ -689,6 +697,7 @@ export type Database = {
           id?: string
           origem?: string
           pagamento?: string
+          pagamento_saldo?: string | null
           parcelas?: string | null
           produto?: string
           servico?: string

@@ -10,6 +10,7 @@ export interface Venda {
   produto: string;
   valor: number;
   pagamento: string;
+  pagamento_saldo?: string | null;
   parcelas: string | null;
   valor_com_juros: number | null;
   comissao: number;

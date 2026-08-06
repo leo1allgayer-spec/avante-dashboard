@@ -19,6 +19,8 @@ export interface FechamentoDiario {
   parcelas_datas: string[] | null;
   status: string;
   observacao: string | null;
+  pagamento_sinal: string | null;
+  pagamento_saldo: string | null;
   created_at: string;
   updated_at: string;
 }

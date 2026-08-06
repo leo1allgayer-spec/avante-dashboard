@@ -94,6 +94,27 @@ const getFechamentoCategoria = (item: Pick<FechamentoDiario, "categoria" | "prod
 const getVendaCategoria = (item: Pick<Venda, "servico" | "produto">) =>
   item.servico || item.produto || "Sem categoria";
 
+const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+const MonthYearPicker = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
+  const [year = "", month = ""] = value ? value.split("-") : [];
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 7 }, (_, index) => String(currentYear - 1 + index));
+  const setPart = (nextYear: string, nextMonth: string) => onChange(`${nextYear || currentYear}-${nextMonth || "01"}-01`);
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_110px] gap-2">
+      <Select value={month} onValueChange={(nextMonth) => setPart(year, nextMonth)}>
+        <SelectTrigger><SelectValue placeholder="Selecione o mês" /></SelectTrigger>
+        <SelectContent>{MONTHS.map((label, index) => <SelectItem key={label} value={String(index + 1).padStart(2, "0")}>{label}</SelectItem>)}</SelectContent>
+      </Select>
+      <Select value={year} onValueChange={(nextYear) => setPart(nextYear, month)}>
+        <SelectTrigger><SelectValue placeholder="Ano" /></SelectTrigger>
+        <SelectContent>{years.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+  );
+};
+
 const defaultForm = {
   data: new Date().toISOString().split("T")[0],
   vendedor: "",
@@ -101,6 +122,7 @@ const defaultForm = {
   produto: "",
   valor: 0,
   pagamento: "Dinheiro",
+  pagamento_saldo: "PIX",
   parcelas: 1,
   status: "pendente",
   servico: "",
@@ -124,6 +146,7 @@ type VendaItemForm = {
   criativo: string;
   valor: number;
   pagamento: string;
+  pagamento_saldo: string;
   parcelas: number;
   status: string;
   valor_sinal: number;
@@ -144,6 +167,7 @@ const defaultVendaItem: VendaItemForm = {
   criativo: "",
   valor: 0,
   pagamento: "Dinheiro",
+  pagamento_saldo: "PIX",
   parcelas: 1,
   status: "pendente",
   valor_sinal: 0,
@@ -350,6 +374,7 @@ const VendasPage = () => {
     criativo: form.criativo,
     valor: form.valor,
     pagamento: form.pagamento,
+    pagamento_saldo: form.pagamento_saldo,
     parcelas: form.parcelas,
     status: form.status,
     valor_sinal: form.valor_sinal,
@@ -537,6 +562,7 @@ const VendasPage = () => {
         criativo: criativo?.criativo || "",
         valor: Number(venda.valor || 0),
         pagamento: venda.pagamento,
+        pagamento_saldo: venda.pagamento_saldo || fechamento?.pagamento_saldo || "PIX",
         parcelas: isNaN(parcelasNum) ? 1 : parcelasNum,
         status: venda.status,
         valor_sinal: valorSinal,
@@ -581,6 +607,7 @@ const VendasPage = () => {
       produto: item.produto,
       valor: Number(item.valor || 0),
       pagamento: item.pagamento,
+      pagamento_saldo: item.pagamento_saldo,
       parcelas: itemValores.parcelas,
       valor_com_juros: itemValores.parcelas ? itemValores.valorLiquido : null,
       comissao: itemValores.comissao,
@@ -615,6 +642,8 @@ const VendasPage = () => {
         parcelas_datas: parcelasDatas,
         status: item.status === "cancelada" ? "cancelado" : pagoIntegralmente ? "recebido" : "a receber",
         observacao: item.observacao || null,
+        pagamento_sinal: item.condicao_pagamento === "sinal" || item.condicao_pagamento === "boleto" ? item.pagamento : null,
+        pagamento_saldo: pagoIntegralmente ? null : item.pagamento_saldo,
       };
     };
 
@@ -733,7 +762,7 @@ const VendasPage = () => {
         {/* Informações Principais */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Informações Principais</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Data</Label>
               <Input type="date" value={form.data} onChange={(e) => setForm((p) => ({ ...p, data: e.target.value }))} className="bg-secondary/30 border-border/30 focus:border-primary/50" />
@@ -815,7 +844,7 @@ const VendasPage = () => {
               <Input type="number" step="0.01" value={form.valor || ""} onChange={(e) => setForm((p) => ({ ...p, valor: Number(e.target.value) }))} placeholder="0,00" className="bg-secondary/30 border-border/30 focus:border-primary/50 font-semibold" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Pagamento</Label>
+              <Label className="text-xs text-muted-foreground">{form.condicao_pagamento === "sinal" ? "Forma de pagamento do sinal" : "Pagamento"}</Label>
               <Select value={form.pagamento} onValueChange={(v) => setForm((p) => ({ ...p, pagamento: v, parcelas: !PAGAMENTOS_COM_PARCELA.includes(v) ? 1 : p.parcelas, condicao_pagamento: v === "Boleto" ? "boleto" : p.condicao_pagamento }))}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -879,7 +908,7 @@ const VendasPage = () => {
               </div>
 
               {form.condicao_pagamento !== "pago" && (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {(form.condicao_pagamento === "sinal" || form.condicao_pagamento === "boleto") && (
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Valor do sinal pago (R$)</Label>
@@ -892,17 +921,30 @@ const VendasPage = () => {
                       {formatBRL(Math.max(0, Number(form.valor || 0) - Number(form.valor_sinal || 0)))}
                     </div>
                   </div>
+                  {form.condicao_pagamento !== "boleto" && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Forma de pagamento do saldo</Label>
+                      <Select value={form.pagamento_saldo} onValueChange={(pagamento_saldo) => setForm((p) => ({ ...p, pagamento_saldo }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                          <SelectItem value="PIX">PIX</SelectItem>
+                          <SelectItem value="Débito">Débito</SelectItem>
+                          <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem>
+                          <SelectItem value="Elo/Amex">Elo/Amex</SelectItem>
+                          <SelectItem value="Link Gateway">Link Gateway</SelectItem>
+                          <SelectItem value="Boleto">Boleto</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">{form.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Mês previsto do saldo"}</Label>
-                    <Input
-                      type={form.condicao_pagamento === "boleto" ? "date" : "month"}
-                      value={form.condicao_pagamento === "boleto" ? form.previsao_entrada : form.previsao_entrada.slice(0, 7)}
-                      onChange={(e) => setForm((p) => ({
-                        ...p,
-                        previsao_entrada: p.condicao_pagamento === "boleto" ? e.target.value : `${e.target.value}-01`,
-                        parcelas_datas: p.condicao_pagamento === "boleto" ? buildParcelDates(p.parcelas_total, e.target.value, p.parcelas_datas) : p.parcelas_datas,
-                      }))}
-                    />
+                    {form.condicao_pagamento === "boleto" ? (
+                      <Input type="date" value={form.previsao_entrada} onChange={(e) => setForm((p) => ({ ...p, previsao_entrada: e.target.value, parcelas_datas: buildParcelDates(p.parcelas_total, e.target.value, p.parcelas_datas) }))} />
+                    ) : (
+                      <MonthYearPicker value={form.previsao_entrada} onChange={(previsao_entrada) => setForm((p) => ({ ...p, previsao_entrada }))} />
+                    )}
                   </div>
                   {form.condicao_pagamento === "boleto" && (
                     <>
@@ -1045,7 +1087,7 @@ const VendasPage = () => {
                         </div>
 
                         <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">Pagamento</Label>
+                          <Label className="text-xs text-muted-foreground">{item.condicao_pagamento === "sinal" ? "Pagamento do sinal" : "Pagamento"}</Label>
                           <Select
                             value={item.pagamento}
                             onValueChange={(pagamento) => updateVendaItem(index, {
@@ -1148,9 +1190,26 @@ const VendasPage = () => {
                                 {formatBRL(Math.max(0, Number(item.valor || 0) - Number(item.valor_sinal || 0)))}
                               </div>
                             </div>
+                            {item.condicao_pagamento !== "boleto" && (
+                              <div className="space-y-1.5">
+                                <Label className="text-xs text-muted-foreground">Pagamento do saldo</Label>
+                                <Select value={item.pagamento_saldo} onValueChange={(pagamento_saldo) => updateVendaItem(index, { pagamento_saldo })}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Dinheiro">Dinheiro</SelectItem><SelectItem value="PIX">PIX</SelectItem><SelectItem value="Débito">Débito</SelectItem>
+                                    <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem><SelectItem value="Elo/Amex">Elo/Amex</SelectItem>
+                                    <SelectItem value="Link Gateway">Link Gateway</SelectItem><SelectItem value="Boleto">Boleto</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                             <div className="space-y-1.5">
                               <Label className="text-xs text-muted-foreground">{item.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Data prevista"}</Label>
-                              <Input type="date" value={item.previsao_entrada} onChange={(e) => updateVendaItem(index, { previsao_entrada: e.target.value, parcelas_datas: item.condicao_pagamento === "boleto" ? buildParcelDates(item.parcelas_total, e.target.value, item.parcelas_datas) : item.parcelas_datas })} />
+                              {item.condicao_pagamento === "boleto" ? (
+                                <Input type="date" value={item.previsao_entrada} onChange={(e) => updateVendaItem(index, { previsao_entrada: e.target.value, parcelas_datas: buildParcelDates(item.parcelas_total, e.target.value, item.parcelas_datas) })} />
+                              ) : (
+                                <MonthYearPicker value={item.previsao_entrada} onChange={(previsao_entrada) => updateVendaItem(index, { previsao_entrada })} />
+                              )}
                             </div>
                             {item.condicao_pagamento === "boleto" && (
                               <>
