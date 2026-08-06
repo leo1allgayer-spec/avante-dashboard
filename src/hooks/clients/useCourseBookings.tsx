@@ -73,8 +73,15 @@ export function useCourseBookings(courseName?: string) {
     if (updates.instagram !== undefined) mapped.instagram = updates.instagram;
     if (updates.certificateName !== undefined) mapped.certificate_name = updates.certificateName;
     if (updates.date !== undefined) mapped.date = updates.date;
-    const { error } = await supabase.from("course_bookings").update(mapped).eq("id", id);
-    if (error) { toast.error("Erro ao atualizar agendamento"); return; }
+    const { error } = await (supabase as any).rpc("update_course_booking_admin", {
+      p_booking_id: id,
+      p_updates: mapped,
+    });
+    if (error) {
+      console.error("Erro ao atualizar agendamento:", error);
+      toast.error("Erro ao atualizar agendamento", { description: error.message });
+      return;
+    }
     setBookings(prev => prev.map(x => x.id === id ? { ...x, ...updates } : x));
     toast.success("Agendamento atualizado");
   };
