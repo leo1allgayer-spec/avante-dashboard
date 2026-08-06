@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, CalendarRange } from "lucide-react";
+import type { MetaAdsData } from "@/hooks/useMetaAds";
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", {
@@ -11,6 +12,15 @@ const money = new Intl.NumberFormat("pt-BR", {
 });
 const localDateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const getMetaLeads = (actions?: Array<{ action_type: string; value: string }>) => {
+  const types = ["lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead", "offsite_complete_registration_add_meta_leads", "offsite_content_view_add_meta_leads"];
+  for (const type of types) {
+    const action = actions?.find((item) => item.action_type.toLowerCase() === type);
+    if (action) return Number(action.value || 0);
+  }
+  return 0;
+};
 
 type TimelineRow = {
   key: string;
@@ -31,13 +41,18 @@ export default function MonthlyMetricsTimeline() {
   const { data, isLoading } = useQuery({
     queryKey: ["monthly-metrics-timeline", startDate],
     queryFn: async () => {
-      const [metricsResult, vendasResult] = await Promise.all([
+      const [metricsResult, vendasResult, metaResult] = await Promise.all([
         supabase.from("daily_metrics").select("date, leads, ads, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
         supabase.from("vendas").select("data, valor, status").gte("data", startDate),
+        supabase.functions.invoke("meta-ads", { body: { datePreset: "custom", since: startDate, until: localDateKey(new Date()) } }),
       ]);
       if (metricsResult.error) throw metricsResult.error;
       if (vendasResult.error) throw vendasResult.error;
-      return { metrics: metricsResult.data || [], vendas: vendasResult.data || [] };
+      return {
+        metrics: metricsResult.data || [],
+        vendas: vendasResult.data || [],
+        meta: metaResult.error || metaResult.data?.error ? null : metaResult.data as MetaAdsData,
+      };
     },
   });
 
@@ -49,14 +64,24 @@ export default function MonthlyMetricsTimeline() {
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       rows.set(key, { key, label: monthLabel.format(date).replace(" de ", "/"), faturamento: 0, vendas: 0, leads: 0, ads: 0 });
     }
+    const metaMonths = new Set((data?.meta?.dailyInsights || []).map((item) => item.date_start.slice(0, 7)));
     data?.metrics.forEach((item) => {
       const isMetaRow = Number(item.meta_mensal_prevista || 0) > 0 || Number(item.super_meta_mensal || 0) > 0;
       if (isMetaRow) return;
       const row = rows.get(item.date.slice(0, 7));
       if (row) {
-        row.leads += Number(item.leads || 0);
-        row.ads += Number(item.ads || 0);
+        if (!metaMonths.has(item.date.slice(0, 7))) {
+          row.leads += Number(item.leads || 0);
+          row.ads += Number(item.ads || 0);
+        }
         row.faturamento += Number(item.faturamento_marcado || 0);
+      }
+    });
+    data?.meta?.dailyInsights.forEach((item) => {
+      const row = rows.get(item.date_start.slice(0, 7));
+      if (row) {
+        row.leads += getMetaLeads(item.actions);
+        row.ads += Number(item.spend || 0);
       }
     });
     data?.vendas.forEach((item) => {
