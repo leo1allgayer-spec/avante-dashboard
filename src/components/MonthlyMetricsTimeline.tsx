@@ -22,6 +22,22 @@ const getMetaLeads = (actions?: Array<{ action_type: string; value: string }>) =
   return 0;
 };
 
+const getMetaConversations = (actions?: Array<{ action_type: string; value: string }>) => {
+  const preferredTypes = [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "onsite_conversion.total_messaging_connection",
+    "onsite_conversion.messaging_first_reply",
+  ];
+  for (const type of preferredTypes) {
+    const action = actions?.find((item) => item.action_type.toLowerCase() === type);
+    if (action) return Number(action.value || 0);
+  }
+  return (actions || []).reduce((total, item) => {
+    const type = item.action_type.toLowerCase();
+    return type.includes("conversation_started") || type.includes("whatsapp") ? total + Number(item.value || 0) : total;
+  }, 0);
+};
+
 type TimelineRow = {
   key: string;
   label: string;
@@ -80,7 +96,7 @@ export default function MonthlyMetricsTimeline() {
     data?.meta?.dailyInsights.forEach((item) => {
       const row = rows.get(item.date_start.slice(0, 7));
       if (row) {
-        row.leads += getMetaLeads(item.actions);
+        row.leads += getMetaLeads(item.actions) + getMetaConversations(item.actions);
         row.ads += Number(item.spend || 0);
       }
     });
@@ -115,6 +131,8 @@ export default function MonthlyMetricsTimeline() {
                   <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Vendas</span><strong className="text-right font-semibold text-accent">{month.vendas}</strong></div>
                   <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Leads</span><strong className="text-right font-semibold text-foreground">{month.leads}</strong></div>
                   <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">Anúncios</span><strong className="text-right font-semibold text-amber-400">{money.format(month.ads)}</strong></div>
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">CAC</span><strong className="text-right font-semibold text-foreground">{month.vendas > 0 ? money.format(month.ads / month.vendas) : "—"}</strong></div>
+                  <div className="flex items-start justify-between gap-3"><span className="text-muted-foreground">ROAS</span><strong className="text-right font-semibold text-emerald-400">{month.ads > 0 ? `${(month.faturamento / month.ads).toFixed(2).replace(".", ",")}x` : "—"}</strong></div>
                 </div>
               </div>
               {index < months.length - 1 && <ArrowRight className="ml-2 h-4 w-4 shrink-0 text-muted-foreground/40 lg:hidden" />}
