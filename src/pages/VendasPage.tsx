@@ -212,6 +212,9 @@ const VendasPage = () => {
   const [editingCriativoVenda, setEditingCriativoVenda] = useState<CriativoVenda | null>(null);
   const [editingRecords, setEditingRecords] = useState<Array<{ venda: Venda; fechamento: FechamentoDiario | null; criativo: CriativoVenda | null }>>([]);
   const [taxProfile, setTaxProfile] = useState<TaxProfile>("opcao1");
+  const [quickPayments, setQuickPayments] = useState<Record<string, string>>({});
+  const [quickCardInstallments, setQuickCardInstallments] = useState<Record<string, string>>({});
+  const [settlingSaleKey, setSettlingSaleKey] = useState<string | null>(null);
 
   const [form, setForm] = useState({ ...defaultForm });
   const [additionalItems, setAdditionalItems] = useState<VendaItemForm[]>([]);
@@ -364,6 +367,82 @@ const VendasPage = () => {
       toast({ title: status_comissao === "paga" ? "Comissão marcada como paga" : "Comissão marcada como pendente" });
     } catch (error) {
       toast({ title: "Erro ao atualizar comissão", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
+  const settleRemainingBalance = async (saleKey: string, items: Venda[]) => {
+    const paymentMethod = quickPayments[saleKey] || "PIX";
+    const installments = Math.max(1, Number(quickCardInstallments[saleKey] || 1));
+    const paymentLabel = paymentMethod === "Cartão" ? `Cartão (${installments}x)` : paymentMethod;
+    const usedFechamentos = new Set<string>();
+    const usedCriativos = new Set<string>();
+
+    try {
+      setSettlingSaleKey(saleKey);
+      const updates: Promise<unknown>[] = [];
+
+      items.forEach((venda) => {
+        const categoria = getVendaCategoria(venda);
+        const fechamento = fechamentos.find((item) =>
+          !usedFechamentos.has(item.id) &&
+          item.data === venda.data &&
+          item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+          item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
+          getFechamentoCategoria(item) === categoria,
+        );
+        if (fechamento) usedFechamentos.add(fechamento.id);
+
+        const criativo = criativosVendas.find((item) =>
+          !usedCriativos.has(item.id) &&
+          item.data === venda.data &&
+          item.nome_aluno.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+          Number(item.valor_curso || 0) === Number(venda.valor || 0),
+        );
+        if (criativo) usedCriativos.add(criativo.id);
+
+        const valorTotal = Number(venda.valor || 0);
+        updates.push(updateVenda.mutateAsync({
+          id: venda.id,
+          pagamento_saldo: paymentLabel,
+          comissao: +(valorTotal * 0.15).toFixed(2),
+        }));
+
+        const fechamentoPayload = {
+          valor_sinal: valorTotal,
+          valor_a_entrar: 0,
+          valor_recorrente: 0,
+          parcelas_total: null,
+          valor_parcela: 0,
+          previsao_entrada: null,
+          parcelas_datas: [],
+          status: "recebido",
+          pagamento_saldo: paymentLabel,
+        };
+        if (fechamento) {
+          updates.push(updateFechamento.mutateAsync({ id: fechamento.id, ...fechamentoPayload }));
+        } else if (session?.user?.id) {
+          updates.push(createFechamento.mutateAsync({
+            user_id: session.user.id,
+            data: venda.data,
+            vendedor: venda.vendedor,
+            cliente: venda.cliente,
+            produto_servico: categoria,
+            categoria,
+            origem: venda.origem || null,
+            ...fechamentoPayload,
+            observacao: null,
+            pagamento_sinal: null,
+          }));
+        }
+        if (criativo) updates.push(updateCriativoVenda.mutateAsync({ id: criativo.id, sinal: valorTotal }));
+      });
+
+      await Promise.all(updates);
+      toast({ title: "Saldo quitado", description: `Pagamento registrado como ${paymentLabel}.` });
+    } catch (error) {
+      toast({ title: "Erro ao quitar saldo", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    } finally {
+      setSettlingSaleKey(null);
     }
   };
 
@@ -1575,6 +1654,47 @@ const VendasPage = () => {
                         </Badge>
                         {v.pagamento_saldo && <p className="mt-1 text-xs text-muted-foreground">Saldo: {v.pagamento_saldo}</p>}
                         <p className="mt-2 text-xs"><span className="text-muted-foreground">Comissão: </span><strong>{formatBRL(grupo.comissao)}</strong></p>
+                        {grupo.saldo > 0 ? (
+                          <div className="mt-3 space-y-1.5 border-t border-border/20 pt-2">
+                            <p className="text-[11px] font-medium text-amber-500">Quitar {formatBRL(grupo.saldo)}</p>
+                            <Select
+                              value={quickPayments[grupo.chave] || "PIX"}
+                              onValueChange={(value) => setQuickPayments((current) => ({ ...current, [grupo.chave]: value }))}
+                            >
+                              <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="PIX">PIX</SelectItem>
+                                <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                                <SelectItem value="Débito">Débito</SelectItem>
+                                <SelectItem value="Cartão">Cartão</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {(quickPayments[grupo.chave] || "PIX") === "Cartão" && (
+                              <Select
+                                value={quickCardInstallments[grupo.chave] || "1"}
+                                onValueChange={(value) => setQuickCardInstallments((current) => ({ ...current, [grupo.chave]: value }))}
+                              >
+                                <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 text-xs"><SelectValue placeholder="Parcelas" /></SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((installment) => (
+                                    <SelectItem key={installment} value={installment}>{installment}x</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 w-full px-2 text-xs"
+                              disabled={settlingSaleKey === grupo.chave}
+                              onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}
+                            >
+                              {settlingSaleKey === grupo.chave ? "Salvando..." : "Marcar como pago"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <Badge className="mt-3 text-xs" variant="secondary">Saldo quitado</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
                         <Select
