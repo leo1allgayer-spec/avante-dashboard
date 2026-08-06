@@ -373,7 +373,7 @@ const VendasPage = () => {
   const settleRemainingBalance = async (saleKey: string, items: Venda[]) => {
     const paymentMethod = quickPayments[saleKey] || "PIX";
     const installments = Math.max(1, Number(quickCardInstallments[saleKey] || 1));
-    const paymentLabel = paymentMethod === "Cartão" ? `Cartão (${installments}x)` : paymentMethod;
+    const paymentLabel = paymentMethod === "Crédito" ? `Crédito (${installments}x)` : paymentMethod;
     const usedFechamentos = new Set<string>();
     const usedCriativos = new Set<string>();
 
@@ -1616,7 +1616,7 @@ const VendasPage = () => {
                   <TableHead className="w-[22%] px-3 text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
                   <TableHead className="w-[22%] px-3 text-xs font-semibold text-muted-foreground">Valores</TableHead>
                   <TableHead className="w-[16%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
-                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Status</TableHead>
+                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Status / comissão</TableHead>
                   <TableHead className="w-[6%] px-2 text-xs font-semibold text-muted-foreground"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1666,10 +1666,10 @@ const VendasPage = () => {
                                 <SelectItem value="PIX">PIX</SelectItem>
                                 <SelectItem value="Dinheiro">Dinheiro</SelectItem>
                                 <SelectItem value="Débito">Débito</SelectItem>
-                                <SelectItem value="Cartão">Cartão</SelectItem>
+                                <SelectItem value="Crédito">Crédito</SelectItem>
                               </SelectContent>
                             </Select>
-                            {(quickPayments[grupo.chave] || "PIX") === "Cartão" && (
+                            {(quickPayments[grupo.chave] || "PIX") === "Crédito" && (
                               <Select
                                 value={quickCardInstallments[grupo.chave] || "1"}
                                 onValueChange={(value) => setQuickCardInstallments((current) => ({ ...current, [grupo.chave]: value }))}
@@ -1697,6 +1697,7 @@ const VendasPage = () => {
                         )}
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
+                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status comissão</p>
                         <Select
                           value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"}
                           onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}
@@ -1707,8 +1708,9 @@ const VendasPage = () => {
                             <SelectItem value="paga">Paga</SelectItem>
                           </SelectContent>
                         </Select>
+                        <p className="mb-1 mt-3 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status da venda</p>
                         <Badge
-                          className="mt-2 text-xs"
+                          className="text-xs"
                           variant={v.status === "aprovada" ? "default" : v.status === "cancelada" ? "destructive" : "outline"}
                         >
                           {v.status}
