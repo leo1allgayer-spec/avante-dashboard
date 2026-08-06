@@ -146,6 +146,7 @@ export type Database = {
           status: string
           student_name: string
           time: string
+          updated_at: string
         }
         Insert: {
           certificate_name?: string | null
@@ -161,6 +162,7 @@ export type Database = {
           status?: string
           student_name: string
           time: string
+          updated_at?: string
         }
         Update: {
           certificate_name?: string | null
@@ -176,6 +178,7 @@ export type Database = {
           status?: string
           student_name?: string
           time?: string
+          updated_at?: string
         }
         Relationships: [
           {
