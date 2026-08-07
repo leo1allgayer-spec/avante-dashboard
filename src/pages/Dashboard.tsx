@@ -25,6 +25,12 @@ import MonthlyMetricsTimeline from "@/components/MonthlyMetricsTimeline";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
+const normalizeText = (value?: string | null) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
 const container = {
   hidden: { opacity: 0 },
@@ -134,7 +140,7 @@ const Dashboard = () => {
     const stats: Record<string, { count: number; valor: number }> = {};
     for (const s of SERVICOS) stats[s] = { count: 0, valor: 0 };
     for (const v of approvedVendas) {
-      const key = v.servico && SERVICOS.includes(v.servico) ? v.servico : null;
+      const key = SERVICOS.find((service) => normalizeText(service) === normalizeText(v.servico));
       if (key) {
         stats[key].count++;
         stats[key].valor += Number(v.valor);
@@ -161,8 +167,9 @@ const Dashboard = () => {
   const roasValues = useMemo(() => {
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
     for (const v of approvedVendas) {
-      if (v.servico && v.servico in servicoByType) {
-        servicoByType[v.servico] += Number(v.valor);
+      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(v.servico));
+      if (key) {
+        servicoByType[key] += Number(v.valor);
       }
     }
     const faturamentoSemServicos = Math.max(monthRealized - serviceStats.total, 0) + totalFatMarcado;
@@ -195,8 +202,9 @@ const Dashboard = () => {
     if (roasFilter.includes("geral")) return roasValues.geral;
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
     for (const v of approvedVendas) {
-      if (v.servico && v.servico in servicoByType) {
-        servicoByType[v.servico] += Number(v.valor);
+      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(v.servico));
+      if (key) {
+        servicoByType[key] += Number(v.valor);
       }
     }
     const faturamentoSemServicos = Math.max(monthRealized - serviceStats.total, 0) + totalFatMarcado;

@@ -9,6 +9,7 @@ import { useCreateCriativoVenda, useCriativosVendas, useUpdateCriativoVenda, typ
 import { useMetaAdCreatives } from "@/hooks/useMetaAds";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useMonthMetrics } from "@/hooks/useMetrics";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -93,6 +94,13 @@ const getFechamentoCategoria = (item: Pick<FechamentoDiario, "categoria" | "prod
 
 const getVendaCategoria = (item: Pick<Venda, "servico" | "produto">) =>
   item.servico || item.produto || "Sem categoria";
+
+const normalizeText = (value?: string | null) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -187,6 +195,8 @@ const VendasPage = () => {
   const { data: criativosVendas = [] } = useCriativosVendas();
   const { data: metaAdCreatives = [], isLoading: isLoadingMetaAds, isError: isMetaAdsError } = useMetaAdCreatives();
   const dateFilter = useLocalDateFilter();
+  const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
+  const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
   const vendas = dateFilter.filterByDate(allVendas);
   const createVenda = useCreateVenda();
   const createFechamento = useCreateFechamentoDiario();
@@ -515,6 +525,44 @@ const VendasPage = () => {
       quantidade: vendasAprovadas.length,
     };
   }, [vendasAprovadas, taxProfile]);
+
+  const metasPrincipais = useMemo(() => {
+    const rows = monthMetrics || [];
+    const lastWithTarget = <K extends keyof (typeof rows)[number]>(keys: K[]) => {
+      for (const key of keys) {
+        const found = [...rows].reverse().find((item) => Number(item?.[key] || 0) > 0);
+        if (found) return Number(found[key] || 0);
+      }
+      return 0;
+    };
+
+    const metas = {
+      cursosMarcados: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
+      cursosFeitos: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
+      site: lastWithTarget(["meta_site", "super_meta_site"]),
+      negocioLocal: lastWithTarget(["meta_negocio_local", "super_meta_negocio_local"]),
+      crm: lastWithTarget(["meta_crm", "super_meta_crm"]),
+      upsell: lastWithTarget(["meta_upsell", "super_meta_upsell"]),
+    };
+
+    const counts = {
+      cursosMarcados: vendasAprovadas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
+      cursosFeitos: fechamentosFiltrados.filter((item) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getFechamentoCategoria(item)))).length,
+      site: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Desenvolvimento de Site"))?.vendas || 0,
+      negocioLocal: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Captacao/Edicao de Conteudo"))?.vendas || 0,
+      crm: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("CRM/Treinamento Comercial"))?.vendas || 0,
+      upsell: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Upsell"))?.vendas || 0,
+    };
+
+    return [
+      { label: "Cursos marcados", atual: counts.cursosMarcados, meta: metas.cursosMarcados },
+      { label: "Cursos feitos", atual: counts.cursosFeitos, meta: metas.cursosFeitos },
+      { label: "Site", atual: counts.site, meta: metas.site },
+      { label: "Captação", atual: counts.negocioLocal, meta: metas.negocioLocal },
+      { label: "CRM", atual: counts.crm, meta: metas.crm },
+      { label: "Upsell", atual: counts.upsell, meta: metas.upsell },
+    ];
+  }, [monthMetrics, vendasAprovadas, fechamentosFiltrados, integratedCategoryRows]);
 
   const integratedCategoryRows = useMemo(() => {
     const map = new Map<string, {
@@ -1387,6 +1435,47 @@ const VendasPage = () => {
             <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.recorrente)}</CardContent>
           </Card>
         </div>
+
+        <Card className="mb-4 border-border/50 bg-card/70">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle>Metas principais do período</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Quantidade realizada e quanto falta para cada objetivo do mês.
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Baseado nas metas da planilha de métricas
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {metasPrincipais.map((item) => {
+                const falta = item.meta > 0 ? Math.max(item.meta - item.atual, 0) : 0;
+                return (
+                  <div key={item.label} className="rounded-xl border border-border/30 bg-secondary/20 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{item.label}</p>
+                      <Badge variant="outline" className="text-[10px]">Meta {item.meta || "—"}</Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="block text-[10px] uppercase text-muted-foreground">Até agora</span>
+                        <strong className="mt-1 block text-foreground">{item.atual}</strong>
+                      </div>
+                      <div>
+                        <span className="block text-[10px] uppercase text-muted-foreground">Falta</span>
+                        <strong className="mt-1 block text-amber-400">{item.meta > 0 ? falta : "—"}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="mb-4 border-border/50 bg-card/70">
           <CardHeader>
