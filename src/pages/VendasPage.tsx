@@ -346,13 +346,6 @@ const VendasPage = () => {
     });
   }, [filtered, fechamentosFiltrados, taxProfile]);
 
-  const rowStyles = [
-    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(260, 22%, 6.2%))",
-    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(275, 22%, 6.2%))",
-    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(240, 22%, 6.2%))",
-    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(292, 22%, 6.2%))",
-  ];
-
   const getItemValores = (item: VendaItemForm) => {
     const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
     const itemTaxa = itemTemParcela ? (getTaxas(item.pagamento, taxProfile)[item.parcelas] || 0) : 0;
@@ -1647,13 +1640,8 @@ const VendasPage = () => {
                       key={grupo.chave}
                       className="border-border/20 hover:bg-secondary/20"
                       style={{
-                        background: index % 2 === 0 ? "hsl(260, 22%, 7%)" : "hsl(260, 22%, 8.2%)",
-                        boxShadow: `inset 4px 0 0 ${
-                          index % 4 === 0 ? "hsl(142 70% 45%)" :
-                          index % 4 === 1 ? "hsl(38 92% 50%)" :
-                          index % 4 === 2 ? "hsl(268 83% 58%)" :
-                          "hsl(200 90% 55%)"
-                        }`,
+                        background: index % 2 === 0 ? "hsl(260, 22%, 7%)" : "hsl(260, 22%, 8.5%)",
+                        boxShadow: `inset 3px 0 0 ${index % 2 === 0 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)"}`,
                       }}
                     >
                       <TableCell className="px-3 py-3 align-top">
