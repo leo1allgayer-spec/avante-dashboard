@@ -40,6 +40,13 @@ const dateInRange = (date: string | null | undefined, start: string, end: string
 const normalizeStatus = (status?: string | null) =>
   String(status || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+const normalizeText = (value?: string | null) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
 const getActionValue = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
   if (!actions?.length) return 0;
   for (const type of types) {
@@ -67,6 +74,17 @@ const getConversationsFromActions = (actions: Array<{ action_type: string; value
 
 const getFechamentoTotal = (item: { valor_sinal?: number; valor_a_entrar?: number; valor_recorrente?: number }) =>
   Number(item.valor_sinal || 0) + Number(item.valor_a_entrar || 0) + Number(item.valor_recorrente || 0);
+
+const getSaleCategory = (sale: { servico?: string | null; produto?: string | null }) => {
+  const raw = sale.servico || sale.produto || "";
+  const normalized = normalizeText(raw);
+  if (["gestao de trafego", "tráfego", "trafego"].includes(normalized)) return "Tráfego";
+  if (["captacao/edicao de conteudo", "captacao", "captação", "captação/edição de conteúdo"].includes(normalized)) return "Captação";
+  if (["desenvolvimento de site", "site"].includes(normalized)) return "Site";
+  if (["crm/treinamento comercial", "crm", "assessoria 360"].includes(normalized)) return "CRM";
+  if (["upsell", "mentoria meta ads"].includes(normalized)) return "Upsell";
+  return raw;
+};
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -158,8 +176,8 @@ const DashboardTVPage = () => {
 
     const investimentoHoje = metaSpendToday || Number(today?.ads || 0);
     const investimentoMes = metaSpendMonth || (monthData || []).reduce((sum, day) => sum + Number(day.ads || 0), 0);
-    const faturamentoMes = faturamentoFeitoMes || (monthData || []).reduce((sum, day) => sum + Number(day.faturamento_dia || 0), 0);
-    const faturamentoHoje = faturamentoFeitoHoje || Number(today?.faturamento_dia || 0);
+    const faturamentoMes = faturamentoFeitoMes + faturamentoMarcadoMes + aReceberMes + recorrenteMes;
+    const faturamentoHoje = faturamentoFeitoHoje + faturamentoMarcadoHoje + fechamentosHoje.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0) + Number(item.valor_recorrente || 0), 0);
     const roasMes = investimentoMes > 0 ? faturamentoMes / investimentoMes : Number(today?.roas || 0);
     const cac = vendasAprovadasMes.length > 0 ? investimentoMes / vendasAprovadasMes.length : Number(today?.cac || 0);
     const cpl = leadsMonth > 0 ? investimentoMes / leadsMonth : Number(today?.custo_por_lead || 0);
@@ -517,4 +535,6 @@ const DashboardTVPage = () => {
 };
 
 export default DashboardTVPage;
+
+
 

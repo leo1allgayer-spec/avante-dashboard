@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useDateFilter } from "@/hooks/useDateFilter";
 import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { useTodayMetrics, useDeleteMetrics } from "@/hooks/useMetrics";
+import { useCursosDados } from "@/hooks/useCursosDados";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
@@ -31,6 +32,16 @@ const normalizeText = (value?: string | null) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+const getSaleCategory = (sale: { servico?: string | null; produto?: string | null }) => {
+  const raw = sale.servico || sale.produto || "";
+  const normalized = normalizeText(raw);
+  if (["gestao de trafego", "tráfego", "trafego"].includes(normalized)) return "Tráfego";
+  if (["captacao/edicao de conteudo", "captacao", "captação", "captação/edição de conteúdo"].includes(normalized)) return "Captação";
+  if (["desenvolvimento de site", "site"].includes(normalized)) return "Site";
+  if (["crm/treinamento comercial", "crm", "assessoria 360"].includes(normalized)) return "CRM";
+  if (["upsell", "mentoria meta ads"].includes(normalized)) return "Upsell";
+  return raw;
+};
 
 const container = {
   hidden: { opacity: 0 },
@@ -46,6 +57,7 @@ const Dashboard = () => {
   // Force month mode - no day/week switching on Visão Geral
   const { data: today } = useTodayMetrics();
   const { data: fechamentos = [] } = useFechamentosDiarios();
+  const { data: cursosDados = [] } = useCursosDados();
   const [roasFilter, setRoasFilter] = useState<string[]>(["geral"]);
   const deleteMetrics = useDeleteMetrics();
   const syncSheets = useSyncSheets();
@@ -54,7 +66,6 @@ const Dashboard = () => {
 
   const rawMonthData = filter.metrics;
   const vendasData = filter.vendas;
-  const cursosDados = filter.cursosDados;
   const fechamentosMes = useMemo(() => {
     const { start, end } = filter.range;
     return fechamentos.filter((item) => {
@@ -129,7 +140,7 @@ const Dashboard = () => {
   // Cursos feitos from cursos_dados table (real course registrations)
   const totalCursoFeito = cursosDados.length;
   // Cursos marcados from vendas (products sold = courses booked)
-  const totalCursoMarcado = approvedVendas.filter(v => v.produto && v.produto.length > 0).length;
+  const totalCursoMarcado = approvedVendas.filter((v) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getSaleCategory(v)))).length;
 
   // Vendas totals: only approved sales affect the overview totals.
   const vendasTotal = approvedVendas.reduce((s, v) => s + Number(v.valor), 0);
@@ -140,7 +151,7 @@ const Dashboard = () => {
     const stats: Record<string, { count: number; valor: number }> = {};
     for (const s of SERVICOS) stats[s] = { count: 0, valor: 0 };
     for (const v of approvedVendas) {
-      const key = SERVICOS.find((service) => normalizeText(service) === normalizeText(v.servico));
+      const key = SERVICOS.find((service) => normalizeText(service) === normalizeText(getSaleCategory(v)));
       if (key) {
         stats[key].count++;
         stats[key].valor += Number(v.valor);
@@ -167,7 +178,7 @@ const Dashboard = () => {
   const roasValues = useMemo(() => {
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
     for (const v of approvedVendas) {
-      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(v.servico));
+      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(getSaleCategory(v)));
       if (key) {
         servicoByType[key] += Number(v.valor);
       }
@@ -202,7 +213,7 @@ const Dashboard = () => {
     if (roasFilter.includes("geral")) return roasValues.geral;
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
     for (const v of approvedVendas) {
-      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(v.servico));
+      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(getSaleCategory(v)));
       if (key) {
         servicoByType[key] += Number(v.valor);
       }
