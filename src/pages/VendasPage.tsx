@@ -1729,8 +1729,8 @@ const VendasPage = () => {
                       key={grupo.chave}
                       className="border-border/20 hover:bg-secondary/20"
                       style={{
-                        background: index % 2 === 0 ? "hsl(260, 22%, 7%)" : "hsl(260, 22%, 8.5%)",
-                        boxShadow: `inset 3px 0 0 ${index % 2 === 0 ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)"}`,
+                        background: index % 2 === 0 ? "hsl(260, 22%, 6.2%)" : "hsl(260, 22%, 10%)",
+                        boxShadow: `inset 4px 0 0 ${index % 2 === 0 ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.35)"}`,
                       }}
                     >
                       <TableCell className="px-3 py-3 align-top">
