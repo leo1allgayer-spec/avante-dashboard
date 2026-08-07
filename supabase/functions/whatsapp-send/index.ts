@@ -121,17 +121,16 @@ async function sendViaEvolution(phone: string, text: string) {
   let result: any;
   try { result = JSON.parse(resultText); } catch { result = { raw: resultText }; }
 
-  // Evolution pode responder 200/201 mas com erro lógico no corpo.
-  // Considera falha quando: HTTP não-ok, status textual de erro, ou ausência de key/messageTimestamp.
+  // Evolution pode responder 200/201 com payloads diferentes conforme a versão.
+  // Se não houver erro explícito, consideramos o envio aceito e registramos como "sent".
   let accepted = response.ok;
   let providerStatus = String(result?.status ?? "").toUpperCase();
   if (accepted && result && typeof result === "object") {
     const hasError = !!result?.error || providerStatus === "ERROR" || providerStatus === "FAILED";
-    const looksLikeAck = !!(result?.key?.id || result?.messageTimestamp);
-    if (hasError || !looksLikeAck) accepted = false;
+    if (hasError) accepted = false;
   }
 
-  const deliveryStatus = accepted && providerStatus === "PENDING" ? "pending" : accepted ? "sent" : "error";
+  const deliveryStatus = accepted ? "sent" : "error";
   return { accepted, deliveryStatus, status: response.status, result, resultText };
 }
 

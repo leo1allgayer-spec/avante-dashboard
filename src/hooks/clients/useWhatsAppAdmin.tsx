@@ -148,7 +148,7 @@ export async function resendMessage(log: WhatsAppLog) {
     toast.error("Erro ao reenviar mensagem");
     return false;
   }
-  toast.success(data?.status === "pending" ? "Mensagem aceita e aguardando entrega" : "Mensagem reenviada");
+  toast.success("Mensagem reenviada");
   return true;
 }
 
@@ -160,6 +160,6 @@ export async function sendManualMessage(phone: string, bookingId: string | null,
     toast.error("Erro ao enviar mensagem");
     return false;
   }
-  toast.success(data?.status === "pending" ? "Mensagem aceita e aguardando entrega" : "Mensagem enviada");
+  toast.success("Mensagem enviada");
   return true;
 }

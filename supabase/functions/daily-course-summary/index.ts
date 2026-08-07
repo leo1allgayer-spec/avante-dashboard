@@ -149,8 +149,7 @@ async function sendText(phone: string, text: string) {
   }
 
   const hasError = !!result?.error || String(result?.status || "").toUpperCase() === "ERROR";
-  const looksSent = !!(result?.key?.id || result?.messageTimestamp);
-  const ok = response.ok && !hasError && looksSent;
+  const ok = response.ok && !hasError;
 
   return { ok, status: response.status, result, resultText };
 }

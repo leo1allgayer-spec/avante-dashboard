@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, CalendarRange } from "lucide-react";
 import type { MetaAdsData } from "@/hooks/useMetaAds";
+import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", {
@@ -54,6 +55,7 @@ export default function MonthlyMetricsTimeline() {
     date.setMonth(date.getMonth() - 5, 1);
     return localDateKey(date);
   }, []);
+  const { data: fechamentos = [] } = useFechamentosDiarios();
 
   const { data, isLoading } = useQuery({
     queryKey: ["monthly-metrics-timeline", startDate],
@@ -92,7 +94,6 @@ export default function MonthlyMetricsTimeline() {
           row.ads += Number(item.ads || 0);
         }
         row.cursosFeitos += Number(item.curso_feito || 0);
-        row.faturamento += Number(item.faturamento_marcado || 0);
       }
     });
     data?.meta?.dailyInsights.forEach((item) => {
@@ -106,12 +107,18 @@ export default function MonthlyMetricsTimeline() {
       if (item.status === "recusada" || item.status === "cancelada") return;
       const row = rows.get(item.data.slice(0, 7));
       if (row) {
-        row.faturamento += Number(item.valor || 0);
         row.vendas += 1;
       }
     });
+    fechamentos.forEach((item) => {
+      if ((item.status || "").toLowerCase() === "cancelado") return;
+      const row = rows.get(item.data.slice(0, 7));
+      if (row) {
+        row.faturamento += Number(item.valor_sinal || 0);
+      }
+    });
     return Array.from(rows.values());
-  }, [data]);
+  }, [data, fechamentos]);
 
   return (
     <section className="glass-card-hover rounded-lg p-5">

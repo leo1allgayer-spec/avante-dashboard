@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { format, parse, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isBefore, startOfDay } from "date-fns";
+import { format, parse, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isBefore, startOfDay, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 
@@ -75,6 +75,23 @@ const fmtDateTime = (d: string | null) => {
 
 const DAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+type RescheduleRequest = {
+  id: string;
+  booking_id: string;
+  status: string;
+  created_at: string;
+  course_bookings?: {
+    date?: string | null;
+    course_status?: string | null;
+  } | null;
+};
+
+const isDateInRange = (date: string | null | undefined, start: Date, end: Date) => {
+  if (!date) return false;
+  const parsed = new Date(date);
+  return !Number.isNaN(parsed.getTime()) && isWithinInterval(parsed, { start, end });
+};
+
 export default function AdminBookings() {
   const { signOut, session } = useAuth();
   const BOOKINGS_ADMINS = [
@@ -107,12 +124,22 @@ export default function AdminBookings() {
   const [metaExceptions, setMetaExceptions] = useState<Array<{ id: string; date: string; shift: string | null }>>([]);
   const [excDialog, setExcDialog] = useState(false);
   const [excForm, setExcForm] = useState({ date: "", shift: "all" });
+  const [rescheduleRequests, setRescheduleRequests] = useState<RescheduleRequest[]>([]);
 
   const fetchMetaExceptions = async () => {
     const { data } = await supabase.from("meta_ads_exceptions").select("*").order("date");
     setMetaExceptions((data || []) as any);
   };
   useEffect(() => { fetchMetaExceptions(); }, []);
+
+  const fetchRescheduleRequests = async () => {
+    const { data } = await supabase
+      .from("course_reschedule_requests")
+      .select("id, booking_id, status, created_at, course_bookings(date, course_status)")
+      .order("created_at", { ascending: false });
+    setRescheduleRequests((data || []) as RescheduleRequest[]);
+  };
+  useEffect(() => { fetchRescheduleRequests(); }, []);
 
   const addMetaException = async () => {
     if (!excForm.date) { toast.error("Selecione uma data"); return; }
@@ -230,6 +257,29 @@ export default function AdminBookings() {
   const completedBookings = allFilteredBookings.filter(b => b.courseStatus === "concluído");
   const cancelledBookings = allFilteredBookings.filter(b => b.courseStatus === "cancelado");
 
+  const summarizeRange = (start: Date, end: Date) => {
+    const marked = bookings.filter((b) => {
+      const bookingDate = new Date(b.date);
+      return b.status === "confirmed" && b.courseStatus !== "cancelado" && !Number.isNaN(bookingDate.getTime()) && isWithinInterval(bookingDate, { start, end });
+    }).length;
+
+    const completed = bookings.filter((b) => {
+      const bookingDate = new Date(b.date);
+      return b.courseStatus === "concluído" && !Number.isNaN(bookingDate.getTime()) && isWithinInterval(bookingDate, { start, end });
+    }).length;
+
+    const rescheduled = rescheduleRequests.filter((r) => {
+      if (r.status !== "confirmed") return false;
+      const bookingDate = r.course_bookings?.date;
+      return isDateInRange(r.created_at, start, end) || isDateInRange(bookingDate, start, end);
+    }).length;
+
+    return { marked, rescheduled, completed };
+  };
+
+  const weekSummary = summarizeRange(currentWeekStart, currentWeekEnd);
+  const monthSummary = summarizeRange(startOfMonth(today), endOfMonth(today));
+
   const handleCourseStatusChange = async (bookingId: string, newStatus: string) => {
     await updateBooking(bookingId, { courseStatus: newStatus });
 
@@ -292,6 +342,48 @@ export default function AdminBookings() {
               {COURSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-border/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground">Resumo da Semana</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Curso marcado</p>
+                <p className="mt-2 text-2xl font-bold">{weekSummary.marked}</p>
+              </div>
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Curso remarcado</p>
+                <p className="mt-2 text-2xl font-bold">{weekSummary.rescheduled}</p>
+              </div>
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Curso feito</p>
+                <p className="mt-2 text-2xl font-bold">{weekSummary.completed}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground">Resumo do Mês</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Curso marcado</p>
+                <p className="mt-2 text-2xl font-bold">{monthSummary.marked}</p>
+              </div>
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Curso remarcado</p>
+                <p className="mt-2 text-2xl font-bold">{monthSummary.rescheduled}</p>
+              </div>
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Curso feito</p>
+                <p className="mt-2 text-2xl font-bold">{monthSummary.completed}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <Tabs defaultValue={isAdmin ? "availability" : "bookings"} className="space-y-4">

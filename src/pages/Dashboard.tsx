@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 
 import { useDateFilter } from "@/hooks/useDateFilter";
+import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { useTodayMetrics, useDeleteMetrics } from "@/hooks/useMetrics";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -38,6 +39,7 @@ const Dashboard = () => {
   const filter = useDateFilter();
   // Force month mode - no day/week switching on Visão Geral
   const { data: today } = useTodayMetrics();
+  const { data: fechamentos = [] } = useFechamentosDiarios();
   const [roasFilter, setRoasFilter] = useState<string[]>(["geral"]);
   const deleteMetrics = useDeleteMetrics();
   const syncSheets = useSyncSheets();
@@ -47,6 +49,16 @@ const Dashboard = () => {
   const rawMonthData = filter.metrics;
   const vendasData = filter.vendas;
   const cursosDados = filter.cursosDados;
+  const fechamentosMes = useMemo(() => {
+    const { start, end } = filter.range;
+    return fechamentos.filter((item) => {
+      if ((item.status || "").toLowerCase() === "cancelado") return false;
+      const inData = item.data >= start && item.data <= end;
+      const inPrevisao = Boolean(item.previsao_entrada) && item.previsao_entrada! >= start && item.previsao_entrada! <= end;
+      const inParcelas = Array.isArray(item.parcelas_datas) && item.parcelas_datas.some((date) => date >= start && date <= end);
+      return inData || inPrevisao || inParcelas;
+    });
+  }, [fechamentos, filter.range.start, filter.range.end]);
 
   // Deduplicate by date: aggregate values per unique date (multiple users may have records for the same date)
   // Entries with meta_mensal_prevista > 0 are "meta rows" — only contribute meta fields, not operational sums
@@ -91,8 +103,21 @@ const Dashboard = () => {
   }, [rawMonthData]);
 
   const approvedVendas = useMemo(() => vendasData.filter(v => v.status === "aprovada"), [vendasData]);
-  const monthRealized = approvedVendas.reduce((s, v) => s + Number(v.valor || 0), 0);
-  const totalFatMarcado = monthData.reduce((s, d) => s + Number(d.faturamento_marcado || 0), 0);
+  const coletadoMes = fechamentosMes.reduce((s, item) => s + (item.data >= filter.range.start && item.data <= filter.range.end ? Number(item.valor_sinal || 0) : 0), 0);
+  const aReceberMes = fechamentosMes.reduce((s, item) => {
+    if (item.previsao_entrada && item.previsao_entrada >= filter.range.start && item.previsao_entrada <= filter.range.end) {
+      if (Array.isArray(item.parcelas_datas) && item.parcelas_datas.length > 0 && Number(item.valor_parcela || 0) > 0) {
+        return s + item.parcelas_datas.filter((date) => date >= filter.range.start && date <= filter.range.end).length * Number(item.valor_parcela || 0);
+      }
+      return s + Number(item.valor_a_entrar || 0);
+    }
+    if (item.data >= filter.range.start && item.data <= filter.range.end && !item.previsao_entrada && (!item.parcelas_datas || item.parcelas_datas.length === 0)) {
+      return s + Number(item.valor_a_entrar || 0);
+    }
+    return s;
+  }, 0);
+  const monthRealized = coletadoMes;
+  const totalFatMarcado = aReceberMes;
   const totalLeads = monthData.reduce((s, d) => s + Number(d.leads), 0);
   const totalMql = monthData.reduce((s, d) => s + Number(d.lead_mql), 0);
   // Cursos feitos from cursos_dados table (real course registrations)
