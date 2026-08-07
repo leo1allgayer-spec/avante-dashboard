@@ -526,44 +526,6 @@ const VendasPage = () => {
     };
   }, [vendasAprovadas, taxProfile]);
 
-  const metasPrincipais = useMemo(() => {
-    const rows = monthMetrics || [];
-    const lastWithTarget = <K extends keyof (typeof rows)[number]>(keys: K[]) => {
-      for (const key of keys) {
-        const found = [...rows].reverse().find((item) => Number(item?.[key] || 0) > 0);
-        if (found) return Number(found[key] || 0);
-      }
-      return 0;
-    };
-
-    const metas = {
-      cursosMarcados: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
-      cursosFeitos: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
-      site: lastWithTarget(["meta_site", "super_meta_site"]),
-      negocioLocal: lastWithTarget(["meta_negocio_local", "super_meta_negocio_local"]),
-      crm: lastWithTarget(["meta_crm", "super_meta_crm"]),
-      upsell: lastWithTarget(["meta_upsell", "super_meta_upsell"]),
-    };
-
-    const counts = {
-      cursosMarcados: vendasAprovadas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
-      cursosFeitos: fechamentosFiltrados.filter((item) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getFechamentoCategoria(item)))).length,
-      site: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Desenvolvimento de Site"))?.vendas || 0,
-      negocioLocal: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Captacao/Edicao de Conteudo"))?.vendas || 0,
-      crm: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("CRM/Treinamento Comercial"))?.vendas || 0,
-      upsell: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Upsell"))?.vendas || 0,
-    };
-
-    return [
-      { label: "Cursos marcados", atual: counts.cursosMarcados, meta: metas.cursosMarcados },
-      { label: "Cursos feitos", atual: counts.cursosFeitos, meta: metas.cursosFeitos },
-      { label: "Site", atual: counts.site, meta: metas.site },
-      { label: "Captação", atual: counts.negocioLocal, meta: metas.negocioLocal },
-      { label: "CRM", atual: counts.crm, meta: metas.crm },
-      { label: "Upsell", atual: counts.upsell, meta: metas.upsell },
-    ];
-  }, [monthMetrics, vendasAprovadas, fechamentosFiltrados, integratedCategoryRows]);
-
   const integratedCategoryRows = useMemo(() => {
     const map = new Map<string, {
       categoria: string;
@@ -600,6 +562,44 @@ const VendasPage = () => {
 
     return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
   }, [fechamentosFiltrados, vendasAprovadas, dateFilter.range.start, dateFilter.range.end]);
+
+  const metasPrincipais = useMemo(() => {
+    const rows = monthMetrics || [];
+    const lastWithTarget = (keys: Array<"meta_cursos" | "super_meta_cursos" | "meta_site" | "super_meta_site" | "meta_negocio_local" | "super_meta_negocio_local" | "meta_crm" | "super_meta_crm" | "meta_upsell" | "super_meta_upsell">) => {
+      for (const key of keys) {
+        const found = [...rows].reverse().find((item) => Number(item?.[key] || 0) > 0);
+        if (found) return Number(found[key] || 0);
+      }
+      return 0;
+    };
+
+    const metas = {
+      cursosMarcados: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
+      cursosFeitos: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
+      site: lastWithTarget(["meta_site", "super_meta_site"]),
+      negocioLocal: lastWithTarget(["meta_negocio_local", "super_meta_negocio_local"]),
+      crm: lastWithTarget(["meta_crm", "super_meta_crm"]),
+      upsell: lastWithTarget(["meta_upsell", "super_meta_upsell"]),
+    };
+
+    const counts = {
+      cursosMarcados: vendasAprovadas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
+      cursosFeitos: fechamentosFiltrados.filter((item) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getFechamentoCategoria(item)))).length,
+      site: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Desenvolvimento de Site"))?.vendas || 0,
+      negocioLocal: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Captacao/Edicao de Conteudo"))?.vendas || 0,
+      crm: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("CRM/Treinamento Comercial"))?.vendas || 0,
+      upsell: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Upsell"))?.vendas || 0,
+    };
+
+    return [
+      { label: "Cursos marcados", atual: counts.cursosMarcados, meta: metas.cursosMarcados },
+      { label: "Cursos feitos", atual: counts.cursosFeitos, meta: metas.cursosFeitos },
+      { label: "Site", atual: counts.site, meta: metas.site },
+      { label: "Captação", atual: counts.negocioLocal, meta: metas.negocioLocal },
+      { label: "CRM", atual: counts.crm, meta: metas.crm },
+      { label: "Upsell", atual: counts.upsell, meta: metas.upsell },
+    ];
+  }, [monthMetrics, vendasAprovadas, fechamentosFiltrados, integratedCategoryRows]);
 
   const renameCategoryFechamentos = async (categoria: string, items: FechamentoDiario[]) => {
     if (items.length === 0) {
