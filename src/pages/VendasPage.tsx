@@ -308,7 +308,7 @@ const VendasPage = () => {
   const vendasAgrupadas = useMemo(() => {
     const grupos = new Map<string, Venda[]>();
     filtered.forEach((venda) => {
-      const chave = [venda.data, venda.cliente.trim().toLowerCase(), venda.vendedor.trim().toLowerCase(), venda.pagamento, venda.origem || "", venda.status].join("|");
+      const chave = [venda.data, venda.cliente.trim().toLowerCase(), venda.vendedor.trim().toLowerCase()].join("|");
       grupos.set(chave, [...(grupos.get(chave) || []), venda]);
     });
 
@@ -345,6 +345,13 @@ const VendasPage = () => {
       };
     });
   }, [filtered, fechamentosFiltrados, taxProfile]);
+
+  const rowStyles = [
+    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(260, 22%, 6.2%))",
+    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(275, 22%, 6.2%))",
+    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(240, 22%, 6.2%))",
+    "background: linear-gradient(90deg, hsl(260, 22%, 7%), hsl(292, 22%, 6.2%))",
+  ];
 
   const getItemValores = (item: VendaItemForm) => {
     const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
@@ -1631,12 +1638,24 @@ const VendasPage = () => {
                     <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhuma venda encontrada</TableCell>
                   </TableRow>
                 ) : (
-                  vendasAgrupadas.map((grupo) => {
+                  vendasAgrupadas.map((grupo, index) => {
                     const v = grupo.principal;
                     const nomes = [...grupo.produtos, ...grupo.servicos];
                     const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
                     return (
-                    <TableRow key={grupo.chave} className="border-border/20 hover:bg-secondary/20" style={{ background: "hsl(260, 22%, 7%)" }}>
+                    <TableRow
+                      key={grupo.chave}
+                      className="border-border/20 hover:bg-secondary/20"
+                      style={{
+                        background: index % 2 === 0 ? "hsl(260, 22%, 7%)" : "hsl(260, 22%, 8.2%)",
+                        boxShadow: `inset 4px 0 0 ${
+                          index % 4 === 0 ? "hsl(142 70% 45%)" :
+                          index % 4 === 1 ? "hsl(38 92% 50%)" :
+                          index % 4 === 2 ? "hsl(268 83% 58%)" :
+                          "hsl(200 90% 55%)"
+                        }`,
+                      }}
+                    >
                       <TableCell className="px-3 py-3 align-top">
                         <p className="text-sm font-semibold leading-tight">{v.cliente}</p>
                         <p className="mt-1 text-xs text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
