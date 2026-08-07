@@ -10,6 +10,7 @@ import { useMetaAdCreatives } from "@/hooks/useMetaAds";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useMonthMetrics } from "@/hooks/useMetrics";
+import { useCursosDados } from "@/hooks/useCursosDados";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -194,6 +195,7 @@ const VendasPage = () => {
   const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
   const { data: criativosVendas = [] } = useCriativosVendas();
   const { data: metaAdCreatives = [], isLoading: isLoadingMetaAds, isError: isMetaAdsError } = useMetaAdCreatives();
+  const { data: cursosDados = [] } = useCursosDados();
   const dateFilter = useLocalDateFilter();
   const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
   const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
@@ -582,9 +584,11 @@ const VendasPage = () => {
       upsell: lastWithTarget(["meta_upsell", "super_meta_upsell"]),
     };
 
+    const cursosFeitosPeriodo = cursosDados.filter((item) => item.data >= dateFilter.range.start && item.data <= dateFilter.range.end);
+
     const counts = {
       cursosMarcados: vendasAprovadas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
-      cursosFeitos: fechamentosFiltrados.filter((item) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getFechamentoCategoria(item)))).length,
+      cursosFeitos: cursosFeitosPeriodo.length,
       site: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Desenvolvimento de Site"))?.vendas || 0,
       negocioLocal: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Captacao/Edicao de Conteudo"))?.vendas || 0,
       crm: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("CRM/Treinamento Comercial"))?.vendas || 0,
@@ -599,7 +603,7 @@ const VendasPage = () => {
       { label: "CRM", atual: counts.crm, meta: metas.crm },
       { label: "Upsell", atual: counts.upsell, meta: metas.upsell },
     ];
-  }, [monthMetrics, vendasAprovadas, fechamentosFiltrados, integratedCategoryRows]);
+  }, [monthMetrics, vendasAprovadas, cursosDados, dateFilter.range.start, dateFilter.range.end, integratedCategoryRows]);
 
   const renameCategoryFechamentos = async (categoria: string, items: FechamentoDiario[]) => {
     if (items.length === 0) {
