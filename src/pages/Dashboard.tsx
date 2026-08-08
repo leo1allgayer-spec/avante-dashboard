@@ -121,7 +121,7 @@ const Dashboard = () => {
     }
     return s;
   }, 0);
-  const monthRealized = coletadoMes;
+  const monthRealized = vendasTotal;
   const totalFatMarcado = aReceberMes;
   const totalLeads = monthData.reduce((s, d) => s + Number(d.leads), 0);
   const totalMql = monthData.reduce((s, d) => s + Number(d.lead_mql), 0);
@@ -612,5 +612,6 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
 
 
