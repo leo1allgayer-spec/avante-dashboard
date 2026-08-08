@@ -121,34 +121,34 @@ const MetasPage = () => {
   const dayWithDiaria = [...uniqueMonth].reverse().find((d) => Number(d.meta_diaria_prevista) > 0);
   const dayWithSuperMensal = [...uniqueMonth].reverse().find((d) => Number(d.super_meta_mensal) > 0);
   const dayWithSuperDiaria = [...uniqueMonth].reverse().find((d) => Number(d.super_meta_diaria) > 0);
-  const metaMensal = dayWithMeta?.meta_mensal_prevista || today?.meta_mensal_prevista || 0;
-  const metaDiariaPrevista = dayWithDiaria?.meta_diaria_prevista || today?.meta_diaria_prevista || 0;
-  const superMetaMensal = dayWithSuperMensal?.super_meta_mensal || today?.super_meta_mensal || 0;
-  const superMetaDiaria = dayWithSuperDiaria?.super_meta_diaria || today?.super_meta_diaria || 0;
+  const metaMensal = dayWithMeta?.meta_mensal_prevista || 0;
+  const metaDiariaPrevista = dayWithDiaria?.meta_diaria_prevista || 0;
+  const superMetaMensal = dayWithSuperMensal?.super_meta_mensal || 0;
+  const superMetaDiaria = dayWithSuperDiaria?.super_meta_diaria || 0;
   const latestDay = uniquePeriod.length > 0 ? uniquePeriod[uniquePeriod.length - 1] : null;
-  const metaDiariaRealizada = latestDay?.meta_diaria_realizada || today?.meta_diaria_realizada || 0;
+  const metaDiariaRealizada = latestDay?.meta_diaria_realizada || 0;
 
   const svcSource = [...uniqueMonth].reverse();
-  const svcMetaCursos = svcSource.find((d) => Number(d.meta_cursos) > 0)?.meta_cursos || today?.meta_cursos || 0;
-  const svcMetaSite = svcSource.find((d) => Number(d.meta_site) > 0)?.meta_site || today?.meta_site || 0;
-  const svcMetaNL = svcSource.find((d) => Number(d.meta_negocio_local) > 0)?.meta_negocio_local || today?.meta_negocio_local || 0;
-  const svcMetaCRM = svcSource.find((d) => Number(d.meta_crm) > 0)?.meta_crm || today?.meta_crm || 0;
-  const svcMetaUpsell = svcSource.find((d) => Number(d.meta_upsell) > 0)?.meta_upsell || today?.meta_upsell || 0;
-  const svcSuperMetaCursos = svcSource.find((d) => Number(d.super_meta_cursos) > 0)?.super_meta_cursos || today?.super_meta_cursos || 0;
-  const svcSuperMetaSite = svcSource.find((d) => Number(d.super_meta_site) > 0)?.super_meta_site || today?.super_meta_site || 0;
-  const svcSuperMetaNL = svcSource.find((d) => Number(d.super_meta_negocio_local) > 0)?.super_meta_negocio_local || today?.super_meta_negocio_local || 0;
-  const svcSuperMetaCRM = svcSource.find((d) => Number(d.super_meta_crm) > 0)?.super_meta_crm || today?.super_meta_crm || 0;
-  const svcSuperMetaUpsell = svcSource.find((d) => Number(d.super_meta_upsell) > 0)?.super_meta_upsell || today?.super_meta_upsell || 0;
-  const svcValCursos = svcSource.find((d) => Number(d.valor_cursos) > 0)?.valor_cursos || today?.valor_cursos || 0;
-  const svcValSite = svcSource.find((d) => Number(d.valor_site) > 0)?.valor_site || today?.valor_site || 0;
-  const svcValNL = svcSource.find((d) => Number(d.valor_negocio_local) > 0)?.valor_negocio_local || today?.valor_negocio_local || 0;
-  const svcValCRM = svcSource.find((d) => Number(d.valor_crm) > 0)?.valor_crm || today?.valor_crm || 0;
-  const svcValUpsell = svcSource.find((d) => Number(d.valor_upsell) > 0)?.valor_upsell || today?.valor_upsell || 0;
-  const svcSuperValCursos = svcSource.find((d) => Number(d.super_valor_cursos) > 0)?.super_valor_cursos || today?.super_valor_cursos || 0;
-  const svcSuperValSite = svcSource.find((d) => Number(d.super_valor_site) > 0)?.super_valor_site || today?.super_valor_site || 0;
-  const svcSuperValNL = svcSource.find((d) => Number(d.super_valor_negocio_local) > 0)?.super_valor_negocio_local || today?.super_valor_negocio_local || 0;
-  const svcSuperValCRM = svcSource.find((d) => Number(d.super_valor_crm) > 0)?.super_valor_crm || today?.super_valor_crm || 0;
-  const svcSuperValUpsell = svcSource.find((d) => Number(d.super_valor_upsell) > 0)?.super_valor_upsell || today?.super_valor_upsell || 0;
+  const svcMetaCursos = svcSource.find((d) => Number(d.meta_cursos) > 0)?.meta_cursos || 0;
+  const svcMetaSite = svcSource.find((d) => Number(d.meta_site) > 0)?.meta_site || 0;
+  const svcMetaNL = svcSource.find((d) => Number(d.meta_negocio_local) > 0)?.meta_negocio_local || 0;
+  const svcMetaCRM = svcSource.find((d) => Number(d.meta_crm) > 0)?.meta_crm || 0;
+  const svcMetaUpsell = svcSource.find((d) => Number(d.meta_upsell) > 0)?.meta_upsell || 0;
+  const svcSuperMetaCursos = svcSource.find((d) => Number(d.super_meta_cursos) > 0)?.super_meta_cursos || 0;
+  const svcSuperMetaSite = svcSource.find((d) => Number(d.super_meta_site) > 0)?.super_meta_site || 0;
+  const svcSuperMetaNL = svcSource.find((d) => Number(d.super_meta_negocio_local) > 0)?.super_meta_negocio_local || 0;
+  const svcSuperMetaCRM = svcSource.find((d) => Number(d.super_meta_crm) > 0)?.super_meta_crm || 0;
+  const svcSuperMetaUpsell = svcSource.find((d) => Number(d.super_meta_upsell) > 0)?.super_meta_upsell || 0;
+  const svcValCursos = svcSource.find((d) => Number(d.valor_cursos) > 0)?.valor_cursos || 0;
+  const svcValSite = svcSource.find((d) => Number(d.valor_site) > 0)?.valor_site || 0;
+  const svcValNL = svcSource.find((d) => Number(d.valor_negocio_local) > 0)?.valor_negocio_local || 0;
+  const svcValCRM = svcSource.find((d) => Number(d.valor_crm) > 0)?.valor_crm || 0;
+  const svcValUpsell = svcSource.find((d) => Number(d.valor_upsell) > 0)?.valor_upsell || 0;
+  const svcSuperValCursos = svcSource.find((d) => Number(d.super_valor_cursos) > 0)?.super_valor_cursos || 0;
+  const svcSuperValSite = svcSource.find((d) => Number(d.super_valor_site) > 0)?.super_valor_site || 0;
+  const svcSuperValNL = svcSource.find((d) => Number(d.super_valor_negocio_local) > 0)?.super_valor_negocio_local || 0;
+  const svcSuperValCRM = svcSource.find((d) => Number(d.super_valor_crm) > 0)?.super_valor_crm || 0;
+  const svcSuperValUpsell = svcSource.find((d) => Number(d.super_valor_upsell) > 0)?.super_valor_upsell || 0;
 
   const calcData = useMemo(() => {
     const now = new Date();
@@ -362,4 +362,7 @@ const MetasPage = () => {
 };
 
 export default MetasPage;
+
+
+
 
