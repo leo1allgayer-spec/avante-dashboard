@@ -1,3 +1,4 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -42,6 +43,40 @@ import ConfirmReschedulePage from "./pages/clients/ConfirmReschedulePage";
 import MetaPixelPage from "./pages/meta/MetaPixelPage";
 
 const queryClient = new QueryClient();
+
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-6">
+          <div className="max-w-2xl w-full rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-foreground">
+            <h1 className="text-xl font-bold text-destructive mb-2">Erro ao carregar o dashboard</h1>
+            <p className="text-sm text-muted-foreground mb-4">
+              A aplicação encontrou um erro em runtime. A mensagem abaixo ajuda a identificar a tela que está quebrando.
+            </p>
+            <pre className="whitespace-pre-wrap text-xs rounded-xl bg-black/40 p-4 overflow-auto">
+              {this.state.error?.message || "Erro desconhecido"}
+            </pre>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
@@ -123,9 +158,11 @@ const App = () => (
       <Toaster />
       <Sonner />
       <GestaoAuthProvider>
-        <BrowserRouter>
-          <AnimatedRoutes />
-        </BrowserRouter>
+        <AppErrorBoundary>
+          <BrowserRouter>
+            <AnimatedRoutes />
+          </BrowserRouter>
+        </AppErrorBoundary>
       </GestaoAuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
