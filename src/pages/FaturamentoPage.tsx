@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useDateFilter } from "@/hooks/useDateFilter";
-import { useTodayMetrics } from "@/hooks/useMetrics";
+import { useBusinessSummary } from "@/hooks/useBusinessSummary";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
 import MetricsForm from "@/components/MetricsForm";
@@ -18,14 +18,11 @@ const formatCurrency = (value: number) =>
 const SERVICOS = ["Tráfego", "Captação", "Site"];
 
 const FaturamentoPage = () => {
-  const { data: today } = useTodayMetrics();
   const filter = useDateFilter();
-  const monthData = filter.metrics;
-  const vendasData = filter.vendas;
+  const summary = useBusinessSummary(filter);
+  const { today, monthData, approvedVendas, totalFatMarcado, totalAds } = summary;
 
   const totalFat = monthData.reduce((s, d) => s + Number(d.faturamento_dia || 0), 0);
-  const totalFatMarcado = monthData.reduce((s, d) => s + Number(d.faturamento_marcado || 0), 0);
-  const totalAds = monthData.reduce((s, d) => s + Number(d.ads || 0), 0);
   const avgDaily = monthData.length > 0 ? totalFat / monthData.length : 0;
 
   // Separate product vs service from vendas
@@ -35,7 +32,7 @@ const FaturamentoPage = () => {
     const servicoByType: Record<string, number> = {};
     for (const s of SERVICOS) servicoByType[s] = 0;
 
-    for (const v of vendasData) {
+    for (const v of approvedVendas) {
       if (v.servico && SERVICOS.includes(v.servico)) {
         servicoTotal += Number(v.valor);
         servicoByType[v.servico] += Number(v.valor);
@@ -44,7 +41,7 @@ const FaturamentoPage = () => {
       }
     }
     return { produtoTotal, servicoTotal, servicoByType };
-  }, [vendasData]);
+  }, [approvedVendas]);
 
   const faturamentoGeral = totalFat + servicoTotal;
 
@@ -82,7 +79,7 @@ const FaturamentoPage = () => {
             <MetricCard title="Produtos (Planilha)" value={formatCurrency(totalFat)} icon={<ShoppingBag className="h-5 w-5" />} variant="primary" />
           </StaggerItem>
           <StaggerItem>
-            <MetricCard title="Serviços" value={formatCurrency(servicoTotal)} subtitle={`${vendasData.filter(v => v.servico && SERVICOS.includes(v.servico)).length} vendas`} icon={<Briefcase className="h-5 w-5" />} />
+            <MetricCard title="Serviços" value={formatCurrency(servicoTotal)} subtitle={`${approvedVendas.filter(v => v.servico && SERVICOS.includes(v.servico)).length} vendas`} icon={<Briefcase className="h-5 w-5" />} />
           </StaggerItem>
           <StaggerItem>
             <MetricCard title="Média Diária (Planilha)" value={formatCurrency(avgDaily)} icon={<TrendingUp className="h-5 w-5" />} />
