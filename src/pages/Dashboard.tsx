@@ -79,47 +79,34 @@ const Dashboard = () => {
   }, [fechamentos, filter.range.start, filter.range.end]);
 
   // Deduplicate by date: aggregate values per unique date (multiple users may have records for the same date)
-  // Entries with meta_mensal_prevista > 0 are "meta rows" — only contribute meta fields, not operational sums
+  // Preserve operational metrics even when a row also carries meta fields.
   const monthData = useMemo(() => {
     const map = new Map<string, typeof rawMonthData[0]>();
-    rawMonthData.forEach(d => {
-      const isMetaRow = Number(d.meta_mensal_prevista) > 0 || Number(d.super_meta_mensal) > 0;
+    rawMonthData.forEach((d) => {
       const existing = map.get(d.date);
       if (!existing) {
-        map.set(d.date, {
-          ...d,
-          // If this is a meta row, zero out operational fields so they don't inflate totals
-          ...(isMetaRow ? {
-            faturamento_dia: 0, faturamento_marcado: 0,
-            leads: 0, lead_mql: 0,
-            curso_marcado: 0, curso_feito: 0,
-            ads: 0, cac: 0, custo_por_lead: 0, custo_por_lead_mql: 0, roas: 0,
-          } : {}),
-        });
+        map.set(d.date, { ...d });
       } else {
         map.set(d.date, {
           ...existing,
-          // Only sum operational fields from non-meta rows
-          faturamento_dia: Number(existing.faturamento_dia) + (isMetaRow ? 0 : Number(d.faturamento_dia)),
-          faturamento_marcado: Number(existing.faturamento_marcado || 0) + (isMetaRow ? 0 : Number(d.faturamento_marcado || 0)),
-          leads: (Number(existing.leads) || 0) + (isMetaRow ? 0 : (Number(d.leads) || 0)),
-          lead_mql: (Number(existing.lead_mql) || 0) + (isMetaRow ? 0 : (Number(d.lead_mql) || 0)),
-          curso_marcado: (Number(existing.curso_marcado) || 0) + (isMetaRow ? 0 : (Number(d.curso_marcado) || 0)),
-          curso_feito: (Number(existing.curso_feito) || 0) + (isMetaRow ? 0 : (Number(d.curso_feito) || 0)),
-          ads: Number(existing.ads) + (isMetaRow ? 0 : Number(d.ads)),
-          // Always take max for meta fields
-          cac: Math.max(Number(existing.cac), isMetaRow ? 0 : Number(d.cac)),
-          custo_por_lead: Math.max(Number(existing.custo_por_lead), isMetaRow ? 0 : Number(d.custo_por_lead)),
-          custo_por_lead_mql: Math.max(Number(existing.custo_por_lead_mql || 0), isMetaRow ? 0 : Number(d.custo_por_lead_mql || 0)),
-          roas: Math.max(Number(existing.roas), isMetaRow ? 0 : Number(d.roas)),
-          meta_mensal_prevista: Math.max(Number(existing.meta_mensal_prevista), Number(d.meta_mensal_prevista)),
+          faturamento_dia: Number(existing.faturamento_dia || 0) + Number(d.faturamento_dia || 0),
+          faturamento_marcado: Number(existing.faturamento_marcado || 0) + Number(d.faturamento_marcado || 0),
+          leads: Number(existing.leads || 0) + Number(d.leads || 0),
+          lead_mql: Number(existing.lead_mql || 0) + Number(d.lead_mql || 0),
+          curso_marcado: Number(existing.curso_marcado || 0) + Number(d.curso_marcado || 0),
+          curso_feito: Number(existing.curso_feito || 0) + Number(d.curso_feito || 0),
+          ads: Number(existing.ads || 0) + Number(d.ads || 0),
+          cac: Math.max(Number(existing.cac || 0), Number(d.cac || 0)),
+          custo_por_lead: Math.max(Number(existing.custo_por_lead || 0), Number(d.custo_por_lead || 0)),
+          custo_por_lead_mql: Math.max(Number(existing.custo_por_lead_mql || 0), Number(d.custo_por_lead_mql || 0)),
+          roas: Math.max(Number(existing.roas || 0), Number(d.roas || 0)),
+          meta_mensal_prevista: Math.max(Number(existing.meta_mensal_prevista || 0), Number(d.meta_mensal_prevista || 0)),
           super_meta_mensal: Math.max(Number(existing.super_meta_mensal || 0), Number(d.super_meta_mensal || 0)),
         });
       }
     });
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [rawMonthData]);
-
   const approvedVendas = useMemo(() => vendasData.filter(v => v.status === "aprovada"), [vendasData]);
   const coletadoMes = fechamentosMes.reduce((s, item) => s + (item.data >= filter.range.start && item.data <= filter.range.end ? Number(item.valor_sinal || 0) : 0), 0);
   const aReceberMes = fechamentosMes.reduce((s, item) => {
@@ -625,3 +612,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
