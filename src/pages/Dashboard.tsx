@@ -6,7 +6,7 @@ import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { useTodayMetrics, useDeleteMetrics } from "@/hooks/useMetrics";
 import { useCursosDados } from "@/hooks/useCursosDados";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
-import { COURSE_PRODUCTS } from "@/constants/serviceCategories";
+import { COURSE_PRODUCTS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
 
@@ -141,7 +141,7 @@ const Dashboard = () => {
   // Cursos feitos from cursos_dados table (real course registrations)
   const totalCursoFeito = cursosDados.length;
   // Cursos marcados from vendas (products sold = courses booked)
-  const totalCursoMarcado = approvedVendas.filter((v) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getSaleCategory(v)))).length;
+  const totalCursoMarcado = approvedVendas.filter((v) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)))).length;
 
   // Vendas totals: only approved sales affect the overview totals.
   const vendasTotal = approvedVendas.reduce((s, v) => s + Number(v.valor), 0);
@@ -152,7 +152,7 @@ const Dashboard = () => {
     const stats: Record<string, { count: number; valor: number }> = {};
     for (const s of SERVICOS) stats[s] = { count: 0, valor: 0 };
     for (const v of approvedVendas) {
-      const key = SERVICOS.find((service) => normalizeText(service) === normalizeText(getSaleCategory(v)));
+      const key = SERVICOS.find((service) => normalizeText(service) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)));
       if (key) {
         stats[key].count++;
         stats[key].valor += Number(v.valor);
@@ -179,7 +179,7 @@ const Dashboard = () => {
   const roasValues = useMemo(() => {
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
     for (const v of approvedVendas) {
-      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(getSaleCategory(v)));
+      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)));
       if (key) {
         servicoByType[key] += Number(v.valor);
       }
@@ -214,7 +214,7 @@ const Dashboard = () => {
     if (roasFilter.includes("geral")) return roasValues.geral;
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
     for (const v of approvedVendas) {
-      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(getSaleCategory(v)));
+      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)));
       if (key) {
         servicoByType[key] += Number(v.valor);
       }

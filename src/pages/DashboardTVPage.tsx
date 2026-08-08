@@ -10,6 +10,7 @@ import { useMetaAds } from "@/hooks/useMetaAds";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import CountUp from "react-countup";
+import { canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -75,16 +76,8 @@ const getConversationsFromActions = (actions: Array<{ action_type: string; value
 const getFechamentoTotal = (item: { valor_sinal?: number; valor_a_entrar?: number; valor_recorrente?: number }) =>
   Number(item.valor_sinal || 0) + Number(item.valor_a_entrar || 0) + Number(item.valor_recorrente || 0);
 
-const getSaleCategory = (sale: { servico?: string | null; produto?: string | null }) => {
-  const raw = sale.servico || sale.produto || "";
-  const normalized = normalizeText(raw);
-  if (["gestao de trafego", "tráfego", "trafego"].includes(normalized)) return "Tráfego";
-  if (["captacao/edicao de conteudo", "captacao", "captação", "captação/edição de conteúdo"].includes(normalized)) return "Captação";
-  if (["desenvolvimento de site", "site"].includes(normalized)) return "Site";
-  if (["crm/treinamento comercial", "crm", "assessoria 360"].includes(normalized)) return "CRM";
-  if (["upsell", "mentoria meta ads"].includes(normalized)) return "Upsell";
-  return raw;
-};
+const getSaleCategory = (sale: { servico?: string | null; produto?: string | null }) =>
+  canonicalizeSaleCategory(sale.servico || sale.produto);
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -535,6 +528,10 @@ const DashboardTVPage = () => {
 };
 
 export default DashboardTVPage;
+
+
+
+
 
 
 

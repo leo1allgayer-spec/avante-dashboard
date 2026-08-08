@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CalendarClock, Clock3, Layers3, Pencil, Plus, Search, Trash2, TrendingUp, Wallet } from "lucide-react";
-import { COURSE_PRODUCTS, SERVICE_OPTIONS } from "@/constants/serviceCategories";
+import { COURSE_PRODUCTS, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 
 
 const PRODUTOS = COURSE_PRODUCTS;
@@ -91,28 +91,10 @@ const getStoredParcelDates = (item: Pick<FechamentoDiario, "parcelas_datas">) =>
   Array.isArray(item.parcelas_datas) ? item.parcelas_datas.filter((date): date is string => typeof date === "string" && !!date) : [];
 
 const getFechamentoCategoria = (item: Pick<FechamentoDiario, "categoria" | "produto_servico">) =>
-  (() => {
-    const raw = item.categoria || item.produto_servico || "Sem categoria";
-    const normalized = normalizeText(raw);
-    if (["gestao de trafego", "tráfego", "trafego"].includes(normalized)) return "Tráfego";
-    if (["captacao/edicao de conteudo", "captacao", "captação", "captação/edição de conteúdo"].includes(normalized)) return "Captação";
-    if (["desenvolvimento de site", "site"].includes(normalized)) return "Site";
-    if (["crm/treinamento comercial", "crm", "assessoria 360"].includes(normalized)) return "CRM";
-    if (["upsell", "mentoria meta ads"].includes(normalized)) return "Upsell";
-    return raw;
-  })();
+  canonicalizeSaleCategory(item.categoria || item.produto_servico);
 
 const getVendaCategoria = (item: Pick<Venda, "servico" | "produto">) =>
-  (() => {
-    const raw = item.servico || item.produto || "Sem categoria";
-    const normalized = normalizeText(raw);
-    if (["gestao de trafego", "tráfego", "trafego"].includes(normalized)) return "Tráfego";
-    if (["captacao/edicao de conteudo", "captacao", "captação", "captação/edição de conteúdo"].includes(normalized)) return "Captação";
-    if (["desenvolvimento de site", "site"].includes(normalized)) return "Site";
-    if (["crm/treinamento comercial", "crm", "assessoria 360"].includes(normalized)) return "CRM";
-    if (["upsell", "mentoria meta ads"].includes(normalized)) return "Upsell";
-    return raw;
-  })();
+  canonicalizeSaleCategory(item.servico || item.produto);
 
 const normalizeText = (value?: string | null) =>
   (value || "")
@@ -1895,3 +1877,5 @@ const VendasPage = () => {
 };
 
 export default VendasPage;
+
+
