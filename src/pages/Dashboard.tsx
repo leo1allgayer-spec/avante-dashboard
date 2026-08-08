@@ -121,6 +121,9 @@ const Dashboard = () => {
     }
     return s;
   }, 0);
+  // Vendas totals: only approved sales affect the overview totals.
+  const vendasTotal = approvedVendas.reduce((s, v) => s + Number(v.valor), 0);
+  const vendasComissao = approvedVendas.reduce((s, v) => s + Number(v.comissao), 0);
   const monthRealized = vendasTotal;
   const totalFatMarcado = aReceberMes;
   const totalLeads = monthData.reduce((s, d) => s + Number(d.leads), 0);
@@ -129,10 +132,6 @@ const Dashboard = () => {
   const totalCursoFeito = cursosDados.length;
   // Cursos marcados from vendas (products sold = courses booked)
   const totalCursoMarcado = approvedVendas.filter((v) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)))).length;
-
-  // Vendas totals: only approved sales affect the overview totals.
-  const vendasTotal = approvedVendas.reduce((s, v) => s + Number(v.valor), 0);
-  const vendasComissao = approvedVendas.reduce((s, v) => s + Number(v.comissao), 0);
 
   const SERVICOS = ["Tráfego", "Captação", "Site", "Upsell", "CRM"];
   const serviceStats = useMemo(() => {
@@ -612,6 +611,8 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
 
 
 
