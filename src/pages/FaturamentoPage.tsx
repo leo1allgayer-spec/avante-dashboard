@@ -23,9 +23,9 @@ const FaturamentoPage = () => {
   const monthData = filter.metrics;
   const vendasData = filter.vendas;
 
-  const totalFat = monthData.reduce((s, d) => s + Number(d.faturamento_dia), 0);
+  const totalFat = monthData.reduce((s, d) => s + Number(d.faturamento_dia || 0), 0);
   const totalFatMarcado = monthData.reduce((s, d) => s + Number(d.faturamento_marcado || 0), 0);
-  const totalAds = monthData.reduce((s, d) => s + Number(d.ads), 0);
+  const totalAds = monthData.reduce((s, d) => s + Number(d.ads || 0), 0);
   const avgDaily = monthData.length > 0 ? totalFat / monthData.length : 0;
 
   // Separate product vs service from vendas
@@ -64,7 +64,7 @@ const FaturamentoPage = () => {
     const prev = i > 0 ? acc[i - 1].acumulado : 0;
     acc.push({
       date: new Date(d.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit" }),
-      acumulado: prev + Number(d.faturamento_dia),
+      acumulado: prev + Number(d.faturamento_dia || 0),
     });
     return acc;
   }, []);
@@ -164,3 +164,4 @@ const FaturamentoPage = () => {
 };
 
 export default FaturamentoPage;
+
