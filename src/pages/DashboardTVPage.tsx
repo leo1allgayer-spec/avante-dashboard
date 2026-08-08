@@ -149,8 +149,8 @@ const DashboardTVPage = () => {
     const fechamentosMes = fechamentosAtivos.filter((f) => dateInRange(f.data, monthStart, monthEnd) || dateInRange(f.previsao_entrada, monthStart, monthEnd));
     const fechamentosHoje = fechamentosAtivos.filter((f) => f.data === todayKey || f.previsao_entrada === todayKey);
 
-    const faturamentoFeitoMes = vendasAprovadasMes.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
-    const faturamentoFeitoHoje = vendasAprovadasHoje.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
+    const faturamentoFeitoMes = vendasMes.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
+    const faturamentoFeitoHoje = vendasHoje.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
     const faturamentoMarcadoMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
     const faturamentoMarcadoHoje = fechamentosHoje.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
     const aReceberMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
@@ -172,7 +172,7 @@ const DashboardTVPage = () => {
     const faturamentoMes = faturamentoFeitoMes + faturamentoMarcadoMes + aReceberMes + recorrenteMes;
     const faturamentoHoje = faturamentoFeitoHoje + faturamentoMarcadoHoje + fechamentosHoje.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0) + Number(item.valor_recorrente || 0), 0);
     const roasMes = investimentoMes > 0 ? faturamentoMes / investimentoMes : Number(today?.roas || 0);
-    const cac = vendasAprovadasMes.length > 0 ? investimentoMes / vendasAprovadasMes.length : Number(today?.cac || 0);
+    const cac = vendasMes.length > 0 ? investimentoMes / vendasMes.length : Number(today?.cac || 0);
     const cpl = leadsMonth > 0 ? investimentoMes / leadsMonth : Number(today?.custo_por_lead || 0);
     const cplMql = mqlMonth > 0 ? investimentoMes / mqlMonth : Number(today?.custo_por_lead_mql || 0);
     const convRate = leadsMonth > 0 ? (mqlMonth / leadsMonth) * 100 : 0;
@@ -203,11 +203,11 @@ const DashboardTVPage = () => {
       .sort((a, b) => b.value - a.value)
       .slice(0, 6);
 
-    const totalOperacoesMes = vendasAprovadasMes.length + fechamentosMes.length;
+    const totalOperacoesMes = vendasMes.length + fechamentosMes.length;
     const ticketMedio = totalOperacoesMes > 0 ? (faturamentoMes + faturamentoMarcadoMes + aReceberMes) / totalOperacoesMes : 0;
 
     return {
-      vendasMes: vendasAprovadasMes,
+      vendasMes,
       vendasHoje: vendasAprovadasHoje,
       fechamentosMes,
       faturamentoMes,
@@ -528,6 +528,7 @@ const DashboardTVPage = () => {
 };
 
 export default DashboardTVPage;
+
 
 
 
