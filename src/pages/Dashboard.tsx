@@ -6,6 +6,7 @@ import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { useTodayMetrics, useDeleteMetrics } from "@/hooks/useMetrics";
 import { useCursosDados } from "@/hooks/useCursosDados";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
+import { COURSE_PRODUCTS } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
 
