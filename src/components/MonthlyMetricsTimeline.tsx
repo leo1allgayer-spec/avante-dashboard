@@ -96,7 +96,7 @@ export default function MonthlyMetricsTimeline() {
         row.cursosFeitos += Number(item.curso_feito || 0);
       }
     });
-    data?.meta?.dailyInsights.forEach((item) => {
+    data?.meta?.dailyInsights?.forEach((item) => {
       const row = rows.get(item.date_start.slice(0, 7));
       if (row) {
         row.leads += getMetaLeads(item.actions) + getMetaConversations(item.actions);
