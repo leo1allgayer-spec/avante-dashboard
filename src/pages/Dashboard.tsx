@@ -150,8 +150,8 @@ const Dashboard = () => {
   }, [approvedVendas]);
 
   const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
-  const metaMensal = latestDay?.meta_mensal_prevista || today?.meta_mensal_prevista || 0;
-  const superMetaMensal = [...monthData].reverse().find(d => Number(d.super_meta_mensal) > 0)?.super_meta_mensal || today?.super_meta_mensal || 0;
+  const metaMensal = latestDay?.meta_mensal_prevista || 0;
+  const superMetaMensal = [...monthData].reverse().find(d => Number(d.super_meta_mensal) > 0)?.super_meta_mensal || 0;
   const metaRealizada = monthRealized;
   const metaPct = metaMensal > 0 ? Math.min((metaRealizada / metaMensal) * 100, 100) : 0;
   const superMetaPct = Number(superMetaMensal) > 0 ? Math.min((metaRealizada / Number(superMetaMensal)) * 100, 100) : 0;
@@ -612,4 +612,5 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
 
