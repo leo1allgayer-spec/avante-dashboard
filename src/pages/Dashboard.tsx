@@ -86,6 +86,7 @@ const Dashboard = () => {
   const syncSheets = useSyncSheets();
   const { toast } = useToast();
   const [historyOpen, setHistoryOpen] = useState(false);
+  const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
 
   const SERVICOS = ["Tráfego", "Captação", "Site", "Upsell", "CRM"];
   const serviceStats = useMemo(() => {
