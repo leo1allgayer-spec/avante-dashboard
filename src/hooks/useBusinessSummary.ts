@@ -72,6 +72,7 @@ export function useBusinessSummary(filter: BusinessSummaryFilter) {
   const mqlTotal = monthData.reduce((s, d) => s + Number(d.lead_mql || 0), 0);
   const adsTotal = monthData.reduce((s, d) => s + Number(d.ads || 0), 0);
   const cursosFeitos = cursosDados.length;
+  const totalCursoFeito = cursosFeitos;
   const cursosMarcados = approvedVendas.filter((v) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)))).length;
 
   const coletadoMes = fechamentosMes.reduce((s, item) => s + Number(item.valor_sinal || 0), 0);
