@@ -68,7 +68,7 @@ const Dashboard = () => {
     totalLeads,
     totalMql,
     totalAds,
-    totalCursoFeito,
+    cursosFeitos,
     totalCursoMarcado,
     coletadoMes,
     aReceberMes,
@@ -519,7 +519,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Cursos Feitos</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-success leading-none tabular-nums">
-                <CountUp end={totalCursoFeito} duration={2} />
+                <CountUp end={cursosFeitos} duration={2} />
               </p>
             </motion.div>
           </div>

@@ -121,6 +121,7 @@ export function useBusinessSummary(filter: BusinessSummaryFilter) {
     totalMql,
     totalAds,
     totalCursoFeito,
+    cursosFeitos,
     totalCursoMarcado,
     coletadoMes,
     aReceberMes,
