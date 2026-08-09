@@ -89,7 +89,7 @@ export function useBusinessSummary(filter: BusinessSummaryFilter) {
     return s;
   }, 0);
 
-  const monthRealized = vendasTotal;
+  const monthRealized = monthData.reduce((s, d) => s + Number(d.faturamento_dia || 0), 0);
   const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
   const metaMensal = latestDay?.meta_mensal_prevista || 0;
   const superMetaMensal = [...monthData].reverse().find((d) => Number(d.super_meta_mensal) > 0)?.super_meta_mensal || 0;
@@ -100,7 +100,7 @@ export function useBusinessSummary(filter: BusinessSummaryFilter) {
   const avgCac = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + Number(d.cac || 0), 0) / (daysWithData.filter((d) => Number(d.cac) > 0).length || 1) : 0;
   const avgCpl = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + Number(d.custo_por_lead || 0), 0) / (daysWithData.filter((d) => Number(d.custo_por_lead) > 0).length || 1) : 0;
   const convRate = leadsTotal > 0 ? ((mqlTotal / leadsTotal) * 100) : 0;
-  const totalFatMarcado = aReceberMes;
+  const totalFatMarcado = monthData.reduce((s, d) => s + Number(d.faturamento_marcado || 0), 0);
   const totalCursoMarcado = cursosMarcados;
   const totalLeads = leadsTotal;
   const totalMql = mqlTotal;
