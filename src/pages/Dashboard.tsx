@@ -5,6 +5,7 @@ import { useDateFilter } from "@/hooks/useDateFilter";
 import { useDeleteMetrics } from "@/hooks/useMetrics";
 import { useBusinessSummary } from "@/hooks/useBusinessSummary";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
+import { useMetaAds } from "@/hooks/useMetaAds";
 import { SERVICE_CATEGORIES, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
@@ -87,6 +88,19 @@ const Dashboard = () => {
   const { toast } = useToast();
   const [historyOpen, setHistoryOpen] = useState(false);
   const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
+  const metaAdsFilters = useMemo(() => ({
+    datePreset: "custom" as const,
+    since: filter.range.start,
+    until: filter.range.end,
+  }), [filter.range.start, filter.range.end]);
+  const { data: metaAdsMonth } = useMetaAds(metaAdsFilters);
+  const selectedMonthAds = useMemo(() => {
+    const dailyInsights = metaAdsMonth?.dailyInsights || [];
+    if (dailyInsights.length > 0) {
+      return dailyInsights.reduce((total, day) => total + Number(day.spend || 0), 0);
+    }
+    return totalAds;
+  }, [metaAdsMonth, totalAds]);
   const registeredVendas = useMemo(
     () => vendasData.filter((venda) => normalizeText(venda.status) !== "cancelada"),
     [vendasData],
@@ -128,6 +142,23 @@ const Dashboard = () => {
     return stats;
   }, [registeredVendas]);
 
+  const collectedCategoryStats = useMemo(() => {
+    const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, 0]));
+    for (const fechamento of fechamentosMes) {
+      if (normalizeText(fechamento.status) === "cancelado") continue;
+      if (fechamento.data < filter.range.start || fechamento.data > filter.range.end) continue;
+      const category = canonicalizeSaleCategory(fechamento.categoria || fechamento.produto_servico);
+      if (stats.has(category)) {
+        stats.set(category, (stats.get(category) || 0) + Number(fechamento.valor_sinal || 0));
+      }
+    }
+    return stats;
+  }, [fechamentosMes, filter.range.start, filter.range.end]);
+  const collectedTotal = useMemo(
+    () => Array.from(collectedCategoryStats.values()).reduce((total, value) => total + value, 0),
+    [collectedCategoryStats],
+  );
+
   // ROAS por categoria
   const roasValues = useMemo(() => {
     const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
@@ -140,16 +171,16 @@ const Dashboard = () => {
     const faturamentoSemServicos = Math.max(monthRealized - serviceStats.total, 0) + totalFatMarcado;
     const fatTotal = faturamentoSemServicos + serviceStats.total;
     return {
-      geral: totalAds > 0 ? fatTotal / totalAds : 0,
-      faturamento: totalAds > 0 ? faturamentoSemServicos / totalAds : 0,
-      servicos: totalAds > 0 ? serviceStats.total / totalAds : 0,
-      trafego: totalAds > 0 ? servicoByType["Tráfego"] / totalAds : 0,
-      captacao: totalAds > 0 ? servicoByType["Captação"] / totalAds : 0,
-      site: totalAds > 0 ? servicoByType["Site"] / totalAds : 0,
-      upsell: totalAds > 0 ? servicoByType["Upsell"] / totalAds : 0,
-      crm: totalAds > 0 ? servicoByType["CRM"] / totalAds : 0,
+      geral: selectedMonthAds > 0 ? fatTotal / selectedMonthAds : 0,
+      faturamento: selectedMonthAds > 0 ? faturamentoSemServicos / selectedMonthAds : 0,
+      servicos: selectedMonthAds > 0 ? serviceStats.total / selectedMonthAds : 0,
+      trafego: selectedMonthAds > 0 ? servicoByType["Tráfego"] / selectedMonthAds : 0,
+      captacao: selectedMonthAds > 0 ? servicoByType["Captação"] / selectedMonthAds : 0,
+      site: selectedMonthAds > 0 ? servicoByType["Site"] / selectedMonthAds : 0,
+      upsell: selectedMonthAds > 0 ? servicoByType["Upsell"] / selectedMonthAds : 0,
+      crm: selectedMonthAds > 0 ? servicoByType["CRM"] / selectedMonthAds : 0,
     };
-  }, [monthRealized, totalFatMarcado, serviceStats, totalAds, approvedVendas]);
+  }, [monthRealized, totalFatMarcado, serviceStats, selectedMonthAds, approvedVendas]);
 
   const roasLabels: Record<string, string> = {
     geral: "Geral",
@@ -184,8 +215,8 @@ const Dashboard = () => {
       if (roasFilter.includes("upsell")) numerator += servicoByType["Upsell"];
       if (roasFilter.includes("crm")) numerator += servicoByType["CRM"];
     }
-    return totalAds > 0 ? numerator / totalAds : 0;
-  }, [roasFilter, roasValues, approvedVendas, monthRealized, totalFatMarcado, serviceStats, totalAds]);
+    return selectedMonthAds > 0 ? numerator / selectedMonthAds : 0;
+  }, [roasFilter, roasValues, approvedVendas, monthRealized, totalFatMarcado, serviceStats, selectedMonthAds]);
 
   const handleSync = () => {
     syncSheets.mutate(undefined, {
@@ -453,7 +484,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Investido (ADS)</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={daysWithData.reduce((s, d) => s + Number(d.ads || 0), 0)} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={selectedMonthAds} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
             </motion.div>
           </div>
@@ -465,22 +496,37 @@ const Dashboard = () => {
                 <Briefcase className="h-3.5 w-3.5 text-accent/60" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Total vendido</p>
               </div>
-              <p className="font-display text-xl sm:text-2xl font-bold text-accent leading-none tabular-nums">
-                <CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
-              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground/50 mb-1">Vendido</p>
+                  <p className="font-display text-lg sm:text-xl font-bold text-accent leading-none tabular-nums"><CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} /></p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground/50 mb-1">Coletado</p>
+                  <p className="font-display text-lg sm:text-xl font-bold text-success leading-none tabular-nums"><CountUp end={collectedTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} /></p>
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground/40 mt-1">{registeredVendas.length} vendas</p>
             </motion.div>
             {SERVICE_CATEGORIES.map((category) => {
               const st = salesCategoryStats.get(category) || { count: 0, valor: 0 };
+              const collected = collectedCategoryStats.get(category) || 0;
               return (
                 <motion.div key={category} variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
                   <div className="flex items-center gap-2 mb-3">
                     <Briefcase className="h-3.5 w-3.5 text-muted-foreground/50" />
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">{category}</p>
                   </div>
-                  <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
-                    <CountUp end={st.valor} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
-                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider text-muted-foreground/50 mb-1">Vendido</p>
+                      <p className="font-display text-lg sm:text-xl font-bold text-foreground leading-none tabular-nums"><CountUp end={st.valor} duration={2} prefix="R$" separator="." decimal="," decimals={0} /></p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider text-muted-foreground/50 mb-1">Coletado</p>
+                      <p className="font-display text-lg sm:text-xl font-bold text-success leading-none tabular-nums"><CountUp end={collected} duration={2} prefix="R$" separator="." decimal="," decimals={0} /></p>
+                    </div>
+                  </div>
                   <p className="text-xs text-muted-foreground/40 mt-1">{st.count} vendas</p>
                 </motion.div>
               );
