@@ -921,9 +921,10 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Produto</Label>
-              <Select value={form.produto} onValueChange={(v) => setForm((p) => ({ ...p, produto: v }))}>
+              <Select value={form.produto || "__none__"} onValueChange={(v) => setForm((p) => ({ ...p, produto: v === "__none__" ? "" : v }))}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Nenhum produto</SelectItem>
                   {PRODUTOS.map((p) => (
                     <SelectItem key={p} value={p}>{p}</SelectItem>
                   ))}
@@ -932,9 +933,10 @@ const VendasPage = () => {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Serviço</Label>
-              <Select value={form.servico} onValueChange={(v) => setForm((p) => ({ ...p, servico: v }))}>
+              <Select value={form.servico || "__none__"} onValueChange={(v) => setForm((p) => ({ ...p, servico: v === "__none__" ? "" : v }))}>
                 <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o serviço" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Nenhum serviço</SelectItem>
                   {SERVICOS.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
@@ -1196,9 +1198,10 @@ const VendasPage = () => {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Produto</Label>
-                          <Select value={item.produto} onValueChange={(produto) => updateVendaItem(index, { produto })}>
+                          <Select value={item.produto || "__none__"} onValueChange={(produto) => updateVendaItem(index, { produto: produto === "__none__" ? "" : produto })}>
                             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="__none__">Nenhum produto</SelectItem>
                               {PRODUTOS.map((produto) => <SelectItem key={produto} value={produto}>{produto}</SelectItem>)}
                             </SelectContent>
                           </Select>
@@ -1206,9 +1209,10 @@ const VendasPage = () => {
 
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Servico</Label>
-                          <Select value={item.servico} onValueChange={(servico) => updateVendaItem(index, { servico })}>
+                          <Select value={item.servico || "__none__"} onValueChange={(servico) => updateVendaItem(index, { servico: servico === "__none__" ? "" : servico })}>
                             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="__none__">Nenhum serviço</SelectItem>
                               {SERVICOS.map((servico) => <SelectItem key={servico} value={servico}>{servico}</SelectItem>)}
                             </SelectContent>
                           </Select>
