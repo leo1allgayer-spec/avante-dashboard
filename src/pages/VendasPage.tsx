@@ -226,6 +226,7 @@ const VendasPage = () => {
   const [taxProfile, setTaxProfile] = useState<TaxProfile>("opcao1");
   const [quickPayments, setQuickPayments] = useState<Record<string, string>>({});
   const [quickCardInstallments, setQuickCardInstallments] = useState<Record<string, string>>({});
+  const [quickPaymentAmounts, setQuickPaymentAmounts] = useState<Record<string, string>>({});
   const [settlingSaleKey, setSettlingSaleKey] = useState<string | null>(null);
 
   const [form, setForm] = useState({ ...defaultForm });
@@ -394,20 +395,35 @@ const VendasPage = () => {
     const usedFechamentos = new Set<string>();
     const usedCriativos = new Set<string>();
 
+    const linkedItems = items.map((venda) => {
+      const categoria = getVendaCategoria(venda);
+      const fechamento = fechamentos.find((item) =>
+        !usedFechamentos.has(item.id) &&
+        item.data === venda.data &&
+        item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+        item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
+        getFechamentoCategoria(item) === categoria
+      ) || null;
+      if (fechamento) usedFechamentos.add(fechamento.id);
+      return { venda, categoria, fechamento };
+    });
+    usedFechamentos.clear();
+
+    const groupBalance = linkedItems.reduce((total, { venda, fechamento }) =>
+      total + Math.max(0, Number(venda.valor || 0) - Number(fechamento?.valor_sinal || 0)), 0);
+    const requestedAmount = Number(String(quickPaymentAmounts[saleKey] || "").replace(",", "."));
+    const paymentAmount = Number.isFinite(requestedAmount) && requestedAmount > 0 ? requestedAmount : groupBalance;
+    if (paymentAmount <= 0 || paymentAmount > groupBalance) {
+      toast({ title: "Valor inválido", description: `Informe um valor entre R$ 0,01 e ${formatBRL(groupBalance)}.`, variant: "destructive" });
+      return;
+    }
+
     try {
       setSettlingSaleKey(saleKey);
       const updates: Promise<unknown>[] = [];
+      let remainingPayment = paymentAmount;
 
-      items.forEach((venda) => {
-        const categoria = getVendaCategoria(venda);
-        const fechamento = fechamentos.find((item) =>
-          !usedFechamentos.has(item.id) &&
-          item.data === venda.data &&
-          item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
-          item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
-          getFechamentoCategoria(item) === categoria,
-        );
-        if (fechamento) usedFechamentos.add(fechamento.id);
+      linkedItems.forEach(({ venda, categoria, fechamento }) => {
 
         const criativo = criativosVendas.find((item) =>
           !usedCriativos.has(item.id) &&
@@ -418,22 +434,28 @@ const VendasPage = () => {
         if (criativo) usedCriativos.add(criativo.id);
 
         const valorTotal = Number(venda.valor || 0);
+        const valorJaColetado = Math.min(valorTotal, Number(fechamento?.valor_sinal || 0));
+        const saldoItem = Math.max(0, valorTotal - valorJaColetado);
+        const baixaItem = Math.min(saldoItem, remainingPayment);
+        remainingPayment -= baixaItem;
+        const novoColetado = valorJaColetado + baixaItem;
+        const novoSaldo = Math.max(0, valorTotal - novoColetado);
         updates.push(updateVenda.mutateAsync({
           id: venda.id,
           pagamento_saldo: paymentLabel,
-          comissao: +(valorTotal * 0.15).toFixed(2),
-          status: "aprovada",
+          comissao: +(novoColetado * 0.15).toFixed(2),
+          status: novoSaldo <= 0 ? "aprovada" : "pendente",
         }));
 
         const fechamentoPayload = {
-          valor_sinal: valorTotal,
-          valor_a_entrar: 0,
+          valor_sinal: novoColetado,
+          valor_a_entrar: novoSaldo,
           valor_recorrente: 0,
           parcelas_total: null,
           valor_parcela: 0,
-          previsao_entrada: null,
+          previsao_entrada: novoSaldo <= 0 ? null : (fechamento?.previsao_entrada || venda.data),
           parcelas_datas: [],
-          status: "recebido",
+          status: novoSaldo <= 0 ? "recebido" : "a receber",
           pagamento_saldo: paymentLabel,
         };
         if (fechamento) {
@@ -452,11 +474,15 @@ const VendasPage = () => {
             pagamento_sinal: null,
           }));
         }
-        if (criativo) updates.push(updateCriativoVenda.mutateAsync({ id: criativo.id, sinal: valorTotal }));
+        if (criativo) updates.push(updateCriativoVenda.mutateAsync({ id: criativo.id, sinal: novoColetado }));
       });
 
       await Promise.all(updates);
-      toast({ title: "Saldo quitado", description: `Pagamento registrado como ${paymentLabel}.` });
+      setQuickPaymentAmounts((current) => ({ ...current, [saleKey]: "" }));
+      toast({
+        title: paymentAmount >= groupBalance ? "Saldo quitado" : "Pagamento parcial registrado",
+        description: `${formatBRL(paymentAmount)} recebido via ${paymentLabel}.`,
+      });
     } catch (error) {
       toast({ title: "Erro ao quitar saldo", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     } finally {
@@ -1779,6 +1805,16 @@ const VendasPage = () => {
                         {grupo.saldo > 0 ? (
                           <div className="mt-3 space-y-1.5 border-t border-border/20 pt-2">
                             <p className="text-[11px] font-medium text-amber-500">Quitar {formatBRL(grupo.saldo)}</p>
+                            <Input
+                              type="number"
+                              min="0.01"
+                              max={grupo.saldo}
+                              step="0.01"
+                              value={quickPaymentAmounts[grupo.chave] || ""}
+                              onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))}
+                              placeholder={`Valor recebido (até ${formatBRL(grupo.saldo)})`}
+                              className="h-7 border-border/30 bg-secondary/30 text-xs"
+                            />
                             <Select
                               value={quickPayments[grupo.chave] || "PIX"}
                               onValueChange={(value) => setQuickPayments((current) => ({ ...current, [grupo.chave]: value }))}
@@ -1811,7 +1847,7 @@ const VendasPage = () => {
                               disabled={settlingSaleKey === grupo.chave}
                               onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}
                             >
-                              {settlingSaleKey === grupo.chave ? "Salvando..." : "Marcar como pago"}
+                              {settlingSaleKey === grupo.chave ? "Salvando..." : "Registrar pagamento"}
                             </Button>
                           </div>
                         ) : (
