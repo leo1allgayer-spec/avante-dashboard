@@ -113,6 +113,8 @@ export function useSurveyInsights() {
         resumo_ia: string;
       };
     },
-    staleTime: 5 * 60 * 1000, // 5 min cache
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    retry: false,
   });
 }

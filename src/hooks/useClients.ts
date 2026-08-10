@@ -42,6 +42,20 @@ export function useClients() {
   });
 }
 
+export function useClientAnalysisData() {
+  return useQuery({
+    queryKey: ["clients", "student-analysis"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, valor, consultor");
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCreateClient() {
   const queryClient = useQueryClient();
   return useMutation({

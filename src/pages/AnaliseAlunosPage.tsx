@@ -1,5 +1,5 @@
 import { useSurveyResponses, useSurveyInsights, useUpdateSurveyResponse, useDeleteSurveyResponse, type SurveyResponse } from "@/hooks/useSurveyInsights";
-import { useClients } from "@/hooks/useClients";
+import { useClientAnalysisData } from "@/hooks/useClients";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import { motion, AnimatePresence } from "framer-motion";
@@ -210,7 +210,7 @@ const AlunoExpandRow = ({
 const AnaliseAlunosPage = () => {
   const { data: responses, isLoading: loadingResponses } = useSurveyResponses();
   const { data: insights, isLoading: loadingInsights } = useSurveyInsights();
-  const { data: clients, isLoading: loadingClients } = useClients();
+  const { data: clients, isLoading: loadingClients } = useClientAnalysisData();
   const updateSurveyResponse = useUpdateSurveyResponse();
   const deleteSurveyResponse = useDeleteSurveyResponse();
   const queryClient = useQueryClient();
@@ -228,7 +228,9 @@ const AnaliseAlunosPage = () => {
     toast({ title: `${label} copiado!` });
   };
 
-  const isLoading = loadingResponses || loadingInsights || loadingClients;
+  // The AI summary can take several seconds. It loads in the background and
+  // must not block the dashboard metrics that are already available.
+  const isLoading = loadingResponses || loadingClients;
   const allData = responses || [];
   const data = useMemo(() => {
     return allData.filter((r: any) => {
@@ -395,7 +397,7 @@ const AnaliseAlunosPage = () => {
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
               queryClient.invalidateQueries({ queryKey: ["survey-responses"] });
               queryClient.invalidateQueries({ queryKey: ["survey-insights"] });
-              queryClient.invalidateQueries({ queryKey: ["clients"] });
+              queryClient.invalidateQueries({ queryKey: ["clients", "student-analysis"] });
             }}>
               <RefreshCw className="h-3.5 w-3.5" />
             </Button>
@@ -742,6 +744,15 @@ const AnaliseAlunosPage = () => {
             </motion.div>
 
             {/* AI Summary */}
+            {loadingInsights && (
+              <motion.div variants={item} className="rounded-2xl p-5" style={cardStyle}>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                  Preparando o resumo da IA em segundo plano...
+                </div>
+              </motion.div>
+            )}
+
             {insights?.resumo_ia && (
               <motion.div variants={item} className="rounded-2xl p-5 relative overflow-hidden" style={cardStyle}>
                 <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-[0.05] blur-[60px] pointer-events-none bg-accent" />
