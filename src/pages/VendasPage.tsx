@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CalendarClock, Clock3, Layers3, Pencil, Plus, Search, Trash2, TrendingUp, Wallet } from "lucide-react";
-import { COURSE_PRODUCTS, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
+import { COURSE_PRODUCTS, GENERAL_SERVICE_OPTIONS, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 
 
 const PRODUTOS = COURSE_PRODUCTS;
@@ -568,7 +568,7 @@ const VendasPage = () => {
 
   const metasPrincipais = useMemo(() => {
     const rows = monthMetrics || [];
-    const lastWithTarget = (keys: Array<"meta_cursos" | "super_meta_cursos" | "meta_site" | "super_meta_site" | "meta_negocio_local" | "super_meta_negocio_local" | "meta_crm" | "super_meta_crm" | "meta_upsell" | "super_meta_upsell">) => {
+    const lastWithTarget = (keys: Array<"meta_cursos" | "super_meta_cursos" | "meta_servicos" | "super_meta_servicos" | "meta_site" | "super_meta_site" | "meta_negocio_local" | "super_meta_negocio_local" | "meta_crm" | "super_meta_crm" | "meta_upsell" | "super_meta_upsell">) => {
       for (const key of keys) {
         const found = [...rows].reverse().find((item) => Number(item?.[key] || 0) > 0);
         if (found) return Number(found[key] || 0);
@@ -579,13 +579,12 @@ const VendasPage = () => {
     const metas = {
       cursosMarcados: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
       cursosFeitos: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
+      servicos: lastWithTarget(["meta_servicos", "super_meta_servicos"]),
       site: lastWithTarget(["meta_site", "super_meta_site"]),
       negocioLocal: lastWithTarget(["meta_negocio_local", "super_meta_negocio_local"]),
       crm: lastWithTarget(["meta_crm", "super_meta_crm"]),
       upsell: lastWithTarget(["meta_upsell", "super_meta_upsell"]),
     };
-
-    const metaServicos = metas.site + metas.negocioLocal + metas.crm;
 
     const cursosFeitosPeriodo = cursosDados.filter((item) => item.data >= dateFilter.range.start && item.data <= dateFilter.range.end);
 
@@ -596,7 +595,7 @@ const VendasPage = () => {
     const counts = {
       cursosMarcados: vendasRegistradas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
       cursosFeitos: cursosFeitosPeriodo.filter((item) => !!item.survey_response_id).length,
-      servicos: vendasRegistradas.filter((venda) => SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
+      servicos: vendasRegistradas.filter((venda) => GENERAL_SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
       site: countRegisteredSales("Desenvolvimento de Site"),
       negocioLocal: countRegisteredSales("Captacao/Edicao de Conteudo"),
       crm: countRegisteredSales("CRM/Treinamento Comercial"),
@@ -606,7 +605,7 @@ const VendasPage = () => {
     return [
       { label: "Cursos marcados", atual: counts.cursosMarcados, meta: metas.cursosMarcados },
       { label: "Cursos feitos", atual: counts.cursosFeitos, meta: metas.cursosFeitos },
-      { label: "Serviços", atual: counts.servicos, meta: metaServicos },
+      { label: "Serviços", atual: counts.servicos, meta: metas.servicos },
       { label: "Site", atual: counts.site, meta: metas.site },
       { label: "Captação", atual: counts.negocioLocal, meta: metas.negocioLocal },
       { label: "CRM", atual: counts.crm, meta: metas.crm },

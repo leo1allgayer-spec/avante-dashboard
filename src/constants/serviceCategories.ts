@@ -10,10 +10,18 @@ export const COURSE_PRODUCTS = [
 export const SERVICE_OPTIONS = [
   "Mentoria Meta Ads",
   "Assessoria 360",
-  "Gestao de Trafego",
+  "Gestão de Tráfego Pago - Meta Ads",
+  "Gestão de Tráfego Pago - Google Ads",
   "Captacao/Edicao de Conteudo",
   "CRM/Treinamento Comercial",
   "Desenvolvimento de Site",
+];
+
+export const GENERAL_SERVICE_OPTIONS = [
+  "Assessoria 360",
+  "Gestão de Tráfego Pago - Meta Ads",
+  "Gestão de Tráfego Pago - Google Ads",
+  "Mentoria Meta Ads",
 ];
 
 export const SERVICE_CATEGORIES = [...COURSE_PRODUCTS, ...SERVICE_OPTIONS];
@@ -34,7 +42,8 @@ const CATEGORY_ALIASES: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "Curso Captacao/Edicao", aliases: ["curso captacao/edicao", "curso captacao/edicao de conteudo", "captacao/edicao", "captacao/edicao de conteudo"] },
   { canonical: "Mentoria Meta Ads", aliases: ["mentoria meta ads"] },
   { canonical: "Assessoria 360", aliases: ["assessoria 360"] },
-  { canonical: "Gestao de Trafego", aliases: ["gestao de trafego", "trafego", "tráfego"] },
+  { canonical: "Gestão de Tráfego Pago - Meta Ads", aliases: ["gestao de trafego", "gestao de trafego pago", "gestao de trafego pago - meta ads", "trafego", "tráfego", "meta ads"] },
+  { canonical: "Gestão de Tráfego Pago - Google Ads", aliases: ["gestao de trafego pago - google ads", "gestao google ads", "tráfego google ads"] },
   { canonical: "Captacao/Edicao de Conteudo", aliases: ["captacao/edicao de conteudo", "captacao", "captação", "captação/edição de conteúdo"] },
   { canonical: "CRM/Treinamento Comercial", aliases: ["crm/treinamento comercial", "crm", "treinamento comercial"] },
   { canonical: "Desenvolvimento de Site", aliases: ["desenvolvimento de site", "site"] },
