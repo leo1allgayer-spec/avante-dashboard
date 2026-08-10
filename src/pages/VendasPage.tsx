@@ -276,7 +276,8 @@ const VendasPage = () => {
   const filtered = useMemo(() => {
     return vendas.filter((v) => {
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
-      if (statusFilter !== "todos" && v.status !== statusFilter) return false;
+      if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
+      if ((statusFilter === "paga" || statusFilter === "pendente") && v.status === "cancelada") return false;
       if (vendedorFilter !== "todos" && v.vendedor !== vendedorFilter) return false;
       if (pagamentoFilter !== "todos" && v.pagamento !== pagamentoFilter) return false;
       if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
@@ -355,8 +356,12 @@ const VendasPage = () => {
         saldo: Math.max(0, valorTotal - sinal),
         comissao: +(sinal * 0.15).toFixed(2),
       };
+    }).filter((grupo) => {
+      if (statusFilter === "paga") return grupo.saldo <= 0;
+      if (statusFilter === "pendente") return grupo.saldo > 0;
+      return true;
     });
-  }, [filtered, fechamentosFiltrados, taxProfile]);
+  }, [filtered, fechamentosFiltrados, taxProfile, statusFilter]);
 
   const getItemValores = (item: VendaItemForm) => {
     const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
@@ -1616,7 +1621,7 @@ const VendasPage = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos os Status</SelectItem>
-              <SelectItem value="aprovada">Aprovada</SelectItem>
+              <SelectItem value="paga">Pagas</SelectItem>
               <SelectItem value="pendente">Pendente</SelectItem>
               <SelectItem value="cancelada">Cancelada</SelectItem>
             </SelectContent>
