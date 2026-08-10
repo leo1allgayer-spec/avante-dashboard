@@ -501,6 +501,7 @@ const VendasPage = () => {
   };
 
   const vendasAprovadas = useMemo(() => filtered.filter((v) => v.status === "aprovada"), [filtered]);
+  const vendasRegistradas = useMemo(() => filtered.filter((v) => v.status !== "cancelada"), [filtered]);
 
   const fechamentoTotals = useMemo(() => {
     const ativos = fechamentosFiltrados.filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado");
@@ -586,13 +587,17 @@ const VendasPage = () => {
 
     const cursosFeitosPeriodo = cursosDados.filter((item) => item.data >= dateFilter.range.start && item.data <= dateFilter.range.end);
 
+    const countRegisteredSales = (category: string) => vendasRegistradas.filter(
+      (venda) => normalizeText(getVendaCategoria(venda)) === normalizeText(category),
+    ).length;
+
     const counts = {
-      cursosMarcados: vendasAprovadas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
-      cursosFeitos: cursosFeitosPeriodo.length,
-      site: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Desenvolvimento de Site"))?.vendas || 0,
-      negocioLocal: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Captacao/Edicao de Conteudo"))?.vendas || 0,
-      crm: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("CRM/Treinamento Comercial"))?.vendas || 0,
-      upsell: integratedCategoryRows.find((row) => normalizeText(row.categoria) === normalizeText("Upsell"))?.vendas || 0,
+      cursosMarcados: vendasRegistradas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
+      cursosFeitos: cursosFeitosPeriodo.filter((item) => !!item.survey_response_id).length,
+      site: countRegisteredSales("Desenvolvimento de Site"),
+      negocioLocal: countRegisteredSales("Captacao/Edicao de Conteudo"),
+      crm: countRegisteredSales("CRM/Treinamento Comercial"),
+      upsell: countRegisteredSales("Upsell"),
     };
 
     return [
@@ -603,7 +608,7 @@ const VendasPage = () => {
       { label: "CRM", atual: counts.crm, meta: metas.crm },
       { label: "Upsell", atual: counts.upsell, meta: metas.upsell },
     ];
-  }, [monthMetrics, vendasAprovadas, cursosDados, dateFilter.range.start, dateFilter.range.end, integratedCategoryRows]);
+  }, [monthMetrics, vendasRegistradas, cursosDados, dateFilter.range.start, dateFilter.range.end]);
 
   const renameCategoryFechamentos = async (categoria: string, items: FechamentoDiario[]) => {
     if (items.length === 0) {

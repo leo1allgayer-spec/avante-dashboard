@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -273,7 +272,7 @@ const PesquisaPage = () => {
   if (submitted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-4 max-w-md">
+        <div className="text-center space-y-4 max-w-md">
           <div className="w-20 h-20 rounded-full bg-accent/20 flex items-center justify-center mx-auto">
             <CheckCircle2 className="h-10 w-10 text-accent" />
           </div>
@@ -284,7 +283,7 @@ const PesquisaPage = () => {
               Entrar no grupo da comunidade
             </a>
           </Button>
-        </motion.div>
+        </div>
       </div>
     );
   }
@@ -310,9 +309,8 @@ const PesquisaPage = () => {
 
       {/* Form Content */}
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-6">
-        <AnimatePresence mode="wait">
-          {step === 0 && (
-            <motion.div key="step0" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
+        {step === 0 && (
+            <div className="space-y-5">
               <p className="text-sm text-muted-foreground">Informações para matrícula</p>
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">Nome completo *</Label>
@@ -370,11 +368,11 @@ const PesquisaPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {step === 1 && (
-            <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+            <div className="space-y-6">
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-2 block">Como você conheceu a Avante? *</Label>
                 <RadioGroup options={COMO_CONHECEU} value={form.como_conheceu} onChange={(v) => set("como_conheceu", v)} name="como_conheceu" />
@@ -403,11 +401,11 @@ const PesquisaPage = () => {
                 <Label className="text-sm font-semibold text-foreground mb-2 block">Qual foi a sua principal dificuldade ou dor antes de procurar o curso?</Label>
                 <Textarea value={form.dor_principal} onChange={(e) => set("dor_principal", e.target.value)} placeholder="O que você queria resolver?" className="bg-secondary/30 border-border/40" rows={3} />
               </div>
-            </motion.div>
+            </div>
           )}
 
           {step === 2 && (
-            <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+            <div className="space-y-6">
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-2 block">Em quanto tempo você foi atendido(a) após o primeiro contato? *</Label>
                 <RadioGroup options={TEMPO_ATENDIMENTO} value={form.tempo_atendimento} onChange={(v) => set("tempo_atendimento", v)} name="tempo_atendimento" />
@@ -448,9 +446,8 @@ const PesquisaPage = () => {
                 <Label className="text-sm font-semibold text-foreground mb-2 block">Você conhece alguém que indicaria este curso? *</Label>
                 <RadioGroup options={["Sim", "Não"]} value={form.indicaria_alguem} onChange={(v) => set("indicaria_alguem", v)} name="indicaria" />
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
       </div>
 
       {/* Footer nav */}
