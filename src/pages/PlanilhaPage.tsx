@@ -5,8 +5,7 @@ import type { TablesInsert } from "@/integrations/supabase/types";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, RefreshCw, Loader2, Trash2, Plus } from "lucide-react";
-import { useSyncSheets } from "@/hooks/useSyncSheets";
+import { ChevronLeft, ChevronRight, Trash2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -180,7 +179,6 @@ const EditableCell = ({
 const PlanilhaPage = () => {
   const [year, setYear] = useState<number | null>(null);
   const [month, setMonth] = useState<number | null>(null);
-  const syncSheets = useSyncSheets();
   const { toast } = useToast();
   const { session, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -188,11 +186,11 @@ const PlanilhaPage = () => {
 
   // Auto-detect latest month with data
    const { data: availableMonths } = useQuery({
-    queryKey: ["daily-metrics", "available-months"],
+    queryKey: ["planilha-metrics", "available-months"],
     enabled: !!currentUserId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("daily_metrics")
+        .from("planilha_daily_metrics")
         .select("date")
         .order("date", { ascending: false });
       if (error) throw error;
@@ -224,7 +222,7 @@ const PlanilhaPage = () => {
       const start = new Date(activeYear, activeMonth, 1).toISOString().split("T")[0];
       const end = new Date(activeYear, activeMonth + 1, 0).toISOString().split("T")[0];
       const { data, error } = await supabase
-        .from("daily_metrics")
+        .from("planilha_daily_metrics")
         .select("id, user_id, updated_at, ads, date, leads, lead_mql, custo_por_lead, custo_por_lead_mql, faturamento_marcado, faturamento_dia, roas, cac, curso_marcado, curso_feito")
         .gte("date", start)
         .lte("date", end)
@@ -289,7 +287,7 @@ const PlanilhaPage = () => {
       }
 
       const updated_at = new Date().toISOString();
-      const payload: TablesInsert<"daily_metrics"> = {
+      const payload: TablesInsert<"planilha_daily_metrics"> = {
         user_id: currentUserId,
         date,
         updated_at,
@@ -332,14 +330,12 @@ const PlanilhaPage = () => {
       }
 
       const { error } = await supabase
-        .from("daily_metrics")
+        .from("planilha_daily_metrics")
         .upsert(payload, { onConflict: "user_id,date" });
 
       if (error) throw error;
 
       queryClient.invalidateQueries({ queryKey: ["planilha-metrics", activeYear, activeMonth] });
-      queryClient.invalidateQueries({ queryKey: ["daily-metrics", "available-months"] });
-      queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
     } catch (err) {
       toast({ title: "Erro ao salvar", description: (err as Error).message, variant: "destructive" });
     }
@@ -353,13 +349,12 @@ const PlanilhaPage = () => {
     try {
       const dates = days.map(d => d.toISOString().split("T")[0]);
       const { error } = await supabase
-        .from("daily_metrics")
+        .from("planilha_daily_metrics")
         .delete()
         .in("date", dates);
       if (error) throw error;
       toast({ title: "Semana apagada com sucesso" });
       queryClient.invalidateQueries({ queryKey: ["planilha-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
     } catch (err) {
       toast({ title: "Erro ao apagar", description: (err as Error).message, variant: "destructive" });
     }
@@ -372,14 +367,13 @@ const PlanilhaPage = () => {
       const start = new Date(activeYear, activeMonth, 1).toISOString().split("T")[0];
       const end = new Date(activeYear, activeMonth + 1, 0).toISOString().split("T")[0];
       const { error } = await supabase
-        .from("daily_metrics")
+        .from("planilha_daily_metrics")
         .delete()
         .gte("date", start)
         .lte("date", end);
       if (error) throw error;
       toast({ title: `${MONTH_NAMES[activeMonth]} apagado com sucesso` });
       queryClient.invalidateQueries({ queryKey: ["planilha-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
     } catch (err) {
       toast({ title: "Erro ao apagar", description: (err as Error).message, variant: "destructive" });
     }
@@ -401,12 +395,11 @@ const PlanilhaPage = () => {
         return;
       }
       const { error } = await supabase
-        .from("daily_metrics")
+        .from("planilha_daily_metrics")
         .upsert(rows, { onConflict: "user_id,date" });
       if (error) throw error;
       toast({ title: `${rows.length} dias adicionados` });
       queryClient.invalidateQueries({ queryKey: ["planilha-metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
     } catch (err) {
       toast({ title: "Erro ao adicionar", description: (err as Error).message, variant: "destructive" });
     }
@@ -426,13 +419,6 @@ const PlanilhaPage = () => {
   const goToNextMonth = () => {
     if (activeMonth === 11) { setMonth(0); setYear((activeYear) + 1); }
     else setMonth(activeMonth + 1);
-  };
-
-  const handleSync = () => {
-    syncSheets.mutate(undefined, {
-      onSuccess: (data) => toast({ title: "Sincronizado!", description: `${data.imported} dias importados.` }),
-      onError: (err) => toast({ title: "Erro", description: (err as Error).message, variant: "destructive" }),
-    });
   };
 
   const weekLabels = ["PRIMEIRA", "SEGUNDA", "TERCEIRA", "QUARTA", "QUINTA", "SEXTA"];
@@ -473,9 +459,6 @@ const PlanilhaPage = () => {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground" onClick={handleSync} disabled={syncSheets.isPending}>
-              {syncSheets.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            </Button>
           </div>
         }
       >
@@ -508,8 +491,6 @@ const PlanilhaPage = () => {
         <div className="space-y-6">
           {weeks.map((week, wi) => {
             const weekRows = week.days.map((d) => dataMap[d.toISOString().split("T")[0]]).filter(Boolean) as MetricRow[];
-
-            const hasData = weekRows.length > 0;
 
             const totals: Record<string, number> = {};
             COLUMNS.forEach((col) => {
@@ -550,7 +531,6 @@ const PlanilhaPage = () => {
                   </div>
                 </div>
 
-                {hasData && (
                 <div className="w-full min-w-0 overflow-hidden [&>div]:w-full [&>div]:overflow-hidden">
                   <Table className="w-full max-w-full table-fixed text-[11px] [&_th]:h-auto [&_th]:whitespace-normal [&_th]:break-words [&_th]:px-1 [&_th]:py-2 [&_td]:px-1">
                     <colgroup>
@@ -621,13 +601,12 @@ const PlanilhaPage = () => {
                     </TableBody>
                   </Table>
                 </div>
-                )}
               </div>
             );
           })}
 
           {/* Monthly grand total */}
-          {allData && allData.length > 0 && (() => {
+          {(() => {
             const uniqueRows = Object.values(dataMap);
             const t: Record<string, number> = {};
             COLUMNS.forEach((col) => {
@@ -669,43 +648,6 @@ const PlanilhaPage = () => {
             );
           })()}
 
-          {(!allData || allData.length === 0) && (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-sm">Nenhum dado para {MONTH_NAMES[activeMonth]} {activeYear}</p>
-              <p className="text-xs mt-1 mb-4">Crie a planilha para começar a inserir dados</p>
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={async () => {
-                  if (!currentUserId) return;
-                  try {
-                    const total = new Date(activeYear, activeMonth + 1, 0).getDate();
-                    const rows = [];
-                    for (let d = 1; d <= total; d++) {
-                      const date = new Date(activeYear, activeMonth, d);
-                      rows.push({
-                        user_id: currentUserId,
-                        date: date.toISOString().split("T")[0],
-                        ads: 0,
-                      });
-                    }
-                    const { error } = await supabase
-                      .from("daily_metrics")
-                      .upsert(rows, { onConflict: "user_id,date" });
-                    if (error) throw error;
-                    toast({ title: `Planilha de ${MONTH_NAMES[activeMonth]} criada`, description: `${total} dias adicionados.` });
-                    queryClient.invalidateQueries({ queryKey: ["planilha-metrics"] });
-                    queryClient.invalidateQueries({ queryKey: ["daily-metrics"] });
-                  } catch (err) {
-                    toast({ title: "Erro", description: (err as Error).message, variant: "destructive" });
-                  }
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Criar planilha para {MONTH_NAMES[activeMonth]} {activeYear}
-              </Button>
-            </div>
-          )}
         </div>
       </DashboardLayout>
     </PageTransition>

@@ -245,6 +245,63 @@ export type Database = {
         }
         Relationships: []
       }
+      planilha_daily_metrics: {
+        Row: {
+          ads: number
+          cac: number
+          created_at: string
+          curso_feito: number
+          curso_marcado: number
+          custo_por_lead: number
+          custo_por_lead_mql: number
+          date: string
+          faturamento_dia: number
+          faturamento_marcado: number
+          id: string
+          lead_mql: number
+          leads: number
+          roas: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ads?: number
+          cac?: number
+          created_at?: string
+          curso_feito?: number
+          curso_marcado?: number
+          custo_por_lead?: number
+          custo_por_lead_mql?: number
+          date: string
+          faturamento_dia?: number
+          faturamento_marcado?: number
+          id?: string
+          lead_mql?: number
+          leads?: number
+          roas?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ads?: number
+          cac?: number
+          created_at?: string
+          curso_feito?: number
+          curso_marcado?: number
+          custo_por_lead?: number
+          custo_por_lead_mql?: number
+          date?: string
+          faturamento_dia?: number
+          faturamento_marcado?: number
+          id?: string
+          lead_mql?: number
+          leads?: number
+          roas?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_metrics: {
         Row: {
           ads: number
