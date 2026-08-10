@@ -75,8 +75,6 @@ const Dashboard = () => {
     aReceberMes,
     metaMensal,
     superMetaMensal,
-    metaPct,
-    superMetaPct,
     daysWithData,
     avgCac,
     avgCpl,
@@ -144,20 +142,31 @@ const Dashboard = () => {
 
   const collectedCategoryStats = useMemo(() => {
     const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, 0]));
-    for (const fechamento of fechamentosMes) {
-      if (normalizeText(fechamento.status) === "cancelado") continue;
-      if (fechamento.data < filter.range.start || fechamento.data > filter.range.end) continue;
-      const category = canonicalizeSaleCategory(fechamento.categoria || fechamento.produto_servico);
-      if (stats.has(category)) {
-        stats.set(category, (stats.get(category) || 0) + Number(fechamento.valor_sinal || 0));
+    const usedFechamentos = new Set<string>();
+    for (const venda of registeredVendas) {
+      const category = canonicalizeSaleCategory(venda.servico || venda.produto);
+      const fechamento = fechamentosMes.find((item) =>
+        !usedFechamentos.has(item.id) &&
+        normalizeText(item.status) !== "cancelado" &&
+        item.data === venda.data &&
+        normalizeText(item.cliente) === normalizeText(venda.cliente) &&
+        normalizeText(item.vendedor) === normalizeText(venda.vendedor) &&
+        normalizeText(canonicalizeSaleCategory(item.categoria || item.produto_servico)) === normalizeText(category)
+      );
+      if (fechamento) {
+        usedFechamentos.add(fechamento.id);
+        const collected = Math.min(Number(venda.valor || 0), Number(fechamento.valor_sinal || 0));
+        stats.set(category, (stats.get(category) || 0) + collected);
       }
     }
     return stats;
-  }, [fechamentosMes, filter.range.start, filter.range.end]);
+  }, [fechamentosMes, registeredVendas]);
   const collectedTotal = useMemo(
     () => Array.from(collectedCategoryStats.values()).reduce((total, value) => total + value, 0),
     [collectedCategoryStats],
   );
+  const realizedMetaPct = metaMensal > 0 ? Math.min((collectedTotal / metaMensal) * 100, 100) : 0;
+  const realizedSuperMetaPct = Number(superMetaMensal) > 0 ? Math.min((collectedTotal / Number(superMetaMensal)) * 100, 100) : 0;
 
   // ROAS por categoria
   const roasValues = useMemo(() => {
@@ -346,14 +355,14 @@ const Dashboard = () => {
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60 font-medium">Faturamento (mês)</p>
                   </div>
                   <p className="font-display text-[2rem] sm:text-[2.8rem] md:text-[3.4rem] font-extrabold text-foreground leading-none tracking-tight">
-                    <CountUp end={monthRealized} duration={2.2} prefix="R$" separator="." decimal="," decimals={0} />
+                    <CountUp end={collectedTotal} duration={2.2} prefix="R$" separator="." decimal="," decimals={0} />
                   </p>
                   {metaMensal > 0 && (
                     <p className="text-sm text-muted-foreground/50 mt-2">
-                      Meta: {formatCurrency(metaMensal)} · <span className={metaPct >= 80 ? "text-success" : "text-warning"}>{metaPct.toFixed(0)}%</span>
+                      Meta: {formatCurrency(metaMensal)} · <span className={realizedMetaPct >= 80 ? "text-success" : "text-warning"}>{realizedMetaPct.toFixed(0)}%</span>
                       {Number(superMetaMensal) > 0 && (
                         <span className="ml-2 text-amber-400/70">
-                          Super: {formatCurrency(Number(superMetaMensal))} · {superMetaPct.toFixed(0)}%
+                          Super: {formatCurrency(Number(superMetaMensal))} · {realizedSuperMetaPct.toFixed(0)}%
                         </span>
                       )}
                     </p>
@@ -364,7 +373,7 @@ const Dashboard = () => {
                     <div className="h-1.5 w-full rounded-full overflow-hidden bg-secondary/60">
                       <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: `${metaPct}%` }}
+                        animate={{ width: `${realizedMetaPct}%` }}
                         transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
                         className="h-full rounded-full bg-accent"
                       />
@@ -373,7 +382,7 @@ const Dashboard = () => {
                       <div className="h-1.5 w-full rounded-full overflow-hidden bg-secondary/60">
                         <motion.div
                           initial={{ width: 0 }}
-                          animate={{ width: `${superMetaPct}%` }}
+                          animate={{ width: `${realizedSuperMetaPct}%` }}
                           transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1], delay: 0.6 }}
                           className="h-full rounded-full bg-amber-400/80"
                         />
@@ -393,7 +402,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Fat. Marcado</p>
               </div>
               <p className="font-display text-xl sm:text-3xl font-bold text-foreground mt-2 tabular-nums">
-                <CountUp end={totalFatMarcado} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
             </motion.div>
 
@@ -453,7 +462,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Fat. Feito</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={monthRealized} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={collectedTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
             </motion.div>
 
@@ -463,7 +472,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Fat. Marcado</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={totalFatMarcado} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
             </motion.div>
 
