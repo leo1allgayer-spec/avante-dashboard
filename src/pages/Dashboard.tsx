@@ -5,7 +5,7 @@ import { useDateFilter } from "@/hooks/useDateFilter";
 import { useDeleteMetrics } from "@/hooks/useMetrics";
 import { useBusinessSummary } from "@/hooks/useBusinessSummary";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
-import { canonicalizeSaleCategory } from "@/constants/serviceCategories";
+import { SERVICE_CATEGORIES, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
 
@@ -101,6 +101,19 @@ const Dashboard = () => {
     }
     const servicosTotal = SERVICOS.reduce((s, k) => s + stats[k].valor, 0);
     return { byService: stats, total: servicosTotal };
+  }, [approvedVendas]);
+
+  const salesCategoryStats = useMemo(() => {
+    const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, { count: 0, valor: 0 }]));
+    for (const venda of approvedVendas) {
+      const category = canonicalizeSaleCategory(venda.servico || venda.produto);
+      const current = stats.get(category);
+      if (current) {
+        current.count += 1;
+        current.valor += Number(venda.valor || 0);
+      }
+    }
+    return stats;
   }, [approvedVendas]);
 
   // ROAS por categoria
@@ -433,24 +446,25 @@ const Dashboard = () => {
             </motion.div>
           </div>
 
-          {/* ROW 1.6: Serviços */}
-          <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4">
+          {/* ROW 1.6: Todas as categorias de vendas */}
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3">
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card dashboard-card-accent">
               <div className="flex items-center gap-2 mb-3">
                 <Briefcase className="h-3.5 w-3.5 text-accent/60" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Total Serviços</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Total vendido</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-accent leading-none tabular-nums">
-                <CountUp end={serviceStats.total} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={vendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
+              <p className="text-xs text-muted-foreground/40 mt-1">{approvedVendas.length} vendas</p>
             </motion.div>
-            {SERVICOS.map((s) => {
-              const st = serviceStats.byService[s];
+            {SERVICE_CATEGORIES.map((category) => {
+              const st = salesCategoryStats.get(category) || { count: 0, valor: 0 };
               return (
-                <motion.div key={s} variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
+                <motion.div key={category} variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
                   <div className="flex items-center gap-2 mb-3">
                     <Briefcase className="h-3.5 w-3.5 text-muted-foreground/50" />
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">{s}</p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">{category}</p>
                   </div>
                   <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
                     <CountUp end={st.valor} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
