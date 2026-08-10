@@ -184,6 +184,23 @@ const PlanilhaPage = () => {
   const queryClient = useQueryClient();
   const currentUserId = session?.user?.id ?? null;
 
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel("shared-planilha-metrics")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "planilha_daily_metrics" },
+        () => queryClient.invalidateQueries({ queryKey: ["planilha-metrics"] }),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId, queryClient]);
+
   // Auto-detect latest month with data
    const { data: availableMonths } = useQuery({
     queryKey: ["planilha-metrics", "available-months"],
@@ -231,6 +248,8 @@ const PlanilhaPage = () => {
       if (error) throw error;
       return (data as MetricRow[]) || [];
     },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   const dataMap = useMemo(() => {
