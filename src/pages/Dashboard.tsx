@@ -87,6 +87,14 @@ const Dashboard = () => {
   const { toast } = useToast();
   const [historyOpen, setHistoryOpen] = useState(false);
   const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
+  const registeredVendas = useMemo(
+    () => vendasData.filter((venda) => normalizeText(venda.status) !== "cancelada"),
+    [vendasData],
+  );
+  const registeredVendasTotal = useMemo(
+    () => registeredVendas.reduce((total, venda) => total + Number(venda.valor || 0), 0),
+    [registeredVendas],
+  );
 
   const SERVICOS = ["Tráfego", "Captação", "Site", "Upsell", "CRM"];
   const serviceStats = useMemo(() => {
@@ -105,7 +113,7 @@ const Dashboard = () => {
 
   const salesCategoryStats = useMemo(() => {
     const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, { count: 0, valor: 0 }]));
-    for (const venda of approvedVendas) {
+    for (const venda of registeredVendas) {
       const category = canonicalizeSaleCategory(venda.servico || venda.produto);
       const current = stats.get(category);
       if (current) {
@@ -114,7 +122,7 @@ const Dashboard = () => {
       }
     }
     return stats;
-  }, [approvedVendas]);
+  }, [registeredVendas]);
 
   // ROAS por categoria
   const roasValues = useMemo(() => {
@@ -454,9 +462,9 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Total vendido</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-accent leading-none tabular-nums">
-                <CountUp end={vendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
-              <p className="text-xs text-muted-foreground/40 mt-1">{approvedVendas.length} vendas</p>
+              <p className="text-xs text-muted-foreground/40 mt-1">{registeredVendas.length} vendas</p>
             </motion.div>
             {SERVICE_CATEGORIES.map((category) => {
               const st = salesCategoryStats.get(category) || { count: 0, valor: 0 };
