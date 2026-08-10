@@ -12,7 +12,7 @@ import { Target, TrendingUp, GraduationCap, CalendarDays, Globe, MapPin, Databas
 import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import MonthlyMetricsTimeline from "@/components/MonthlyMetricsTimeline";
-import { COURSE_PRODUCTS, GENERAL_SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
+import { COURSE_PRODUCTS, GENERAL_SERVICE_OPTIONS, SUPPORT_PRODUCTS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -76,24 +76,28 @@ const MetasPage = () => {
           super_meta_diaria: Math.max(Number(existing.super_meta_diaria || 0), Number(d.super_meta_diaria || 0)),
           meta_cursos: Math.max(Number(existing.meta_cursos || 0), Number(d.meta_cursos || 0)),
           meta_servicos: Math.max(Number(existing.meta_servicos || 0), Number(d.meta_servicos || 0)),
+          meta_suporte_extra: Math.max(Number(existing.meta_suporte_extra || 0), Number(d.meta_suporte_extra || 0)),
           meta_site: Math.max(Number(existing.meta_site || 0), Number(d.meta_site || 0)),
           meta_negocio_local: Math.max(Number(existing.meta_negocio_local || 0), Number(d.meta_negocio_local || 0)),
           meta_crm: Math.max(Number(existing.meta_crm || 0), Number(d.meta_crm || 0)),
           meta_upsell: Math.max(Number(existing.meta_upsell || 0), Number(d.meta_upsell || 0)),
           super_meta_cursos: Math.max(Number(existing.super_meta_cursos || 0), Number(d.super_meta_cursos || 0)),
           super_meta_servicos: Math.max(Number(existing.super_meta_servicos || 0), Number(d.super_meta_servicos || 0)),
+          super_meta_suporte_extra: Math.max(Number(existing.super_meta_suporte_extra || 0), Number(d.super_meta_suporte_extra || 0)),
           super_meta_site: Math.max(Number(existing.super_meta_site || 0), Number(d.super_meta_site || 0)),
           super_meta_negocio_local: Math.max(Number(existing.super_meta_negocio_local || 0), Number(d.super_meta_negocio_local || 0)),
           super_meta_crm: Math.max(Number(existing.super_meta_crm || 0), Number(d.super_meta_crm || 0)),
           super_meta_upsell: Math.max(Number(existing.super_meta_upsell || 0), Number(d.super_meta_upsell || 0)),
           valor_cursos: Math.max(Number(existing.valor_cursos || 0), Number(d.valor_cursos || 0)),
           valor_servicos: Math.max(Number(existing.valor_servicos || 0), Number(d.valor_servicos || 0)),
+          valor_suporte_extra: Math.max(Number(existing.valor_suporte_extra || 0), Number(d.valor_suporte_extra || 0)),
           valor_site: Math.max(Number(existing.valor_site || 0), Number(d.valor_site || 0)),
           valor_negocio_local: Math.max(Number(existing.valor_negocio_local || 0), Number(d.valor_negocio_local || 0)),
           valor_crm: Math.max(Number(existing.valor_crm || 0), Number(d.valor_crm || 0)),
           valor_upsell: Math.max(Number(existing.valor_upsell || 0), Number(d.valor_upsell || 0)),
           super_valor_cursos: Math.max(Number(existing.super_valor_cursos || 0), Number(d.super_valor_cursos || 0)),
           super_valor_servicos: Math.max(Number(existing.super_valor_servicos || 0), Number(d.super_valor_servicos || 0)),
+          super_valor_suporte_extra: Math.max(Number(existing.super_valor_suporte_extra || 0), Number(d.super_valor_suporte_extra || 0)),
           super_valor_site: Math.max(Number(existing.super_valor_site || 0), Number(d.super_valor_site || 0)),
           super_valor_negocio_local: Math.max(Number(existing.super_valor_negocio_local || 0), Number(d.super_valor_negocio_local || 0)),
           super_valor_crm: Math.max(Number(existing.super_valor_crm || 0), Number(d.super_valor_crm || 0)),
@@ -136,24 +140,28 @@ const MetasPage = () => {
   const svcSource = [...uniqueMonth].reverse();
   const svcMetaCursos = svcSource.find((d) => Number(d.meta_cursos) > 0)?.meta_cursos || 0;
   const svcMetaServicos = svcSource.find((d) => Number(d.meta_servicos) > 0)?.meta_servicos || 0;
+  const svcMetaSuporteExtra = svcSource.find((d) => Number(d.meta_suporte_extra) > 0)?.meta_suporte_extra || 0;
   const svcMetaSite = svcSource.find((d) => Number(d.meta_site) > 0)?.meta_site || 0;
   const svcMetaNL = svcSource.find((d) => Number(d.meta_negocio_local) > 0)?.meta_negocio_local || 0;
   const svcMetaCRM = svcSource.find((d) => Number(d.meta_crm) > 0)?.meta_crm || 0;
   const svcMetaUpsell = svcSource.find((d) => Number(d.meta_upsell) > 0)?.meta_upsell || 0;
   const svcSuperMetaCursos = svcSource.find((d) => Number(d.super_meta_cursos) > 0)?.super_meta_cursos || 0;
   const svcSuperMetaServicos = svcSource.find((d) => Number(d.super_meta_servicos) > 0)?.super_meta_servicos || 0;
+  const svcSuperMetaSuporteExtra = svcSource.find((d) => Number(d.super_meta_suporte_extra) > 0)?.super_meta_suporte_extra || 0;
   const svcSuperMetaSite = svcSource.find((d) => Number(d.super_meta_site) > 0)?.super_meta_site || 0;
   const svcSuperMetaNL = svcSource.find((d) => Number(d.super_meta_negocio_local) > 0)?.super_meta_negocio_local || 0;
   const svcSuperMetaCRM = svcSource.find((d) => Number(d.super_meta_crm) > 0)?.super_meta_crm || 0;
   const svcSuperMetaUpsell = svcSource.find((d) => Number(d.super_meta_upsell) > 0)?.super_meta_upsell || 0;
   const svcValCursos = svcSource.find((d) => Number(d.valor_cursos) > 0)?.valor_cursos || 0;
   const svcValServicos = svcSource.find((d) => Number(d.valor_servicos) > 0)?.valor_servicos || 0;
+  const svcValSuporteExtra = svcSource.find((d) => Number(d.valor_suporte_extra) > 0)?.valor_suporte_extra || 0;
   const svcValSite = svcSource.find((d) => Number(d.valor_site) > 0)?.valor_site || 0;
   const svcValNL = svcSource.find((d) => Number(d.valor_negocio_local) > 0)?.valor_negocio_local || 0;
   const svcValCRM = svcSource.find((d) => Number(d.valor_crm) > 0)?.valor_crm || 0;
   const svcValUpsell = svcSource.find((d) => Number(d.valor_upsell) > 0)?.valor_upsell || 0;
   const svcSuperValCursos = svcSource.find((d) => Number(d.super_valor_cursos) > 0)?.super_valor_cursos || 0;
   const svcSuperValServicos = svcSource.find((d) => Number(d.super_valor_servicos) > 0)?.super_valor_servicos || 0;
+  const svcSuperValSuporteExtra = svcSource.find((d) => Number(d.super_valor_suporte_extra) > 0)?.super_valor_suporte_extra || 0;
   const svcSuperValSite = svcSource.find((d) => Number(d.super_valor_site) > 0)?.super_valor_site || 0;
   const svcSuperValNL = svcSource.find((d) => Number(d.super_valor_negocio_local) > 0)?.super_valor_negocio_local || 0;
   const svcSuperValCRM = svcSource.find((d) => Number(d.super_valor_crm) > 0)?.super_valor_crm || 0;
@@ -280,6 +288,7 @@ const MetasPage = () => {
             {[
               { label: "Cursos", metaQty: svcMetaCursos, superMetaQty: svcSuperMetaCursos, metaVal: svcValCursos, superMetaVal: svcSuperValCursos, group: "cursos" as const, icon: <GraduationCap className="h-5 w-5" />, variant: "accent" as const },
               { label: "Serviços", metaQty: svcMetaServicos, superMetaQty: svcSuperMetaServicos, metaVal: svcValServicos, superMetaVal: svcSuperValServicos, group: "servicos" as const, icon: <Target className="h-5 w-5" />, variant: "primary" as const },
+              { label: "Suporte Extra", metaQty: svcMetaSuporteExtra, superMetaQty: svcSuperMetaSuporteExtra, metaVal: svcValSuporteExtra, superMetaVal: svcSuperValSuporteExtra, group: "suporte" as const, icon: <Target className="h-5 w-5" />, variant: "accent" as const },
               { label: "Captação/Edição", metaQty: svcMetaNL, superMetaQty: svcSuperMetaNL, metaVal: svcValNL, superMetaVal: svcSuperValNL, group: "captacao" as const, icon: <MapPin className="h-5 w-5" />, variant: "primary" as const },
               { label: "Site", metaQty: svcMetaSite, superMetaQty: svcSuperMetaSite, metaVal: svcValSite, superMetaVal: svcSuperValSite, group: "site" as const, icon: <Globe className="h-5 w-5" />, variant: "primary" as const },
               { label: "CRM", metaQty: svcMetaCRM, superMetaQty: svcSuperMetaCRM, metaVal: svcValCRM, superMetaVal: svcSuperValCRM, group: "crm" as const, icon: <Database className="h-5 w-5" />, variant: "primary" as const },
@@ -290,6 +299,7 @@ const MetasPage = () => {
                 const categoria = canonicalizeSaleCategory(v.servico || v.produto);
                 if (svc.group === "cursos") return COURSE_PRODUCTS.some((item) => normalizeText(item) === normalizeText(categoria));
                 if (svc.group === "servicos") return GENERAL_SERVICE_OPTIONS.some((item) => normalizeText(item) === normalizeText(categoria));
+                if (svc.group === "suporte") return SUPPORT_PRODUCTS.some((item) => normalizeText(item) === normalizeText(categoria));
                 if (svc.group === "captacao") return normalizeText(categoria) === normalizeText("Captacao/Edicao de Conteudo");
                 if (svc.group === "site") return normalizeText(categoria) === normalizeText("Desenvolvimento de Site");
                 if (svc.group === "crm") return normalizeText(categoria) === normalizeText("CRM/Treinamento Comercial");

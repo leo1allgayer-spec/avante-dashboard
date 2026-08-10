@@ -321,6 +321,7 @@ export type Database = {
           meta_crm: number | null
           meta_cursos: number | null
           meta_servicos: number | null
+          meta_suporte_extra: number | null
           meta_diaria_prevista: number | null
           meta_diaria_realizada: number | null
           meta_mensal_prevista: number | null
@@ -332,6 +333,7 @@ export type Database = {
           super_meta_crm: number | null
           super_meta_cursos: number | null
           super_meta_servicos: number | null
+          super_meta_suporte_extra: number | null
           super_meta_diaria: number | null
           super_meta_mensal: number | null
           super_meta_negocio_local: number | null
@@ -340,6 +342,7 @@ export type Database = {
           super_valor_crm: number | null
           super_valor_cursos: number | null
           super_valor_servicos: number | null
+          super_valor_suporte_extra: number | null
           super_valor_negocio_local: number | null
           super_valor_site: number | null
           super_valor_upsell: number | null
@@ -348,6 +351,7 @@ export type Database = {
           valor_crm: number | null
           valor_cursos: number | null
           valor_servicos: number | null
+          valor_suporte_extra: number | null
           valor_negocio_local: number | null
           valor_site: number | null
           valor_upsell: number | null
@@ -370,6 +374,7 @@ export type Database = {
           meta_crm?: number | null
           meta_cursos?: number | null
           meta_servicos?: number | null
+          meta_suporte_extra?: number | null
           meta_diaria_prevista?: number | null
           meta_diaria_realizada?: number | null
           meta_mensal_prevista?: number | null
@@ -381,6 +386,7 @@ export type Database = {
           super_meta_crm?: number | null
           super_meta_cursos?: number | null
           super_meta_servicos?: number | null
+          super_meta_suporte_extra?: number | null
           super_meta_diaria?: number | null
           super_meta_mensal?: number | null
           super_meta_negocio_local?: number | null
@@ -389,6 +395,7 @@ export type Database = {
           super_valor_crm?: number | null
           super_valor_cursos?: number | null
           super_valor_servicos?: number | null
+          super_valor_suporte_extra?: number | null
           super_valor_negocio_local?: number | null
           super_valor_site?: number | null
           super_valor_upsell?: number | null
@@ -397,6 +404,7 @@ export type Database = {
           valor_crm?: number | null
           valor_cursos?: number | null
           valor_servicos?: number | null
+          valor_suporte_extra?: number | null
           valor_negocio_local?: number | null
           valor_site?: number | null
           valor_upsell?: number | null
@@ -419,6 +427,7 @@ export type Database = {
           meta_crm?: number | null
           meta_cursos?: number | null
           meta_servicos?: number | null
+          meta_suporte_extra?: number | null
           meta_diaria_prevista?: number | null
           meta_diaria_realizada?: number | null
           meta_mensal_prevista?: number | null
@@ -430,6 +439,7 @@ export type Database = {
           super_meta_crm?: number | null
           super_meta_cursos?: number | null
           super_meta_servicos?: number | null
+          super_meta_suporte_extra?: number | null
           super_meta_diaria?: number | null
           super_meta_mensal?: number | null
           super_meta_negocio_local?: number | null
@@ -438,6 +448,7 @@ export type Database = {
           super_valor_crm?: number | null
           super_valor_cursos?: number | null
           super_valor_servicos?: number | null
+          super_valor_suporte_extra?: number | null
           super_valor_negocio_local?: number | null
           super_valor_site?: number | null
           super_valor_upsell?: number | null
@@ -446,6 +457,7 @@ export type Database = {
           valor_crm?: number | null
           valor_cursos?: number | null
           valor_servicos?: number | null
+          valor_suporte_extra?: number | null
           valor_negocio_local?: number | null
           valor_site?: number | null
           valor_upsell?: number | null

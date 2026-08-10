@@ -7,6 +7,9 @@ export const COURSE_PRODUCTS = [
   "Curso Captacao/Edicao",
 ];
 
+export const SUPPORT_PRODUCTS = ["Suporte Extra"];
+export const PRODUCT_OPTIONS = [...COURSE_PRODUCTS, ...SUPPORT_PRODUCTS];
+
 export const SERVICE_OPTIONS = [
   "Mentoria Meta Ads",
   "Assessoria 360",
@@ -24,7 +27,7 @@ export const GENERAL_SERVICE_OPTIONS = [
   "Mentoria Meta Ads",
 ];
 
-export const SERVICE_CATEGORIES = [...COURSE_PRODUCTS, ...SERVICE_OPTIONS];
+export const SERVICE_CATEGORIES = [...PRODUCT_OPTIONS, ...SERVICE_OPTIONS];
 
 const normalizeCategoryText = (value?: string | null) =>
   (value || "")
@@ -40,6 +43,7 @@ const CATEGORY_ALIASES: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "Curso de IA", aliases: ["curso de ia", "ia"] },
   { canonical: "Curso Canva para Empreendedores", aliases: ["curso canva para empreendedores", "canva"] },
   { canonical: "Curso Captacao/Edicao", aliases: ["curso captacao/edicao", "curso captacao/edicao de conteudo", "captacao/edicao", "captacao/edicao de conteudo"] },
+  { canonical: "Suporte Extra", aliases: ["suporte extra", "suporte"] },
   { canonical: "Mentoria Meta Ads", aliases: ["mentoria meta ads"] },
   { canonical: "Assessoria 360", aliases: ["assessoria 360"] },
   { canonical: "Gestão de Tráfego Pago - Meta Ads", aliases: ["gestao de trafego", "gestao de trafego pago", "gestao de trafego pago - meta ads", "trafego", "tráfego", "meta ads"] },
