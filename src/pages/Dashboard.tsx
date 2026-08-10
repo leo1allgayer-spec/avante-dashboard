@@ -59,6 +59,7 @@ const Dashboard = () => {
   const {
     today,
     monthData,
+    vendasData,
     approvedVendas,
     fechamentosMes,
     vendasTotal,
