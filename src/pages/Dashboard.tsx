@@ -62,7 +62,6 @@ const Dashboard = () => {
     approvedVendas,
     fechamentosMes,
     vendasTotal,
-    vendasComissao,
     monthRealized,
     totalFatMarcado,
     totalLeads,
@@ -93,6 +92,10 @@ const Dashboard = () => {
   );
   const registeredVendasTotal = useMemo(
     () => registeredVendas.reduce((total, venda) => total + Number(venda.valor || 0), 0),
+    [registeredVendas],
+  );
+  const registeredVendasComissao = useMemo(
+    () => registeredVendas.reduce((total, venda) => total + Number(venda.comissao || 0), 0),
     [registeredVendas],
   );
 
@@ -435,12 +438,12 @@ const Dashboard = () => {
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Vendas ({approvedVendas.length})</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Vendas ({registeredVendas.length})</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={vendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
-              <p className="text-xs text-muted-foreground/40 mt-1">{approvedVendas.length} aprovadas · Com. {formatCurrency(vendasComissao)}</p>
+              <p className="text-xs text-muted-foreground/40 mt-1">{registeredVendas.length} registradas · Com. {formatCurrency(registeredVendasComissao)}</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
