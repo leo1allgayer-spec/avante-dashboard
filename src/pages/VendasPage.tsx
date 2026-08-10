@@ -364,6 +364,14 @@ const VendasPage = () => {
     });
   }, [filtered, fechamentosFiltrados, taxProfile, statusFilter]);
 
+  const visibleSalesTotals = useMemo(() => vendasAgrupadas.reduce(
+    (totals, grupo) => ({
+      coletado: totals.coletado + grupo.sinal,
+      aReceber: totals.aReceber + grupo.saldo,
+    }),
+    { coletado: 0, aReceber: 0 },
+  ), [vendasAgrupadas]);
+
   const getItemValores = (item: VendaItemForm) => {
     const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
     const itemTaxa = itemTemParcela ? (getTaxas(item.pagamento, taxProfile)[item.parcelas] || 0) : 0;
@@ -1466,7 +1474,7 @@ const VendasPage = () => {
                 <Wallet className="h-4 w-4 text-success" /> Coletado
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.coletado)}</CardContent>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(visibleSalesTotals.coletado)}</CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
@@ -1474,7 +1482,7 @@ const VendasPage = () => {
                 <Clock3 className="h-4 w-4 text-amber-500" /> A receber
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.aReceber)}</CardContent>
+            <CardContent className="font-display text-2xl font-bold">{formatBRL(visibleSalesTotals.aReceber)}</CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
