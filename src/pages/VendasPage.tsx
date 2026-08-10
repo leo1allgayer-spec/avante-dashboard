@@ -585,6 +585,8 @@ const VendasPage = () => {
       upsell: lastWithTarget(["meta_upsell", "super_meta_upsell"]),
     };
 
+    const metaServicos = metas.site + metas.negocioLocal + metas.crm;
+
     const cursosFeitosPeriodo = cursosDados.filter((item) => item.data >= dateFilter.range.start && item.data <= dateFilter.range.end);
 
     const countRegisteredSales = (category: string) => vendasRegistradas.filter(
@@ -594,15 +596,17 @@ const VendasPage = () => {
     const counts = {
       cursosMarcados: vendasRegistradas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
       cursosFeitos: cursosFeitosPeriodo.filter((item) => !!item.survey_response_id).length,
+      servicos: vendasRegistradas.filter((venda) => SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
       site: countRegisteredSales("Desenvolvimento de Site"),
       negocioLocal: countRegisteredSales("Captacao/Edicao de Conteudo"),
       crm: countRegisteredSales("CRM/Treinamento Comercial"),
-      upsell: countRegisteredSales("Upsell"),
+      upsell: vendasRegistradas.filter((venda) => normalizeText(venda.origem) === normalizeText("Upsell") || normalizeText(getVendaCategoria(venda)) === normalizeText("Upsell")).length,
     };
 
     return [
       { label: "Cursos marcados", atual: counts.cursosMarcados, meta: metas.cursosMarcados },
       { label: "Cursos feitos", atual: counts.cursosFeitos, meta: metas.cursosFeitos },
+      { label: "Serviços", atual: counts.servicos, meta: metaServicos },
       { label: "Site", atual: counts.site, meta: metas.site },
       { label: "Captação", atual: counts.negocioLocal, meta: metas.negocioLocal },
       { label: "CRM", atual: counts.crm, meta: metas.crm },
