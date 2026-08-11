@@ -129,14 +129,19 @@ const Dashboard = () => {
     }
     return totalAds;
   }, [metaAdsMonth, totalAds]);
-  const campaignLeads = useMemo(
-    () => (metaAdsMonth?.dailyInsights || []).reduce((total, day) => total + getCampaignLeads(day.actions), 0),
-    [metaAdsMonth],
+  const campaignActionRows = useMemo(() => {
+    if ((metaAdsMonth?.campaignInsights || []).length > 0) return metaAdsMonth!.campaignInsights;
+    return metaAdsMonth?.dailyInsights || [];
+  }, [metaAdsMonth]);
+  const campaignMetaLeads = useMemo(
+    () => campaignActionRows.reduce((total, row) => total + getCampaignLeads(row.actions), 0),
+    [campaignActionRows],
   );
   const campaignMql = useMemo(
-    () => (metaAdsMonth?.dailyInsights || []).reduce((total, day) => total + getCampaignMql(day.actions), 0),
-    [metaAdsMonth],
+    () => campaignActionRows.reduce((total, row) => total + getCampaignMql(row.actions), 0),
+    [campaignActionRows],
   );
+  const campaignLeads = campaignMetaLeads + campaignMql;
   const registeredVendas = useMemo(
     () => vendasData.filter((venda) => normalizeText(venda.status) !== "cancelada"),
     [vendasData],
@@ -600,6 +605,7 @@ const Dashboard = () => {
               <p className="font-display text-2xl sm:text-3xl font-bold text-foreground leading-none tabular-nums">
                 <CountUp end={campaignLeads} duration={2} />
               </p>
+              <p className="text-xs text-muted-foreground/40 mt-1.5">{campaignMetaLeads} leads + {campaignMql} conversas</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
@@ -610,7 +616,7 @@ const Dashboard = () => {
               <p className="font-display text-2xl sm:text-3xl font-bold text-accent leading-none tabular-nums">
                 <CountUp end={campaignMql} duration={2} />
               </p>
-              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">conversão: {((campaignMql / campaignLeads) * 100).toFixed(1)}%</p>}
+              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">conversas por mensagem · {((campaignMql / campaignLeads) * 100).toFixed(1)}%</p>}
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
