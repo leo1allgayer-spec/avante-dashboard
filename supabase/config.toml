@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.whatsapp-scheduler]
 verify_jwt = false
+
+[functions.crm-mql]
+verify_jwt = true

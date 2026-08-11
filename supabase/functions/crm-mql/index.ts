@@ -55,17 +55,18 @@ Deno.serve(async (request) => {
     } while (page <= totalPages && page <= 100);
 
     const daily: Record<string, number> = {};
-    const stars = { four: 0, five: 0 };
+    const stars = { three: 0, four: 0, five: 0 };
     rows.forEach((lead) => {
       const date = crmLocalDate(lead.created_at);
       const rating = Number(lead.quality_stars || 0);
-      if (date < since || date > until || rating < 4) return;
+      if (date < since || date > until || rating < 3) return;
       daily[date] = (daily[date] || 0) + 1;
+      if (rating === 3) stars.three += 1;
       if (rating === 4) stars.four += 1;
       if (rating >= 5) stars.five += 1;
     });
 
-    return new Response(JSON.stringify({ total: stars.four + stars.five, daily, stars }), {
+    return new Response(JSON.stringify({ total: stars.three + stars.four + stars.five, daily, stars }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

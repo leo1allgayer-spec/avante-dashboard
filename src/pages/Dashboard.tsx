@@ -719,7 +719,7 @@ const Dashboard = () => {
               <p className="font-display text-2xl sm:text-3xl font-bold text-accent leading-none tabular-nums">
                 <CountUp end={qualifiedMql} duration={2} />
               </p>
-              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">CRM · 4 ou 5 estrelas · {((qualifiedMql / campaignLeads) * 100).toFixed(1)}%</p>}
+              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">CRM · 3, 4 ou 5 estrelas · {((qualifiedMql / campaignLeads) * 100).toFixed(1)}%</p>}
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
