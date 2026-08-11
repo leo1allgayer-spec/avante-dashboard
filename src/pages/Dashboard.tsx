@@ -558,7 +558,12 @@ const Dashboard = () => {
                   {currentRoas >= 3 ? "Excelente" : currentRoas >= 1 ? "Positivo" : "Baixo"}
                 </span>
               </div>
-              <div className="flex max-h-24 flex-wrap gap-1.5 mb-3 overflow-y-auto pr-1">
+              <div
+                data-lenis-prevent
+                className="flex max-h-24 touch-pan-y flex-wrap gap-1.5 mb-3 overflow-y-auto overscroll-contain pr-2"
+                onWheel={(event) => event.stopPropagation()}
+                onTouchMove={(event) => event.stopPropagation()}
+              >
                 {Object.entries(roasLabels).map(([key, label]) => {
                   const isActive = roasFilter.includes(key);
                   return (
