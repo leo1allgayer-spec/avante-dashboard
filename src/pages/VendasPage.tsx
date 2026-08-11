@@ -940,14 +940,14 @@ const VendasPage = () => {
 
   const vendaFormDialog = (
     <DialogContent
-      className="sm:max-w-xl max-h-[90vh] overflow-hidden p-0 gap-0 border-border/40 bg-card"
+      className="w-[calc(100vw-1rem)] sm:max-w-4xl lg:max-w-5xl max-h-[94vh] overflow-hidden p-0 gap-0 border-border/40 bg-card"
       onWheel={(event) => event.stopPropagation()}
       onTouchMove={(event) => event.stopPropagation()}
       onInteractOutside={(event) => event.preventDefault()}
       onPointerDownOutside={(event) => event.preventDefault()}
       onFocusOutside={(event) => event.preventDefault()}
     >
-      <div className="bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 pb-4 border-b border-border/20">
+      <div className="bg-gradient-to-br from-primary/15 via-primary/5 to-transparent px-4 py-3 sm:px-5 border-b border-border/20">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
@@ -960,16 +960,17 @@ const VendasPage = () => {
           </DialogDescription>
         </DialogHeader>
       </div>
-      <form onSubmit={handleSubmit} className="max-h-[calc(90vh-118px)] overflow-y-auto overscroll-contain p-6 pr-2 space-y-5">
+      <form onSubmit={handleSubmit} className="flex max-h-[calc(94vh-82px)] min-h-0 flex-col">
         <datalist id="meta-ad-names">
           {metaAdsWithEmoji.map((ad) => (
             <option key={ad.id} value={ad.name}>{ad.campaignName}</option>
           ))}
         </datalist>
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-5">
         {/* Informações Principais */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Informações Principais</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Data</Label>
               <Input type="date" value={form.data} onChange={(e) => setForm((p) => ({ ...p, data: e.target.value }))} className="bg-secondary/30 border-border/30 focus:border-primary/50" />
@@ -1047,7 +1048,7 @@ const VendasPage = () => {
         {/* Valores & Pagamento */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Valores & Pagamento</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Valor total (R$)</Label>
               <Input type="number" step="0.01" value={form.valor || ""} onChange={(e) => setForm((p) => ({ ...p, valor: Number(e.target.value) }))} placeholder="0,00" className="bg-secondary/30 border-border/30 focus:border-primary/50 font-semibold" />
@@ -1117,7 +1118,7 @@ const VendasPage = () => {
               </div>
 
               {form.condicao_pagamento !== "pago" && (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {(form.condicao_pagamento === "sinal" || form.condicao_pagamento === "boleto") && (
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Valor do sinal pago (R$)</Label>
@@ -1194,7 +1195,7 @@ const VendasPage = () => {
         {/* Comissão & Status */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Comissão & Status</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Comissão sobre recebido (15%)</Label>
               <div className="h-10 flex items-center px-3 rounded-md bg-secondary/30 border border-border/30 text-sm font-semibold text-emerald-400">
@@ -1254,7 +1255,7 @@ const VendasPage = () => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="space-y-1.5">
                           <Label className="text-xs text-muted-foreground">Produto</Label>
                           <Select value={item.produto || "__none__"} onValueChange={(produto) => updateVendaItem(index, { produto: produto === "__none__" ? "" : produto })}>
@@ -1446,9 +1447,12 @@ const VendasPage = () => {
             )}
           </div>
 
-        <Button type="submit" className="w-full h-11 text-sm font-semibold mt-2" disabled={isSaving}>
-          {isSaving ? "Salvando..." : editingVenda ? "✓ Atualizar Venda" : "✓ Registrar Venda"}
-        </Button>
+        </div>
+        <div className="shrink-0 border-t border-border/30 bg-card/95 p-3 backdrop-blur sm:px-5">
+          <Button type="submit" className="w-full h-11 text-sm font-semibold" disabled={isSaving}>
+            {isSaving ? "Salvando..." : editingVenda ? "✓ Atualizar Venda" : "✓ Registrar Venda"}
+          </Button>
+        </div>
       </form>
     </DialogContent>
   );
