@@ -59,12 +59,12 @@ const VALOR_CURSO = ["Muito caro", "Preço justo", "Muito barato"];
 const COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/Dv3za8lv0gz1QfU4wgPRj9?s=cl&p=a&ilr=1&amv=2";
 
 const CURSOS_REALIZADOS = [
-  "Curso Meta Ads",
-  "Curso Google Ads",
-  "Curso de Social Midia",
-  "Curso de IA",
+  "Curso de Meta Ads",
+  "Curso de Google Ads",
+  "Curso de Social Media",
+  "Curso de Inteligência Artificial",
   "Curso Canva para Empreendedores",
-  "Curso Captacao/Edicao",
+  "Curso de Edição e Captação de Vídeos",
 ];
 
 type FormData = {

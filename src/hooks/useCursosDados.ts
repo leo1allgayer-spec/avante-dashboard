@@ -14,6 +14,33 @@ export interface CursoDado {
   updated_at: string;
 }
 
+const normalizeCourseKey = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const COURSE_NAME_ALIASES: Record<string, string> = {
+  "curso meta ads": "Curso de Meta Ads",
+  "curso de meta ads": "Curso de Meta Ads",
+  "curso google ads": "Curso de Google Ads",
+  "curso de google ads": "Curso de Google Ads",
+  "curso de social midia": "Curso de Social Media",
+  "curso de social media": "Curso de Social Media",
+  "curso de ia": "Curso de Inteligência Artificial",
+  "curso de inteligencia artificial": "Curso de Inteligência Artificial",
+  "curso canva para empreendedores": "Curso Canva para Empreendedores",
+  "curso captacao edicao": "Curso de Edição e Captação de Vídeos",
+  "curso de edicao e captacao de videos": "Curso de Edição e Captação de Vídeos",
+};
+
+export const canonicalizeCourseName = (value?: string | null) => {
+  const courseName = (value || "").trim();
+  return COURSE_NAME_ALIASES[normalizeCourseKey(courseName)] || courseName;
+};
+
 export function useCursosDados() {
   return useQuery({
     queryKey: ["cursos_dados"],
@@ -23,7 +50,10 @@ export function useCursosDados() {
         .select("*")
         .order("data", { ascending: false });
       if (error) throw error;
-      return (data as CursoDado[]) || [];
+      return ((data as CursoDado[]) || []).map((curso) => ({
+        ...curso,
+        tipo_curso: canonicalizeCourseName(curso.tipo_curso),
+      }));
     },
   });
 }

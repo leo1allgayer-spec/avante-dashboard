@@ -27,6 +27,7 @@ const TIPOS_CURSO = [
   "Curso de Social Media",
   "Curso de Edição e Captação de Vídeos",
   "Curso de Inteligência Artificial",
+  "Curso Canva para Empreendedores",
 ];
 
 const CHART_COLORS = [
