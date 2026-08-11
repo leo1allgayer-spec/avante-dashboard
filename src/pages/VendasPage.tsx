@@ -290,6 +290,7 @@ const VendasPage = () => {
 
   const filtered = useMemo(() => {
     return vendas.filter((v) => {
+      if (!dateInRange(v.data)) return false;
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
       if ((statusFilter === "paga" || statusFilter === "pendente") && v.status === "cancelada") return false;
@@ -298,7 +299,7 @@ const VendasPage = () => {
       if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
       return true;
     });
-  }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter]);
+  }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.range.start, dateFilter.range.end]);
 
   const fechamentosFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1616,11 +1617,11 @@ const VendasPage = () => {
               <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                 <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
                   <span className="text-muted-foreground">Coletado</span>
-                  <strong className="block text-success">{formatBRL(fechamentoTotals.coletado)}</strong>
+                  <strong className="block text-success">{formatBRL(visibleSalesTotals.coletado)}</strong>
                 </div>
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
                   <span className="text-muted-foreground">A receber</span>
-                  <strong className="block text-amber-500">{formatBRL(fechamentoTotals.aReceber)}</strong>
+                  <strong className="block text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</strong>
                 </div>
                 <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2">
                   <span className="text-muted-foreground">Vendas</span>
@@ -1865,8 +1866,18 @@ const VendasPage = () => {
                         <p className="mt-1 text-xs text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
-                        <div className="flex flex-wrap gap-1">{nomes.length > 0 ? nomes.map((nome) => <Badge key={nome} variant="secondary" className="font-normal">{nome}</Badge>) : "—"}</div>
-                        <p className="mt-1 text-xs text-muted-foreground">{grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}</p>
+                        <div className="overflow-hidden rounded-md border border-border/25">
+                          {grupo.itens.map((saleItem, itemIndex) => {
+                            const itemName = saleItem.servico || saleItem.produto || "Sem produto ou serviço";
+                            return (
+                              <div key={saleItem.id} className={`flex items-center justify-between gap-3 px-2.5 py-2 text-xs ${itemIndex > 0 ? "border-t border-border/25" : ""}`}>
+                                <span className="font-medium text-foreground">{itemName}</span>
+                                <span className="shrink-0 font-semibold text-muted-foreground">{formatBRL(Number(saleItem.valor || 0))}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-1.5 text-xs text-muted-foreground">{grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}</p>
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top text-xs">
                         <p><span className="text-muted-foreground">Total: </span><strong>{formatBRL(grupo.valorTotal)}</strong></p>
