@@ -8,7 +8,7 @@ import { useSyncSheets } from "@/hooks/useSyncSheets";
 import { useMetaAds } from "@/hooks/useMetaAds";
 import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
-import { SERVICE_CATEGORIES, canonicalizeSaleCategory } from "@/constants/serviceCategories";
+import { COURSE_PRODUCTS, SERVICE_CATEGORIES, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
 
@@ -92,11 +92,8 @@ const Dashboard = () => {
     today,
     monthData,
     vendasData,
-    approvedVendas,
     fechamentosMes,
     vendasTotal,
-    monthRealized,
-    totalFatMarcado,
     totalLeads,
     totalMql,
     totalAds,
@@ -152,21 +149,6 @@ const Dashboard = () => {
     () => registeredVendas.reduce((total, venda) => total + Number(venda.comissao || 0), 0),
     [registeredVendas],
   );
-
-  const SERVICOS = ["Tráfego", "Captação", "Site", "Upsell", "CRM"];
-  const serviceStats = useMemo(() => {
-    const stats: Record<string, { count: number; valor: number }> = {};
-    for (const s of SERVICOS) stats[s] = { count: 0, valor: 0 };
-    for (const v of approvedVendas) {
-      const key = SERVICOS.find((service) => normalizeText(service) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)));
-      if (key) {
-        stats[key].count++;
-        stats[key].valor += Number(v.valor);
-      }
-    }
-    const servicosTotal = SERVICOS.reduce((s, k) => s + stats[k].valor, 0);
-    return { byService: stats, total: servicosTotal };
-  }, [approvedVendas]);
 
   const salesCategoryStats = useMemo(() => {
     const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, { count: 0, valor: 0 }]));
@@ -257,64 +239,30 @@ const Dashboard = () => {
   const cacTotal = registeredVendas.length > 0 ? selectedMonthAds / registeredVendas.length : 0;
   const cacCourses = completedCourses > 0 ? selectedMonthAds / completedCourses : 0;
 
-  // ROAS por categoria
-  const roasValues = useMemo(() => {
-    const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
-    for (const v of approvedVendas) {
-      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)));
-      if (key) {
-        servicoByType[key] += Number(v.valor);
-      }
-    }
-    const faturamentoSemServicos = Math.max(monthRealized - serviceStats.total, 0) + totalFatMarcado;
-    const fatTotal = faturamentoSemServicos + serviceStats.total;
-    return {
-      geral: selectedMonthAds > 0 ? fatTotal / selectedMonthAds : 0,
-      faturamento: selectedMonthAds > 0 ? faturamentoSemServicos / selectedMonthAds : 0,
-      servicos: selectedMonthAds > 0 ? serviceStats.total / selectedMonthAds : 0,
-      trafego: selectedMonthAds > 0 ? servicoByType["Tráfego"] / selectedMonthAds : 0,
-      captacao: selectedMonthAds > 0 ? servicoByType["Captação"] / selectedMonthAds : 0,
-      site: selectedMonthAds > 0 ? servicoByType["Site"] / selectedMonthAds : 0,
-      upsell: selectedMonthAds > 0 ? servicoByType["Upsell"] / selectedMonthAds : 0,
-      crm: selectedMonthAds > 0 ? servicoByType["CRM"] / selectedMonthAds : 0,
-    };
-  }, [monthRealized, totalFatMarcado, serviceStats, selectedMonthAds, approvedVendas]);
-
-  const roasLabels: Record<string, string> = {
+  const roasLabels = useMemo<Record<string, string>>(() => ({
     geral: "Geral",
-    faturamento: "Faturamento",
-    servicos: "Total Serviços",
-    trafego: "Tráfego",
-    captacao: "Captação",
-    site: "Site",
-    upsell: "Upsell",
-    crm: "CRM",
-  };
+    cursos: "Todos os cursos",
+    servicos: "Todos os serviços",
+    ...Object.fromEntries(SERVICE_CATEGORIES.map((category) => [`categoria:${category}`, category])),
+  }), []);
 
   const currentRoas = useMemo(() => {
-    if (roasFilter.length === 0) return 0;
-    if (roasFilter.includes("geral")) return roasValues.geral;
-    const servicoByType: Record<string, number> = { "Tráfego": 0, "Captação": 0, "Site": 0, "Upsell": 0, "CRM": 0 };
-    for (const v of approvedVendas) {
-      const key = Object.keys(servicoByType).find((service) => normalizeText(service) === normalizeText(canonicalizeSaleCategory(v.servico || v.produto)));
-      if (key) {
-        servicoByType[key] += Number(v.valor);
-      }
-    }
-    const faturamentoSemServicos = Math.max(monthRealized - serviceStats.total, 0) + totalFatMarcado;
-    let numerator = 0;
-    if (roasFilter.includes("faturamento")) numerator += faturamentoSemServicos;
-    if (roasFilter.includes("servicos")) {
-      numerator += serviceStats.total;
-    } else {
-      if (roasFilter.includes("trafego")) numerator += servicoByType["Tráfego"];
-      if (roasFilter.includes("captacao")) numerator += servicoByType["Captação"];
-      if (roasFilter.includes("site")) numerator += servicoByType["Site"];
-      if (roasFilter.includes("upsell")) numerator += servicoByType["Upsell"];
-      if (roasFilter.includes("crm")) numerator += servicoByType["CRM"];
-    }
-    return selectedMonthAds > 0 ? numerator / selectedMonthAds : 0;
-  }, [roasFilter, roasValues, approvedVendas, monthRealized, totalFatMarcado, serviceStats, selectedMonthAds]);
+    if (selectedMonthAds <= 0 || roasFilter.length === 0) return 0;
+    if (roasFilter.includes("geral")) return collectedTotal / selectedMonthAds;
+
+    const selectedCategories = new Set<string>();
+    if (roasFilter.includes("cursos")) COURSE_PRODUCTS.forEach((category) => selectedCategories.add(category));
+    if (roasFilter.includes("servicos")) SERVICE_OPTIONS.forEach((category) => selectedCategories.add(category));
+    roasFilter.forEach((filterKey) => {
+      if (filterKey.startsWith("categoria:")) selectedCategories.add(filterKey.slice("categoria:".length));
+    });
+
+    const collected = Array.from(selectedCategories).reduce(
+      (total, category) => total + (collectedCategoryStats.get(category) || 0),
+      0,
+    );
+    return collected / selectedMonthAds;
+  }, [roasFilter, selectedMonthAds, collectedTotal, collectedCategoryStats]);
 
   const handleSync = () => {
     syncSheets.mutate(undefined, {
@@ -510,7 +458,7 @@ const Dashboard = () => {
                   {currentRoas >= 3 ? "Excelente" : currentRoas >= 1 ? "Positivo" : "Baixo"}
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1.5 mb-3">
+              <div className="flex max-h-24 flex-wrap gap-1.5 mb-3 overflow-y-auto pr-1">
                 {Object.entries(roasLabels).map(([key, label]) => {
                   const isActive = roasFilter.includes(key);
                   return (
