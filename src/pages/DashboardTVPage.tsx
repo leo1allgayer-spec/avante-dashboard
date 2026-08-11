@@ -7,6 +7,7 @@ import { useClients } from "@/hooks/useClients";
 import { useVendas } from "@/hooks/useVendas";
 import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { useMetaAds } from "@/hooks/useMetaAds";
+import { useCrmMql } from "@/hooks/useCrmMql";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import CountUp from "react-countup";
@@ -138,40 +139,47 @@ const DashboardTVPage = () => {
   const todayKey = formatLocalDate(now);
   const monthStart = formatLocalDate(new Date(now.getFullYear(), now.getMonth(), 1));
   const monthEnd = formatLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+  const { data: crmMql } = useCrmMql(monthStart, monthEnd);
 
   const tvData = useMemo(() => {
-    const vendasMes = vendas.filter((v) => dateInRange(v.data, monthStart, monthEnd));
-    const vendasHoje = vendas.filter((v) => v.data === todayKey);
-    const vendasAprovadasMes = vendasMes.filter((v) => normalizeStatus(v.status) === "aprovada");
-    const vendasAprovadasHoje = vendasHoje.filter((v) => normalizeStatus(v.status) === "aprovada");
+    const vendasMes = vendas.filter((v) => dateInRange(v.data, monthStart, monthEnd) && normalizeStatus(v.status) !== "cancelada");
+    const vendasHoje = vendasMes.filter((v) => v.data === todayKey);
 
     const fechamentosAtivos = fechamentos.filter((f) => normalizeStatus(f.status) !== "cancelado");
-    const fechamentosMes = fechamentosAtivos.filter((f) => dateInRange(f.data, monthStart, monthEnd) || dateInRange(f.previsao_entrada, monthStart, monthEnd));
-    const fechamentosHoje = fechamentosAtivos.filter((f) => f.data === todayKey || f.previsao_entrada === todayKey);
+    const fechamentosMes = fechamentosAtivos.filter((f) => dateInRange(f.data, monthStart, monthEnd));
+    const totalVendidoMes = vendasMes.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
+    const groups = new Map<string, { total: number; data: string; cliente: string; vendedor: string }>();
+    vendasMes.forEach((venda) => {
+      const key = [venda.data, normalizeText(venda.cliente), normalizeText(venda.vendedor)].join("|");
+      const group = groups.get(key) || { total: 0, data: venda.data, cliente: venda.cliente, vendedor: venda.vendedor };
+      group.total += Number(venda.valor || 0);
+      groups.set(key, group);
+    });
+    const collectedByDay = new Map<string, number>();
+    groups.forEach((group) => {
+      const received = fechamentosMes.filter((item) => item.data === group.data && normalizeText(item.cliente) === normalizeText(group.cliente) && normalizeText(item.vendedor) === normalizeText(group.vendedor)).reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
+      const collected = Math.min(group.total, received);
+      collectedByDay.set(group.data, (collectedByDay.get(group.data) || 0) + collected);
+    });
+    const faturamentoMes = Array.from(collectedByDay.values()).reduce((sum, value) => sum + value, 0);
+    const faturamentoHoje = collectedByDay.get(todayKey) || 0;
+    const aReceberMes = Math.max(totalVendidoMes - faturamentoMes, 0);
 
-    const faturamentoFeitoMes = vendasMes.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
-    const faturamentoFeitoHoje = vendasHoje.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
-    const faturamentoMarcadoMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-    const faturamentoMarcadoHoje = fechamentosHoje.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-    const aReceberMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0), 0);
-    const recorrenteMes = fechamentosMes.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
-
-    const metaSpendToday = Number(metaToday?.accountInsights?.spend || 0);
-    const metaSpendMonth = Number(metaMonth?.accountInsights?.spend || 0);
-    const leadsTodayMeta = getLeadsFromActions(metaToday?.accountInsights?.actions);
-    const leadsMonthMeta = getLeadsFromActions(metaMonth?.accountInsights?.actions);
-    const conversationsToday = getConversationsFromActions(metaToday?.accountInsights?.actions);
-    const conversationsMonth = getConversationsFromActions(metaMonth?.accountInsights?.actions);
-    const leadsToday = leadsTodayMeta || Number(today?.leads || 0);
-    const leadsMonth = leadsMonthMeta || (monthData || []).reduce((sum, day) => sum + Number(day.leads || 0), 0);
-    const mqlToday = conversationsToday || Number(today?.lead_mql || 0);
-    const mqlMonth = conversationsMonth || (monthData || []).reduce((sum, day) => sum + Number(day.lead_mql || 0), 0);
-
-    const investimentoHoje = metaSpendToday || Number(today?.ads || 0);
-    const investimentoMes = metaSpendMonth || (monthData || []).reduce((sum, day) => sum + Number(day.ads || 0), 0);
-    const faturamentoMes = faturamentoFeitoMes + faturamentoMarcadoMes + aReceberMes + recorrenteMes;
-    const faturamentoHoje = faturamentoFeitoHoje + faturamentoMarcadoHoje + fechamentosHoje.reduce((sum, item) => sum + Number(item.valor_a_entrar || 0) + Number(item.valor_recorrente || 0), 0);
-    const roasMes = investimentoMes > 0 ? faturamentoMes / investimentoMes : Number(today?.roas || 0);
+    const monthActionRows = (metaMonth?.campaignInsights?.length ? metaMonth.campaignInsights : metaMonth?.dailyInsights) || [];
+    const todayActionRows = (metaToday?.campaignInsights?.length ? metaToday.campaignInsights : metaToday?.dailyInsights) || [];
+    const sumContacts = (rows: typeof monthActionRows) => rows.reduce((sum, row) => sum + getLeadsFromActions(row.actions) + getConversationsFromActions(row.actions), 0);
+    const leadsToday = sumContacts(todayActionRows);
+    const leadsMonth = sumContacts(monthActionRows);
+    const mqlToday = Number(crmMql?.daily?.[todayKey] || 0);
+    const mqlMonth = Number(crmMql?.total || 0);
+    const eligibleObjectives = new Set(["OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "OUTCOME_LEADS"]);
+    const eligibleSpend = (source: typeof metaMonth) => {
+      const ids = new Set((source?.campaigns || []).filter((campaign) => eligibleObjectives.has(campaign.objective.toUpperCase())).map((campaign) => campaign.id));
+      return (source?.campaignInsights || []).filter((campaign) => ids.has(campaign.campaign_id)).reduce((sum, campaign) => sum + Number(campaign.spend || 0), 0);
+    };
+    const investimentoHoje = eligibleSpend(metaToday) || Number(metaToday?.accountInsights?.spend || 0);
+    const investimentoMes = eligibleSpend(metaMonth) || Number(metaMonth?.accountInsights?.spend || 0);
+    const roasMes = investimentoMes > 0 ? faturamentoMes / investimentoMes : 0;
     const cac = vendasMes.length > 0 ? investimentoMes / vendasMes.length : Number(today?.cac || 0);
     const cpl = leadsMonth > 0 ? investimentoMes / leadsMonth : Number(today?.custo_por_lead || 0);
     const cplMql = mqlMonth > 0 ? investimentoMes / mqlMonth : Number(today?.custo_por_lead_mql || 0);
@@ -181,41 +189,32 @@ const DashboardTVPage = () => {
       const origem = venda.origem || "Nao informado";
       origemMap[origem] = (origemMap[origem] || 0) + 1;
     });
-    fechamentosMes.forEach((item) => {
-      const origem = item.origem || "Nao informado";
-      origemMap[origem] = (origemMap[origem] || 0) + 1;
-    });
     const origemData = Object.entries(origemMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
 
     const consultorMap: Record<string, number> = {};
-    vendasAprovadasMes.forEach((venda) => {
+    vendasMes.forEach((venda) => {
       const vendedor = venda.vendedor || "Nao informado";
       consultorMap[vendedor] = (consultorMap[vendedor] || 0) + Number(venda.valor || 0);
-    });
-    fechamentosMes.forEach((item) => {
-      const vendedor = item.vendedor || "Nao informado";
-      consultorMap[vendedor] = (consultorMap[vendedor] || 0) + getFechamentoTotal(item);
     });
     const consultorData = Object.entries(consultorMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 6);
 
-    const totalOperacoesMes = vendasMes.length + fechamentosMes.length;
-    const ticketMedio = totalOperacoesMes > 0 ? (faturamentoMes + faturamentoMarcadoMes + aReceberMes) / totalOperacoesMes : 0;
+    const totalOperacoesMes = vendasMes.length;
+    const ticketMedio = totalOperacoesMes > 0 ? totalVendidoMes / totalOperacoesMes : 0;
 
     return {
       vendasMes,
-      vendasHoje: vendasAprovadasHoje,
+      vendasHoje,
       fechamentosMes,
       faturamentoMes,
       faturamentoHoje,
-      faturamentoMarcadoMes,
-      faturamentoMarcadoHoje,
+      totalVendidoMes,
+      collectedByDay,
       aReceberMes,
-      recorrenteMes,
       investimentoHoje,
       investimentoMes,
       leadsToday,
@@ -232,16 +231,17 @@ const DashboardTVPage = () => {
       totalOperacoesMes,
       ticketMedio,
     };
-  }, [vendas, fechamentos, metaToday, metaMonth, today, monthData, todayKey, monthStart, monthEnd]);
+  }, [vendas, fechamentos, metaToday, metaMonth, crmMql, todayKey, monthStart, monthEnd]);
 
   const monthRealized = tvData.faturamentoMes;
   const totalLeads = tvData.leadsMonth;
   const totalMql = tvData.mqlMonth;
-  const metaMensal = today?.meta_mensal_prevista || 0;
+  const metaMensal = (monthData || []).reduce((max, item) => Math.max(max, Number(item.meta_mensal_prevista || 0)), 0);
   const metaPct = metaMensal > 0 ? Math.min((monthRealized / metaMensal) * 100, 100) : 0;
   const roas = tvData.roasMes;
   const convRate = tvData.convRate;
-  const metaDiaria = today?.meta_diaria_prevista || 0;
+  const businessDaysInMonth = Array.from({ length: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() }, (_, index) => new Date(now.getFullYear(), now.getMonth(), index + 1)).filter((date) => date.getDay() >= 1 && date.getDay() <= 5).length;
+  const metaDiaria = businessDaysInMonth > 0 ? metaMensal / businessDaysInMonth : 0;
   const metaDiariaReal = tvData.faturamentoHoje;
   const metaDiariaPct = metaDiaria > 0 ? Math.min((metaDiariaReal / metaDiaria) * 100, 100) : 0;
 
@@ -254,11 +254,10 @@ const DashboardTVPage = () => {
       date.setDate(date.getDate() - (14 - index));
       const key = formatLocalDate(date);
       const metric = (monthData || []).find((item) => item.date === key);
-      const dayVendas = vendas.filter((venda) => venda.data === key && normalizeStatus(venda.status) === "aprovada");
       const metaDay = metaMonth?.dailyInsights?.find((item) => item.date_start === key);
-      const faturamento = dayVendas.reduce((sum, venda) => sum + Number(venda.valor || 0), 0) || Number(metric?.faturamento_dia || 0);
-      const leads = getLeadsFromActions(metaDay?.actions) || Number(metric?.leads || 0);
-      const mql = getConversationsFromActions(metaDay?.actions) || Number(metric?.lead_mql || 0);
+      const faturamento = tvData.collectedByDay.get(key) || 0;
+      const leads = metaDay ? getLeadsFromActions(metaDay.actions) + getConversationsFromActions(metaDay.actions) : Number(metric?.leads || 0);
+      const mql = Number(crmMql?.daily?.[key] || 0);
 
       return {
         dia: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
@@ -269,7 +268,7 @@ const DashboardTVPage = () => {
     });
 
     return days;
-  }, [monthData, vendas, metaMonth, now]);
+  }, [monthData, metaMonth, crmMql, tvData.collectedByDay, now]);
 
   const cardStyle = { background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" };
 
@@ -338,7 +337,7 @@ const DashboardTVPage = () => {
         <div className="col-span-12 lg:col-span-7 grid grid-cols-3 grid-rows-2 gap-4 lg:gap-5">
           {[
             { label: "Faturamento Hoje", value: tvData.faturamentoHoje, prefix: "R$ ", suffix: "" },
-            { label: "Meta Diária", value: metaDiariaReal, prefix: "R$ ", suffix: "", sub: metaDiaria > 0 ? `de ${formatCurrency(metaDiaria)} · ${metaDiariaPct.toFixed(0)}%` : undefined },
+            { label: "Meta Diária", value: metaDiaria, prefix: "R$ ", suffix: "", sub: `realizado ${formatCurrency(metaDiariaReal)} · ${metaDiariaPct.toFixed(0)}%` },
             { label: "ROAS", value: roas, prefix: "", suffix: "x", decimals: 1, badge: roas >= 3 ? "Excelente" : roas >= 1 ? "Positivo" : "Baixo", badgeColor: roas >= 3 ? "text-success" : roas >= 1 ? "text-accent" : "text-destructive" },
             { label: "Leads Hoje", value: tvData.leadsToday, prefix: "", suffix: "", sub: `mês: ${totalLeads}` },
             { label: "Conversas Hoje", value: tvData.mqlToday, prefix: "", suffix: "", accent: true, sub: convRate > 0 ? `conversão: ${convRate.toFixed(1)}%` : undefined },
