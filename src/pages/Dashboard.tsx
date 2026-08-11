@@ -8,6 +8,7 @@ import { useSyncSheets } from "@/hooks/useSyncSheets";
 import { useMetaAds } from "@/hooks/useMetaAds";
 import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
+import { useCrmMql } from "@/hooks/useCrmMql";
 import { COURSE_PRODUCTS, SERVICE_CATEGORIES, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
@@ -115,6 +116,7 @@ const Dashboard = () => {
     until: filter.range.end,
   }), [filter.range.start, filter.range.end]);
   const { data: metaAdsMonth } = useMetaAds(metaAdsFilters);
+  const { data: crmMql } = useCrmMql(filter.range.start, filter.range.end);
   const { bookings } = useCourseBookings();
   const { data: surveyResponses = [] } = useSurveyResponses();
   const selectedMonthAds = useMemo(() => {
@@ -132,11 +134,12 @@ const Dashboard = () => {
     () => campaignActionRows.reduce((total, row) => total + getCampaignLeads(row.actions), 0),
     [campaignActionRows],
   );
-  const campaignMql = useMemo(
+  const metaConversations = useMemo(
     () => campaignActionRows.reduce((total, row) => total + getCampaignMql(row.actions), 0),
     [campaignActionRows],
   );
-  const campaignLeads = campaignMetaLeads + campaignMql;
+  const campaignLeads = campaignMetaLeads + metaConversations;
+  const qualifiedMql = Number(crmMql?.total || 0);
   const eligibleCampaignSpend = useMemo(() => {
     const eligibleObjectives = new Set(["OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "OUTCOME_LEADS"]);
     const eligibleIds = new Set(
@@ -149,7 +152,7 @@ const Dashboard = () => {
       .reduce((total, campaign) => total + Number(campaign.spend || 0), 0);
   }, [metaAdsMonth]);
   const currentCpl = campaignLeads > 0 ? eligibleCampaignSpend / campaignLeads : 0;
-  const currentCplMql = campaignMql > 0 ? eligibleCampaignSpend / campaignMql : 0;
+  const currentCplMql = qualifiedMql > 0 ? eligibleCampaignSpend / qualifiedMql : 0;
   const registeredVendas = useMemo(
     () => vendasData.filter((venda) => normalizeText(venda.status) !== "cancelada"),
     [vendasData],
@@ -284,9 +287,9 @@ const Dashboard = () => {
     return {
       date: new Date(`${day.date_start}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit" }),
       leads: getCampaignLeads(day.actions) + conversations,
-      mql: conversations,
+      mql: Number(crmMql?.daily?.[day.date_start] || 0),
     };
-  }), [metaAdsMonth]);
+  }), [metaAdsMonth, crmMql]);
   const businessDays = useMemo(() => {
     const start = new Date(`${filter.range.start}T12:00:00`);
     const end = new Date(`${filter.range.end}T12:00:00`);
@@ -705,7 +708,7 @@ const Dashboard = () => {
               <p className="font-display text-2xl sm:text-3xl font-bold text-foreground leading-none tabular-nums">
                 <CountUp end={campaignLeads} duration={2} />
               </p>
-              <p className="text-xs text-muted-foreground/40 mt-1.5">{campaignMetaLeads} leads + {campaignMql} conversas</p>
+              <p className="text-xs text-muted-foreground/40 mt-1.5">{campaignMetaLeads} leads + {metaConversations} conversas</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
@@ -714,9 +717,9 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">MQL</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-accent leading-none tabular-nums">
-                <CountUp end={campaignMql} duration={2} />
+                <CountUp end={qualifiedMql} duration={2} />
               </p>
-              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">conversas por mensagem · {((campaignMql / campaignLeads) * 100).toFixed(1)}%</p>}
+              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">CRM · 4 ou 5 estrelas · {((qualifiedMql / campaignLeads) * 100).toFixed(1)}%</p>}
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
@@ -760,7 +763,7 @@ const Dashboard = () => {
           <div className="grid gap-3 sm:gap-5 grid-cols-1 lg:grid-cols-2">
             <motion.div variants={item}><RevenueChart data={revenueChartData} /></motion.div>
             <motion.div variants={item}>
-              <LeadsPieChart leads={campaignLeads} leadsMql={campaignMql} series={leadsHistory} />
+              <LeadsPieChart leads={campaignLeads} leadsMql={qualifiedMql} series={leadsHistory} />
             </motion.div>
           </div>
 
