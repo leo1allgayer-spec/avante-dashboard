@@ -271,7 +271,7 @@ const PesquisaPage = () => {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div translate="no" className="notranslate min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center space-y-4 max-w-md">
           <div className="w-20 h-20 rounded-full bg-accent/20 flex items-center justify-center mx-auto">
             <CheckCircle2 className="h-10 w-10 text-accent" />
@@ -289,7 +289,7 @@ const PesquisaPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div translate="no" className="notranslate min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="border-b border-border/40 bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-2xl mx-auto px-4 py-4">

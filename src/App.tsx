@@ -59,6 +59,8 @@ class AppErrorBoundary extends React.Component<
 
   override render() {
     if (this.state.hasError) {
+      const isDomMutationError = this.state.error?.message.includes("removeChild") ||
+        this.state.error?.message.includes("not a child of this node");
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-6">
           <div className="max-w-2xl w-full rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-foreground">
@@ -69,6 +71,18 @@ class AppErrorBoundary extends React.Component<
             <pre className="whitespace-pre-wrap text-xs rounded-xl bg-black/40 p-4 overflow-auto">
               {this.state.error?.message || "Erro desconhecido"}
             </pre>
+            {isDomMutationError && (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Desative a traducao automatica do navegador antes de tentar novamente.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            >
+              Recarregar pagina
+            </button>
           </div>
         </div>
       );
