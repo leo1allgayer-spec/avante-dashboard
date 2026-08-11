@@ -133,11 +133,11 @@ const Dashboard = () => {
     return totalAds;
   }, [metaAdsMonth, totalAds]);
   const campaignLeads = useMemo(
-    () => (metaAdsMonth?.campaignInsights || []).reduce((total, campaign) => total + getCampaignLeads(campaign.actions), 0),
+    () => (metaAdsMonth?.dailyInsights || []).reduce((total, day) => total + getCampaignLeads(day.actions), 0),
     [metaAdsMonth],
   );
   const campaignMql = useMemo(
-    () => (metaAdsMonth?.campaignInsights || []).reduce((total, campaign) => total + getCampaignMql(campaign.actions), 0),
+    () => (metaAdsMonth?.dailyInsights || []).reduce((total, day) => total + getCampaignMql(day.actions), 0),
     [metaAdsMonth],
   );
   const registeredVendas = useMemo(
