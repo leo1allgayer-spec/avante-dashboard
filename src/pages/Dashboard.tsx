@@ -94,8 +94,6 @@ const Dashboard = () => {
     vendasData,
     fechamentosMes,
     vendasTotal,
-    totalLeads,
-    totalMql,
     totalAds,
     cursosFeitos,
     totalCursoMarcado,
@@ -660,7 +658,7 @@ const Dashboard = () => {
           <div className="grid gap-3 sm:gap-5 grid-cols-1 lg:grid-cols-2">
             <motion.div variants={item}><RevenueChart monthData={monthData} /></motion.div>
             <motion.div variants={item}>
-              <LeadsPieChart leads={totalLeads} leadsMql={totalMql} monthData={monthData} />
+              <LeadsPieChart leads={campaignLeads} leadsMql={campaignMql} monthData={monthData} />
             </motion.div>
           </div>
 
