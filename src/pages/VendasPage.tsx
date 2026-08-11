@@ -200,6 +200,20 @@ const VendasPage = () => {
   const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
   const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
   const vendas = dateFilter.filterByDate(allVendas);
+  const monthRange = useMemo(() => {
+    const start = `${filterYear}-${String(filterMonth || 1).padStart(2, "0")}-01`;
+    const endDate = new Date(filterYear, filterMonth || 1, 0);
+    const end = `${filterYear}-${String(filterMonth || 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+    return { start, end };
+  }, [filterYear, filterMonth]);
+  const vendasRegistradasNoMes = useMemo(
+    () => allVendas.filter((venda) =>
+      venda.data >= monthRange.start &&
+      venda.data <= monthRange.end &&
+      venda.status !== "cancelada"
+    ),
+    [allVendas, monthRange.start, monthRange.end],
+  );
   const createVenda = useCreateVenda();
   const createFechamento = useCreateFechamentoDiario();
   const createCriativoVenda = useCreateCriativoVenda();
@@ -649,21 +663,21 @@ const VendasPage = () => {
       upsell: lastWithTarget(["meta_upsell", "super_meta_upsell"]),
     };
 
-    const cursosFeitosPeriodo = cursosDados.filter((item) => item.data >= dateFilter.range.start && item.data <= dateFilter.range.end);
+    const cursosFeitosNoMes = cursosDados.filter((item) => item.data >= monthRange.start && item.data <= monthRange.end);
 
-    const countRegisteredSales = (category: string) => vendasRegistradas.filter(
+    const countRegisteredSales = (category: string) => vendasRegistradasNoMes.filter(
       (venda) => normalizeText(getVendaCategoria(venda)) === normalizeText(category),
     ).length;
 
     const counts = {
-      cursosMarcados: vendasRegistradas.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
-      cursosFeitos: cursosFeitosPeriodo.filter((item) => !!item.survey_response_id).length,
-      servicos: vendasRegistradas.filter((venda) => GENERAL_SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
+      cursosMarcados: vendasRegistradasNoMes.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
+      cursosFeitos: cursosFeitosNoMes.filter((item) => !!item.survey_response_id).length,
+      servicos: vendasRegistradasNoMes.filter((venda) => GENERAL_SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
       suporteExtra: countRegisteredSales("Suporte Extra"),
       site: countRegisteredSales("Desenvolvimento de Site"),
       negocioLocal: countRegisteredSales("Captacao/Edicao de Conteudo"),
       crm: countRegisteredSales("CRM/Treinamento Comercial"),
-      upsell: vendasRegistradas.filter((venda) => normalizeText(venda.origem) === normalizeText("Upsell") || normalizeText(getVendaCategoria(venda)) === normalizeText("Upsell")).length,
+      upsell: vendasRegistradasNoMes.filter((venda) => normalizeText(venda.origem) === normalizeText("Upsell") || normalizeText(getVendaCategoria(venda)) === normalizeText("Upsell")).length,
     };
 
     return [
@@ -676,7 +690,7 @@ const VendasPage = () => {
       { label: "CRM", atual: counts.crm, meta: metas.crm },
       { label: "Upsell", atual: counts.upsell, meta: metas.upsell },
     ];
-  }, [monthMetrics, vendasRegistradas, cursosDados, dateFilter.range.start, dateFilter.range.end]);
+  }, [monthMetrics, vendasRegistradasNoMes, cursosDados, monthRange.start, monthRange.end]);
 
   const renameCategoryFechamentos = async (categoria: string, items: FechamentoDiario[]) => {
     if (items.length === 0) {
@@ -1520,7 +1534,7 @@ const VendasPage = () => {
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <CardTitle>Metas principais do período</CardTitle>
+                <CardTitle>Metas principais do mês</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Quantidade realizada e quanto falta para cada objetivo do mês.
                 </p>
@@ -1542,7 +1556,7 @@ const VendasPage = () => {
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <span className="block text-[10px] uppercase text-muted-foreground">Até agora</span>
+                        <span className="block text-[10px] uppercase text-muted-foreground">Até agora no mês</span>
                         <strong className="mt-1 block text-foreground">{item.atual}</strong>
                       </div>
                       <div>
