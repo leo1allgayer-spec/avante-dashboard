@@ -30,6 +30,16 @@ import MonthlyMetricsTimeline from "@/components/MonthlyMetricsTimeline";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
+const getSaoPauloDate = (value: string) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
 const normalizeText = (value?: string | null) =>
   (value || "")
     .normalize("NFD")
@@ -334,7 +344,7 @@ const Dashboard = () => {
   ).length, [bookings, filter.range.start, filter.range.end]);
   const completedCourses = useMemo(() => surveyResponses.filter((response) => {
     if (!response.created_at) return false;
-    const date = response.created_at.slice(0, 10);
+    const date = getSaoPauloDate(response.created_at);
     return date >= filter.range.start && date <= filter.range.end;
   }).length, [surveyResponses, filter.range.start, filter.range.end]);
   const cacTotal = registeredVendas.length > 0 ? selectedMonthAds / registeredVendas.length : 0;
