@@ -75,7 +75,7 @@ begin
   values (
     null,
     v_course_date,
-    'Nao informado',
+    'Leonardo',
     v_course_name,
     new.nome,
     public.get_course_commission(v_course_name, v_course_date),

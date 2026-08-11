@@ -52,6 +52,9 @@ export function useCursosDados() {
       if (error) throw error;
       return ((data as CursoDado[]) || []).map((curso) => ({
         ...curso,
+        instrutor: !curso.instrutor.trim() || normalizeCourseKey(curso.instrutor) === "nao informado"
+          ? "Leonardo"
+          : curso.instrutor,
         tipo_curso: canonicalizeCourseName(curso.tipo_curso),
       }));
     },
