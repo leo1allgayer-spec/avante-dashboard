@@ -302,10 +302,11 @@ const CampanhasPage = () => {
     const spend = eligibleCampaigns.reduce((total, campaign) => total + campaign.spend, 0);
     const leads = eligibleCampaigns.reduce((total, campaign) => total + campaign.leads, 0);
     const conversations = eligibleCampaigns.reduce((total, campaign) => total + campaign.conversations, 0);
-    return { spend, leads, conversations, totalContacts: leads + conversations };
+    return { spend, leads, conversations };
   }, [campaignRows]);
-  const costPerLead = leadAcquisitionTotals.totalContacts > 0
-    ? leadAcquisitionTotals.spend / leadAcquisitionTotals.totalContacts
+  const totalManagerContacts = displayedMetaTotals.leads + displayedMetaTotals.conversations;
+  const costPerLead = totalManagerContacts > 0
+    ? leadAcquisitionTotals.spend / totalManagerContacts
     : 0;
   const costPerConversation = displayedMetaTotals.conversations > 0 ? displayedMetaTotals.spend / displayedMetaTotals.conversations : 0;
 
@@ -562,7 +563,7 @@ const CampanhasPage = () => {
               <StaggerItem><MetricCard title="CPC Medio" value={formatCurrency(displayedMetaTotals.cpc)} icon={<BarChart3 className="h-5 w-5" />} variant="primary" /></StaggerItem>
               <StaggerItem><MetricCard title="Alcance" value={formatNumber(displayedMetaTotals.reach)} icon={<Users className="h-5 w-5" />} variant="accent" /></StaggerItem>
               <StaggerItem><MetricCard title="Leads (Meta)" value={formatNumber(displayedMetaTotals.leads)} icon={<Target className="h-5 w-5" />} variant="success" /></StaggerItem>
-              <StaggerItem><MetricCard title="Custo por Lead" value={formatCurrency(costPerLead)} subtitle={`${formatCurrency(leadAcquisitionTotals.spend)} ÷ ${formatNumber(leadAcquisitionTotals.totalContacts)} contatos`} icon={<DollarSign className="h-5 w-5" />} variant={costPerLead > 50 ? "warning" : "success"} /></StaggerItem>
+              <StaggerItem><MetricCard title="Custo por Lead" value={formatCurrency(costPerLead)} subtitle={`${formatCurrency(leadAcquisitionTotals.spend)} ÷ ${formatNumber(totalManagerContacts)} contatos`} icon={<DollarSign className="h-5 w-5" />} variant={costPerLead > 50 ? "warning" : "success"} /></StaggerItem>
             </StaggerContainer>
 
             <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
