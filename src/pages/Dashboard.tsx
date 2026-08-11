@@ -6,7 +6,6 @@ import { useDeleteMetrics } from "@/hooks/useMetrics";
 import { useBusinessSummary } from "@/hooks/useBusinessSummary";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
 import { useMetaAds } from "@/hooks/useMetaAds";
-import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
 import { useCrmMql } from "@/hooks/useCrmMql";
 import { COURSE_PRODUCTS, SERVICE_CATEGORIES, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
@@ -107,7 +106,6 @@ const Dashboard = () => {
     vendasTotal,
     totalAds,
     cursosFeitos,
-    totalCursoMarcado,
     coletadoMes,
     aReceberMes,
     metaMensal,
@@ -127,7 +125,6 @@ const Dashboard = () => {
   }), [filter.range.start, filter.range.end]);
   const { data: metaAdsMonth } = useMetaAds(metaAdsFilters);
   const { data: crmMql } = useCrmMql(filter.range.start, filter.range.end);
-  const { bookings } = useCourseBookings();
   const { data: surveyResponses = [] } = useSurveyResponses();
   const selectedMonthAds = useMemo(() => {
     const dailyInsights = metaAdsMonth?.dailyInsights || [];
@@ -336,12 +333,11 @@ const Dashboard = () => {
   const realizedMetaPct = periodMetaTarget > 0 ? Math.min((collectedTotal / periodMetaTarget) * 100, 100) : 0;
   const realizedSuperMetaPct = periodSuperMetaTarget > 0 ? Math.min((collectedTotal / periodSuperMetaTarget) * 100, 100) : 0;
   const periodLabel = filter.mode === "dia" ? "dia" : filter.mode === "semana" ? "semana" : "mês";
-  const scheduledCourses = useMemo(() => bookings.filter((booking) =>
-    booking.date >= filter.range.start &&
-    booking.date <= filter.range.end &&
-    normalizeText(booking.status) === "confirmed" &&
-    normalizeText(booking.courseStatus) !== "cancelado"
-  ).length, [bookings, filter.range.start, filter.range.end]);
+  const scheduledCourses = useMemo(() => registeredVendas.filter((venda) =>
+    COURSE_PRODUCTS.some((produto) =>
+      normalizeText(produto) === normalizeText(canonicalizeSaleCategory(venda.servico || venda.produto))
+    )
+  ).length, [registeredVendas]);
   const completedCourses = useMemo(() => surveyResponses.filter((response) => {
     if (!response.created_at) return false;
     const date = getSaoPauloDate(response.created_at);
