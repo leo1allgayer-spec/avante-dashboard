@@ -142,7 +142,7 @@ export function AllCoursesSection() {
             date: b.date || "",
             time: b.time || "",
             courseType,
-            courseStatus: b.course_status || "confirmado",
+            courseStatus: b.course_status || "a confirmar",
           };
         })
         .filter((b: AllEnrollment) => {

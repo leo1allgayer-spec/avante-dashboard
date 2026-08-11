@@ -31,7 +31,7 @@ function rowToBooking(r: any): CourseBooking {
     date: r.date,
     time: r.time,
     status: r.status,
-    courseStatus: r.course_status || "confirmado",
+    courseStatus: r.course_status || "a confirmar",
     createdAt: r.created_at,
   };
 }

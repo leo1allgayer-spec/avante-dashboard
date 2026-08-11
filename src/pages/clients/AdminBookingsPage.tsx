@@ -759,7 +759,7 @@ export default function AdminBookings() {
                                     </TableCell>
                                     <TableCell>
                                       <Select
-                                        value={b.courseStatus || "confirmado"}
+                                        value={b.courseStatus || "a confirmar"}
                                         onValueChange={(v) => handleCourseStatusChange(b.id, v)}
                                       >
                                         <SelectTrigger className="w-full h-7 text-[11px] px-2">
