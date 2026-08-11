@@ -426,10 +426,29 @@ const VendasPage = () => {
       return;
     }
 
+    const allocations = new Map<string, number>();
+    const balances = linkedItems.map(({ venda, fechamento }) => ({
+      id: venda.id,
+      balance: Math.max(0, Number(venda.valor || 0) - Number(fechamento?.valor_sinal || 0)),
+    }));
+    let amountToAllocate = paymentAmount;
+    while (amountToAllocate > 0.001) {
+      const available = balances.filter((item) => item.balance > 0.001);
+      if (available.length === 0) break;
+      const exact = available.find((item) => Math.abs(item.balance - amountToAllocate) < 0.01);
+      const larger = available
+        .filter((item) => item.balance > amountToAllocate)
+        .sort((a, b) => a.balance - b.balance)[0];
+      const target = exact || larger || available.sort((a, b) => b.balance - a.balance)[0];
+      const allocated = Math.min(target.balance, amountToAllocate);
+      allocations.set(target.id, (allocations.get(target.id) || 0) + allocated);
+      target.balance -= allocated;
+      amountToAllocate -= allocated;
+    }
+
     try {
       setSettlingSaleKey(saleKey);
       const updates: Promise<unknown>[] = [];
-      let remainingPayment = paymentAmount;
 
       linkedItems.forEach(({ venda, categoria, fechamento }) => {
 
@@ -443,9 +462,7 @@ const VendasPage = () => {
 
         const valorTotal = Number(venda.valor || 0);
         const valorJaColetado = Math.min(valorTotal, Number(fechamento?.valor_sinal || 0));
-        const saldoItem = Math.max(0, valorTotal - valorJaColetado);
-        const baixaItem = Math.min(saldoItem, remainingPayment);
-        remainingPayment -= baixaItem;
+        const baixaItem = allocations.get(venda.id) || 0;
         const novoColetado = valorJaColetado + baixaItem;
         const novoSaldo = Math.max(0, valorTotal - novoColetado);
         updates.push(updateVenda.mutateAsync({
