@@ -102,8 +102,6 @@ const Dashboard = () => {
     metaMensal,
     superMetaMensal,
     daysWithData,
-    avgCac,
-    avgCpl,
     convRate,
   } = summary;
   const [roasFilter, setRoasFilter] = useState<string[]>(["geral"]);
@@ -111,7 +109,6 @@ const Dashboard = () => {
   const syncSheets = useSyncSheets();
   const { toast } = useToast();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
   const metaAdsFilters = useMemo(() => ({
     datePreset: "custom" as const,
     since: filter.range.start,
@@ -140,6 +137,19 @@ const Dashboard = () => {
     [campaignActionRows],
   );
   const campaignLeads = campaignMetaLeads + campaignMql;
+  const eligibleCampaignSpend = useMemo(() => {
+    const eligibleObjectives = new Set(["OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "OUTCOME_LEADS"]);
+    const eligibleIds = new Set(
+      (metaAdsMonth?.campaigns || [])
+        .filter((campaign) => eligibleObjectives.has(campaign.objective.toUpperCase()))
+        .map((campaign) => campaign.id),
+    );
+    return (metaAdsMonth?.campaignInsights || [])
+      .filter((campaign) => eligibleIds.has(campaign.campaign_id))
+      .reduce((total, campaign) => total + Number(campaign.spend || 0), 0);
+  }, [metaAdsMonth]);
+  const currentCpl = campaignLeads > 0 ? eligibleCampaignSpend / campaignLeads : 0;
+  const currentCplMql = campaignMql > 0 ? eligibleCampaignSpend / campaignMql : 0;
   const registeredVendas = useMemo(
     () => vendasData.filter((venda) => normalizeText(venda.status) !== "cancelada"),
     [vendasData],
@@ -208,6 +218,65 @@ const Dashboard = () => {
     }, 0);
   }, [fechamentosMes, registeredVendas]);
   const receivableTotal = Math.max(registeredVendasTotal - collectedTotal, 0);
+  const revenueChartData = useMemo(() => {
+    const dailyCollected = new Map<string, number>();
+    const groups = new Map<string, { total: number; data: string; cliente: string; vendedor: string }>();
+    registeredVendas.forEach((venda) => {
+      const key = [venda.data, normalizeText(venda.cliente), normalizeText(venda.vendedor)].join("|");
+      const group = groups.get(key) || { total: 0, data: venda.data, cliente: venda.cliente, vendedor: venda.vendedor };
+      group.total += Number(venda.valor || 0);
+      groups.set(key, group);
+    });
+    groups.forEach((group) => {
+      const received = fechamentosMes
+        .filter((item) =>
+          item.data === group.data &&
+          normalizeText(item.cliente) === normalizeText(group.cliente) &&
+          normalizeText(item.vendedor) === normalizeText(group.vendedor)
+        )
+        .reduce((total, item) => total + Number(item.valor_sinal || 0), 0);
+      dailyCollected.set(group.data, (dailyCollected.get(group.data) || 0) + Math.min(group.total, received));
+    });
+
+    const start = new Date(`${filter.range.start}T12:00:00`);
+    const rangeEnd = new Date(`${filter.range.end}T12:00:00`);
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const end = rangeEnd < today ? rangeEnd : today;
+    let totalBusinessDays = 0;
+    for (const date = new Date(start); date <= rangeEnd; date.setDate(date.getDate() + 1)) {
+      if (date.getDay() >= 1 && date.getDay() <= 5) totalBusinessDays += 1;
+    }
+    const dailyTarget = totalBusinessDays > 0 ? Number(metaMensal || 0) / totalBusinessDays : 0;
+    const result: Array<{ date: string; faturamento: number; meta: number }> = [];
+    for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      result.push({
+        date: String(date.getDate()).padStart(2, "0"),
+        faturamento: dailyCollected.get(key) || 0,
+        meta: date.getDay() >= 1 && date.getDay() <= 5 ? dailyTarget : 0,
+      });
+    }
+    return result;
+  }, [registeredVendas, fechamentosMes, filter.range.start, filter.range.end, metaMensal]);
+  const acquisitionHistory = useMemo(() => {
+    const salesPerDay = registeredVendas.reduce((map, venda) => {
+      map.set(venda.data, (map.get(venda.data) || 0) + 1);
+      return map;
+    }, new Map<string, number>());
+    return (metaAdsMonth?.dailyInsights || []).slice(-10).map((day) => {
+      const spend = Number(day.spend || 0);
+      const conversations = getCampaignMql(day.actions);
+      const contacts = getCampaignLeads(day.actions) + conversations;
+      const sales = salesPerDay.get(day.date_start) || 0;
+      return {
+        date: new Date(`${day.date_start}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit" }),
+        cpl: contacts > 0 ? spend / contacts : 0,
+        cplMql: conversations > 0 ? spend / conversations : 0,
+        cac: sales > 0 ? spend / sales : 0,
+      };
+    });
+  }, [metaAdsMonth, registeredVendas]);
   const realizedMetaPct = metaMensal > 0 ? Math.min((collectedTotal / metaMensal) * 100, 100) : 0;
   const realizedSuperMetaPct = Number(superMetaMensal) > 0 ? Math.min((collectedTotal / Number(superMetaMensal)) * 100, 100) : 0;
   const businessDays = useMemo(() => {
@@ -656,7 +725,7 @@ const Dashboard = () => {
 
           {/* ROW 3: Charts */}
           <div className="grid gap-3 sm:gap-5 grid-cols-1 lg:grid-cols-2">
-            <motion.div variants={item}><RevenueChart monthData={monthData} /></motion.div>
+            <motion.div variants={item}><RevenueChart data={revenueChartData} /></motion.div>
             <motion.div variants={item}>
               <LeadsPieChart leads={campaignLeads} leadsMql={campaignMql} monthData={monthData} />
             </motion.div>
@@ -664,7 +733,7 @@ const Dashboard = () => {
 
           <div className="grid gap-3 sm:gap-5 grid-cols-1 lg:grid-cols-2">
             <motion.div variants={item}>
-              <CostBarChart custoLead={avgCpl} custoMql={latestDay?.custo_por_lead_mql || 0} cac={avgCac} monthData={monthData} />
+              <CostBarChart custoLead={currentCpl} custoMql={currentCplMql} cac={cacTotal} history={acquisitionHistory} />
             </motion.div>
             <motion.div variants={item}>
               <LeadsFunnelChart monthData={monthData} />

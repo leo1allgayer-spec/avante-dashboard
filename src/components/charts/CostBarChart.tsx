@@ -26,6 +26,7 @@ interface CostBarChartProps {
   custoMql: number;
   cac: number;
   monthData?: DailyMetrics[];
+  history?: Array<{ date: string; cpl: number; cplMql: number; cac: number }>;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -46,12 +47,12 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const CostBarChart = ({ custoLead, custoMql, cac, monthData: providedMonthData }: CostBarChartProps) => {
+const CostBarChart = ({ custoLead, custoMql, cac, monthData: providedMonthData, history }: CostBarChartProps) => {
   const { data: fallbackMonthData } = useMonthMetrics();
   const monthData = providedMonthData ?? fallbackMonthData;
 
   // Historical evolution of costs
-  const historyData = (monthData || []).slice(-10).map((d) => ({
+  const historyData = history || (monthData || []).slice(-10).map((d) => ({
     date: new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit" }),
     cpl: Number(d.custo_por_lead),
     cplMql: Number(d.custo_por_lead_mql),

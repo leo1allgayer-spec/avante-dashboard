@@ -41,16 +41,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 interface RevenueChartProps {
   monthData?: DailyMetrics[];
+  data?: Array<{ date: string; faturamento: number; meta: number }>;
 }
 
-const RevenueChart = ({ monthData: providedMonthData }: RevenueChartProps = {}) => {
+const RevenueChart = ({ monthData: providedMonthData, data }: RevenueChartProps = {}) => {
   const { data: fallbackMonthData } = useMonthMetrics();
   const monthData = providedMonthData ?? fallbackMonthData;
 
-  const chartData = (monthData || []).map((d, i, arr) => {
+  const chartData = data || (monthData || []).map((d, i, arr) => {
     const acumulado = arr.slice(0, i + 1).reduce((s, x) => s + Number(x.faturamento_dia), 0);
     return {
-      date: new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit" }),
+      date: new Date(`${d.date}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit" }),
       faturamento: Number(d.faturamento_dia),
       meta: Number(d.meta_diaria_prevista),
       acumulado,
