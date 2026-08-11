@@ -966,10 +966,10 @@ const VendasPage = () => {
             <option key={ad.id} value={ad.name}>{ad.campaignName}</option>
           ))}
         </datalist>
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3">
         {/* Informações Principais */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Informações Principais</p>
+        <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Informações Principais</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Data</Label>
@@ -1029,26 +1029,21 @@ const VendasPage = () => {
                 placeholder="Ex.: 🪵 ou emoji/nome do anúncio"
                 className="bg-secondary/30 border-border/30 focus:border-primary/50"
               />
-              <p className="text-[11px] font-medium text-primary/80">
+              <p className="truncate text-[11px] font-medium text-primary/80">
                 {isLoadingMetaAds
                   ? "Carregando nomes dos anúncios da Meta..."
                   : isMetaAdsError
                     ? "Não foi possível carregar a Meta agora; digite manualmente."
                     : `${metaAdsWithEmoji.length} anúncio(s) com emoji disponível(is) para selecionar.`}
               </p>
-              <p className="text-[11px] text-muted-foreground/60">
-                Opcional. Digite o emoji ou nome usado para identificar o anúncio.
-              </p>
             </div>
           </div>
         </div>
 
-        <div className="h-px bg-border/20" />
-
         {/* Valores & Pagamento */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Valores & Pagamento</p>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Valores & Pagamento</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Valor total (R$)</Label>
               <Input type="number" step="0.01" value={form.valor || ""} onChange={(e) => setForm((p) => ({ ...p, valor: Number(e.target.value) }))} placeholder="0,00" className="bg-secondary/30 border-border/30 focus:border-primary/50 font-semibold" />
@@ -1093,7 +1088,7 @@ const VendasPage = () => {
             )}
           </div>
 
-          <div className="mt-4 rounded-lg border border-border/30 bg-secondary/10 p-4 space-y-4">
+          <div className="mt-3 rounded-lg border border-border/30 bg-background/20 p-3 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Situação financeira</Label>
                 <Select
@@ -1118,7 +1113,7 @@ const VendasPage = () => {
               </div>
 
               {form.condicao_pagamento !== "pago" && (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {(form.condicao_pagamento === "sinal" || form.condicao_pagamento === "boleto") && (
                     <div className="space-y-1.5">
                       <Label className="text-xs text-muted-foreground">Valor do sinal pago (R$)</Label>
@@ -1190,12 +1185,10 @@ const VendasPage = () => {
             </div>
         </div>
 
-        <div className="h-px bg-border/20" />
-
         {/* Comissão & Status */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Comissão & Status</p>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Comissão & Status</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Comissão sobre recebido (15%)</Label>
               <div className="h-10 flex items-center px-3 rounded-md bg-secondary/30 border border-border/30 text-sm font-semibold text-emerald-400">
@@ -1216,7 +1209,7 @@ const VendasPage = () => {
           </div>
         </div>
 
-          <div className="rounded-xl border border-border/30 bg-secondary/10 p-4">
+          <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Itens extras</p>
