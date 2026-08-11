@@ -981,6 +981,39 @@ const VendasPage = () => {
           ))}
         </datalist>
         <div className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3">
+        {editingVenda && (
+          <div className="rounded-xl border border-primary/25 bg-primary/[0.04] p-3 sm:p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary/80">Planilha de produtos e serviços</p>
+                <p className="text-xs text-muted-foreground/70">Todos os itens desta venda, um abaixo do outro e editáveis na linha.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addVendaItem}><Plus className="h-4 w-4" /> Adicionar linha</Button>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-border/40">
+              <Table className="min-w-[1120px]">
+                <TableHeader className="bg-secondary/40"><TableRow>
+                  <TableHead className="w-16">Item</TableHead><TableHead className="min-w-48">Produto</TableHead><TableHead className="min-w-56">Serviço</TableHead><TableHead className="min-w-36">Origem</TableHead><TableHead className="min-w-32">Valor</TableHead><TableHead className="min-w-44">Pagamento</TableHead><TableHead className="min-w-36">Status</TableHead><TableHead className="w-14" />
+                </TableRow></TableHeader>
+                <TableBody>
+                  {([form, ...additionalItems] as VendaItemForm[]).map((saleItem, rowIndex) => {
+                    const updateRow = (updates: Partial<VendaItemForm>) => rowIndex === 0 ? setForm((previous) => ({ ...previous, ...updates })) : updateVendaItem(rowIndex - 1, updates);
+                    return <TableRow key={rowIndex} className="border-border/30 align-middle">
+                      <TableCell className="font-semibold text-primary">{rowIndex + 1}</TableCell>
+                      <TableCell><Select value={saleItem.produto || "__none__"} onValueChange={(produto) => updateRow({ produto: produto === "__none__" ? "" : produto })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">Nenhum produto</SelectItem>{PRODUTOS.map((produto) => <SelectItem key={produto} value={produto}>{produto}</SelectItem>)}</SelectContent></Select></TableCell>
+                      <TableCell><Select value={saleItem.servico || "__none__"} onValueChange={(servico) => updateRow({ servico: servico === "__none__" ? "" : servico })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">Nenhum serviço</SelectItem>{SERVICOS.map((servico) => <SelectItem key={servico} value={servico}>{servico}</SelectItem>)}</SelectContent></Select></TableCell>
+                      <TableCell><Select value={saleItem.origem} onValueChange={(origem) => updateRow({ origem })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{ORIGENS.map((origem) => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></TableCell>
+                      <TableCell><Input className="h-9" type="number" min="0" step="0.01" value={saleItem.valor || ""} onChange={(event) => updateRow({ valor: Number(event.target.value) })} /></TableCell>
+                      <TableCell><Select value={saleItem.pagamento} onValueChange={(pagamento) => updateRow({ pagamento, parcelas: PAGAMENTOS_COM_PARCELA.includes(pagamento) ? saleItem.parcelas : 1 })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Infinity (Visa/Master)", "Elo/Amex", "Link Gateway", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></TableCell>
+                      <TableCell><Select value={saleItem.status} onValueChange={(status) => updateRow({ status })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="aprovada">Aprovada</SelectItem><SelectItem value="cancelada">Cancelada</SelectItem></SelectContent></Select></TableCell>
+                      <TableCell>{rowIndex > 0 && rowIndex - 1 >= editingRecords.length - 1 && <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeVendaItem(rowIndex - 1)}><Trash2 className="h-4 w-4" /></Button>}</TableCell>
+                    </TableRow>;
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
         {/* Informações Principais */}
         <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Informações Principais</p>
