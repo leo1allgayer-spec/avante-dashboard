@@ -333,6 +333,7 @@ const MetasPage = () => {
               const realizadoValor = vendasRelacionadas.reduce((s, v) => s + Number(v.valor || 0), 0);
               const comissoes = vendasRelacionadas.reduce((s, v) => s + Number(v.comissao || 0), 0);
               const valorLiquido = realizadoValor - comissoes;
+              const faltaParaMeta = Number(svc.metaQty) > 0 ? Math.max(Number(svc.metaQty) - realizado, 0) : 0;
 
               return (
                 <motion.div
@@ -364,6 +365,14 @@ const MetasPage = () => {
                       <div>
                         <p className="text-[10px] text-muted-foreground/50">Super Qtd</p>
                         <p className="font-display text-base font-bold text-amber-400">{Number(svc.superMetaQty)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground/50">Qtd até agora</p>
+                        <p className="font-display text-base font-bold text-emerald-400">{realizado}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground/50">Falta p/ meta</p>
+                        <p className="font-display text-base font-bold text-amber-400">{Number(svc.metaQty) > 0 ? faltaParaMeta : "—"}</p>
                       </div>
                       <div>
                         <p className="text-[10px] text-muted-foreground/50">Valor Total</p>
