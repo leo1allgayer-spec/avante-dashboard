@@ -64,6 +64,7 @@ type CampaignRow = {
   id: string;
   name: string;
   status: string;
+  objective: string;
   dailyBudget: number;
   lifetimeBudget: number;
   spend: number;
@@ -227,11 +228,13 @@ const CampanhasPage = () => {
   const campaignDetailsById = useMemo(() => {
     const details = new Map<string, {
       status: string;
+      objective: string;
       dailyBudget: number;
       lifetimeBudget: number;
     }>();
     (metaData?.campaigns || []).forEach((campaign) => details.set(campaign.id, {
       status: campaign.status,
+      objective: campaign.objective,
       dailyBudget: budgetFromCents(campaign.daily_budget),
       lifetimeBudget: budgetFromCents(campaign.lifetime_budget),
     }));
@@ -249,6 +252,7 @@ const CampanhasPage = () => {
           id: campaign.campaign_id,
           name: campaign.campaign_name,
           status: details?.status || "UNKNOWN",
+          objective: details?.objective || "",
           dailyBudget: details?.dailyBudget || 0,
           lifetimeBudget: details?.lifetimeBudget || 0,
           spend: numberValue(campaign.spend),
@@ -292,7 +296,17 @@ const CampanhasPage = () => {
     };
   }, [campaignRows]);
 
-  const costPerLead = displayedMetaTotals.leads > 0 ? displayedMetaTotals.spend / displayedMetaTotals.leads : 0;
+  const leadAcquisitionTotals = useMemo(() => {
+    const eligibleObjectives = new Set(["OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "OUTCOME_LEADS"]);
+    const eligibleCampaigns = campaignRows.filter((campaign) => eligibleObjectives.has(campaign.objective.toUpperCase()));
+    const spend = eligibleCampaigns.reduce((total, campaign) => total + campaign.spend, 0);
+    const leads = eligibleCampaigns.reduce((total, campaign) => total + campaign.leads, 0);
+    const conversations = eligibleCampaigns.reduce((total, campaign) => total + campaign.conversations, 0);
+    return { spend, leads, conversations, totalContacts: leads + conversations };
+  }, [campaignRows]);
+  const costPerLead = leadAcquisitionTotals.totalContacts > 0
+    ? leadAcquisitionTotals.spend / leadAcquisitionTotals.totalContacts
+    : 0;
   const costPerConversation = displayedMetaTotals.conversations > 0 ? displayedMetaTotals.spend / displayedMetaTotals.conversations : 0;
 
   const dailyChart = (metaData?.dailyInsights || []).map((day) => ({
@@ -548,7 +562,7 @@ const CampanhasPage = () => {
               <StaggerItem><MetricCard title="CPC Medio" value={formatCurrency(displayedMetaTotals.cpc)} icon={<BarChart3 className="h-5 w-5" />} variant="primary" /></StaggerItem>
               <StaggerItem><MetricCard title="Alcance" value={formatNumber(displayedMetaTotals.reach)} icon={<Users className="h-5 w-5" />} variant="accent" /></StaggerItem>
               <StaggerItem><MetricCard title="Leads (Meta)" value={formatNumber(displayedMetaTotals.leads)} icon={<Target className="h-5 w-5" />} variant="success" /></StaggerItem>
-              <StaggerItem><MetricCard title="Custo por Lead" value={formatCurrency(costPerLead)} icon={<DollarSign className="h-5 w-5" />} variant={costPerLead > 50 ? "warning" : "success"} /></StaggerItem>
+              <StaggerItem><MetricCard title="Custo por Lead" value={formatCurrency(costPerLead)} subtitle={`${formatCurrency(leadAcquisitionTotals.spend)} ÷ ${formatNumber(leadAcquisitionTotals.totalContacts)} contatos`} icon={<DollarSign className="h-5 w-5" />} variant={costPerLead > 50 ? "warning" : "success"} /></StaggerItem>
             </StaggerContainer>
 
             <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
