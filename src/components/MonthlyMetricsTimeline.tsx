@@ -8,7 +8,7 @@ import { useCrmMql } from "@/hooks/useCrmMql";
 import { Button } from "@/components/ui/button";
 
 type Period = "dia" | "semana" | "mes";
-type TimelineRow = { key: string; label: string; start: string; end: string; faturamento: number; vendas: number; cursosFeitos: number; leads: number; mql: number; ads: number; metaPrevista: number };
+type TimelineRow = { key: string; label: string; start: string; end: string; faturamento: number; valorVendido: number; aReceber: number; vendas: number; cursosFeitos: number; leads: number; mql: number; ads: number; metaPrevista: number };
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -75,7 +75,7 @@ export default function MonthlyMetricsTimeline() {
 
   const periods = useMemo<TimelineRow[]>(() => {
     const rows = new Map<string, TimelineRow>();
-    const createRow = (key: string, label: string, start: string, end: string) => rows.set(key, { key, label, start, end, faturamento: 0, vendas: 0, cursosFeitos: 0, leads: 0, mql: 0, ads: 0, metaPrevista: 0 });
+    const createRow = (key: string, label: string, start: string, end: string) => rows.set(key, { key, label, start, end, faturamento: 0, valorVendido: 0, aReceber: 0, vendas: 0, cursosFeitos: 0, leads: 0, mql: 0, ads: 0, metaPrevista: 0 });
     const now = new Date();
     if (period === "dia") {
       for (let offset = 6; offset >= 0; offset--) {
@@ -127,7 +127,13 @@ export default function MonthlyMetricsTimeline() {
     });
     saleGroups.forEach((group) => {
       const received = fechamentos.filter((item) => (item.status || "").toLowerCase() !== "cancelado" && item.data === group.data && item.cliente.trim().toLocaleLowerCase("pt-BR") === group.cliente && item.vendedor.trim().toLocaleLowerCase("pt-BR") === group.vendedor).reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-      const row = rows.get(group.period); if (row) row.faturamento += Math.min(group.total, received);
+      const row = rows.get(group.period);
+      if (row) {
+        const collected = Math.min(group.total, received);
+        row.valorVendido += group.total;
+        row.faturamento += collected;
+        row.aReceber += Math.max(group.total - collected, 0);
+      }
     });
     Object.entries(crmMql?.daily || {}).forEach(([date, total]) => { const row = rows.get(rowKey(date)); if (row) row.mql += Number(total || 0); });
     const monthlyTargets = new Map<string, number>();
@@ -170,7 +176,10 @@ export default function MonthlyMetricsTimeline() {
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">CAC cursos</span><strong className="text-primary">{row.cursosFeitos ? money.format(row.ads / row.cursosFeitos) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">ROAS</span><strong className="text-emerald-400">{row.ads ? `${(row.faturamento / row.ads).toFixed(2).replace(".", ",")}x` : "—"}</strong></div>
         <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Meta prevista</span><strong className="text-blue-400">{money.format(row.metaPrevista)}</strong></div>
-        <div className="flex justify-between gap-3"><span className="text-muted-foreground">Meta realizada</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground">Meta realizada</span><strong className="text-emerald-400">{money.format(row.valorVendido)}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground">% da meta</span><strong className="text-violet-400">{row.metaPrevista > 0 ? `${((row.valorVendido / row.metaPrevista) * 100).toFixed(1).replace(".", ",")}%` : "—"}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground">Coletado</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground">A receber</span><strong className="text-amber-400">{money.format(row.aReceber)}</strong></div>
       </div></div>{index < periods.length - 1 && <ArrowRight className="ml-2 h-4 w-4 shrink-0 text-muted-foreground/40 lg:hidden" />}</div>)}
     </div></div>
     {isLoading && <p className="mt-2 text-xs text-muted-foreground">Carregando histórico...</p>}
