@@ -202,10 +202,26 @@ const Dashboard = () => {
     }
     return stats;
   }, [fechamentosMes, registeredVendas]);
-  const collectedTotal = useMemo(
-    () => Array.from(collectedCategoryStats.values()).reduce((total, value) => total + value, 0),
-    [collectedCategoryStats],
-  );
+  const collectedTotal = useMemo(() => {
+    const groups = new Map<string, { total: number; data: string; cliente: string; vendedor: string }>();
+    for (const venda of registeredVendas) {
+      const key = [venda.data, normalizeText(venda.cliente), normalizeText(venda.vendedor)].join("|");
+      const current = groups.get(key) || { total: 0, data: venda.data, cliente: venda.cliente, vendedor: venda.vendedor };
+      current.total += Number(venda.valor || 0);
+      groups.set(key, current);
+    }
+    return Array.from(groups.values()).reduce((total, group) => {
+      const received = fechamentosMes
+        .filter((item) =>
+          normalizeText(item.status) !== "cancelado" &&
+          item.data === group.data &&
+          normalizeText(item.cliente) === normalizeText(group.cliente) &&
+          normalizeText(item.vendedor) === normalizeText(group.vendedor)
+        )
+        .reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
+      return total + Math.min(group.total, received);
+    }, 0);
+  }, [fechamentosMes, registeredVendas]);
   const realizedMetaPct = metaMensal > 0 ? Math.min((collectedTotal / metaMensal) * 100, 100) : 0;
   const realizedSuperMetaPct = Number(superMetaMensal) > 0 ? Math.min((collectedTotal / Number(superMetaMensal)) * 100, 100) : 0;
   const businessDays = useMemo(() => {
