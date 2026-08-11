@@ -243,11 +243,13 @@ const Dashboard = () => {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const end = rangeEnd < today ? rangeEnd : today;
-    let totalBusinessDays = 0;
-    for (const date = new Date(start); date <= rangeEnd; date.setDate(date.getDate() + 1)) {
-      if (date.getDay() >= 1 && date.getDay() <= 5) totalBusinessDays += 1;
+    const monthStart = new Date(filter.anchor.getFullYear(), filter.anchor.getMonth(), 1, 12);
+    const monthEnd = new Date(filter.anchor.getFullYear(), filter.anchor.getMonth() + 1, 0, 12);
+    let monthBusinessDays = 0;
+    for (const date = new Date(monthStart); date <= monthEnd; date.setDate(date.getDate() + 1)) {
+      if (date.getDay() >= 1 && date.getDay() <= 5) monthBusinessDays += 1;
     }
-    const dailyTarget = totalBusinessDays > 0 ? Number(metaMensal || 0) / totalBusinessDays : 0;
+    const dailyTarget = monthBusinessDays > 0 ? Number(metaMensal || 0) / monthBusinessDays : 0;
     const result: Array<{ date: string; faturamento: number; meta: number }> = [];
     for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -258,7 +260,7 @@ const Dashboard = () => {
       });
     }
     return result;
-  }, [registeredVendas, fechamentosMes, filter.range.start, filter.range.end, metaMensal]);
+  }, [registeredVendas, fechamentosMes, filter.range.start, filter.range.end, filter.anchor, metaMensal]);
   const acquisitionHistory = useMemo(() => {
     const salesPerDay = registeredVendas.reduce((map, venda) => {
       map.set(venda.data, (map.get(venda.data) || 0) + 1);
@@ -285,8 +287,6 @@ const Dashboard = () => {
       mql: conversations,
     };
   }), [metaAdsMonth]);
-  const realizedMetaPct = metaMensal > 0 ? Math.min((collectedTotal / metaMensal) * 100, 100) : 0;
-  const realizedSuperMetaPct = Number(superMetaMensal) > 0 ? Math.min((collectedTotal / Number(superMetaMensal)) * 100, 100) : 0;
   const businessDays = useMemo(() => {
     const start = new Date(`${filter.range.start}T12:00:00`);
     const end = new Date(`${filter.range.end}T12:00:00`);
@@ -305,6 +305,24 @@ const Dashboard = () => {
     if (today > end) remaining = 0;
     return { total, remaining };
   }, [filter.range.start, filter.range.end]);
+  const monthBusinessDays = useMemo(() => {
+    const start = new Date(filter.anchor.getFullYear(), filter.anchor.getMonth(), 1, 12);
+    const end = new Date(filter.anchor.getFullYear(), filter.anchor.getMonth() + 1, 0, 12);
+    let total = 0;
+    for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      if (date.getDay() >= 1 && date.getDay() <= 5) total += 1;
+    }
+    return total;
+  }, [filter.anchor]);
+  const periodMetaTarget = filter.mode === "mes" || monthBusinessDays === 0
+    ? Number(metaMensal || 0)
+    : (Number(metaMensal || 0) / monthBusinessDays) * businessDays.total;
+  const periodSuperMetaTarget = filter.mode === "mes" || monthBusinessDays === 0
+    ? Number(superMetaMensal || 0)
+    : (Number(superMetaMensal || 0) / monthBusinessDays) * businessDays.total;
+  const realizedMetaPct = periodMetaTarget > 0 ? Math.min((collectedTotal / periodMetaTarget) * 100, 100) : 0;
+  const realizedSuperMetaPct = periodSuperMetaTarget > 0 ? Math.min((collectedTotal / periodSuperMetaTarget) * 100, 100) : 0;
+  const periodLabel = filter.mode === "dia" ? "dia" : filter.mode === "semana" ? "semana" : "mês";
   const scheduledCourses = useMemo(() => bookings.filter((booking) =>
     booking.date >= filter.range.start &&
     booking.date <= filter.range.end &&
@@ -442,7 +460,10 @@ const Dashboard = () => {
       >
         <DateFilterBar
           mode={filter.mode}
-          onModeChange={filter.setMode}
+          onModeChange={(mode) => {
+            filter.setMode(mode);
+            setRoasFilter(["geral"]);
+          }}
           label={filter.label}
           onBack={filter.goBack}
           onForward={filter.goForward}
@@ -450,12 +471,11 @@ const Dashboard = () => {
 
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-5">
 
-          {/* Month label (no day/week filter) */}
           <div className="flex items-center gap-3">
             <p className="text-sm font-medium text-muted-foreground">{filter.label}</p>
           </div>
 
-          <MonthlyMetricsTimeline />
+          {filter.mode === "mes" && <MonthlyMetricsTimeline />}
 
           {/* ROW 1: Hero + side cards */}
           <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-12 md:auto-rows-auto">
@@ -469,23 +489,23 @@ const Dashboard = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <TrendingUp className="h-4 w-4 text-accent/60" />
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60 font-medium">Faturamento (mês)</p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/60 font-medium">Faturamento ({periodLabel})</p>
                   </div>
                   <p className="font-display text-[2rem] sm:text-[2.8rem] md:text-[3.4rem] font-extrabold text-foreground leading-none tracking-tight">
                     <CountUp end={collectedTotal} duration={2.2} prefix="R$" separator="." decimal="," decimals={0} />
                   </p>
-                  {metaMensal > 0 && (
+                  {periodMetaTarget > 0 && (
                     <p className="text-sm text-muted-foreground/50 mt-2">
-                      Meta: {formatCurrency(metaMensal)} · <span className={realizedMetaPct >= 80 ? "text-success" : "text-warning"}>{realizedMetaPct.toFixed(0)}%</span>
-                      {Number(superMetaMensal) > 0 && (
+                      Meta: {formatCurrency(periodMetaTarget)} · <span className={realizedMetaPct >= 80 ? "text-success" : "text-warning"}>{realizedMetaPct.toFixed(0)}%</span>
+                      {periodSuperMetaTarget > 0 && (
                         <span className="ml-2 text-amber-400/70">
-                          Super: {formatCurrency(Number(superMetaMensal))} · {realizedSuperMetaPct.toFixed(0)}%
+                          Super: {formatCurrency(periodSuperMetaTarget)} · {realizedSuperMetaPct.toFixed(0)}%
                         </span>
                       )}
                     </p>
                   )}
                 </div>
-                {metaMensal > 0 && (
+                {periodMetaTarget > 0 && (
                   <div className="space-y-1.5">
                     <div className="h-1.5 w-full rounded-full overflow-hidden bg-secondary/60">
                       <motion.div
@@ -495,7 +515,7 @@ const Dashboard = () => {
                         className="h-full rounded-full bg-accent"
                       />
                     </div>
-                    {Number(superMetaMensal) > 0 && (
+                    {periodSuperMetaTarget > 0 && (
                       <div className="h-1.5 w-full rounded-full overflow-hidden bg-secondary/60">
                         <motion.div
                           initial={{ width: 0 }}
@@ -669,7 +689,7 @@ const Dashboard = () => {
               <p className="font-display text-2xl sm:text-3xl font-bold text-foreground leading-none tabular-nums">
                 <CountUp end={businessDays.remaining} duration={2} />
               </p>
-              <p className="text-xs text-muted-foreground/40 mt-1.5">de {businessDays.total} dias úteis no mês</p>
+              <p className="text-xs text-muted-foreground/40 mt-1.5">de {businessDays.total} dias úteis no período</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">

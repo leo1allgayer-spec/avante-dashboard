@@ -90,9 +90,16 @@ export function useBusinessSummary(filter: BusinessSummaryFilter) {
   }, 0);
 
   const monthRealized = vendasTotal;
-  const latestDay = monthData.length > 0 ? monthData[monthData.length - 1] : null;
-  const metaMensal = latestDay?.meta_mensal_prevista || 0;
-  const superMetaMensal = [...monthData].reverse().find((d) => Number(d.super_meta_mensal) > 0)?.super_meta_mensal || 0;
+  // Metas são mensais e precisam continuar disponíveis quando o período ativo
+  // estiver reduzido para um único dia ou uma semana.
+  const metaMensal = monthMetrics.reduce(
+    (maior, item) => Math.max(maior, Number(item.meta_mensal_prevista || 0)),
+    0,
+  );
+  const superMetaMensal = monthMetrics.reduce(
+    (maior, item) => Math.max(maior, Number(item.super_meta_mensal || 0)),
+    0,
+  );
   const metaPct = metaMensal > 0 ? Math.min((monthRealized / metaMensal) * 100, 100) : 0;
   const superMetaPct = Number(superMetaMensal) > 0 ? Math.min((monthRealized / Number(superMetaMensal)) * 100, 100) : 0;
 
