@@ -982,7 +982,14 @@ const VendasPage = () => {
           ))}
         </datalist>
         <div className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4 space-y-3">
-        {editingVenda && (
+        <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Cliente da venda</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Data</Label><Input type="date" value={form.data} onChange={(event) => setForm((previous) => ({ ...previous, data: event.target.value }))} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Nome do cliente</Label><Input value={form.cliente} onChange={(event) => setForm((previous) => ({ ...previous, cliente: event.target.value }))} required placeholder="Nome do cliente" /></div>
+          </div>
+        </div>
+        {(
           <div className="rounded-xl border border-primary/25 bg-primary/[0.04] p-3 sm:p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -992,9 +999,9 @@ const VendasPage = () => {
               <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addVendaItem}><Plus className="h-4 w-4" /> Adicionar linha</Button>
             </div>
             <div className="overflow-x-auto rounded-lg border border-border/40">
-              <Table className="min-w-[1120px]">
+              <Table className="min-w-[1480px]">
                 <TableHeader className="bg-secondary/40"><TableRow>
-                  <TableHead className="w-16">Item</TableHead><TableHead className="min-w-48">Produto</TableHead><TableHead className="min-w-56">Serviço</TableHead><TableHead className="min-w-36">Origem</TableHead><TableHead className="min-w-32">Valor</TableHead><TableHead className="min-w-44">Pagamento</TableHead><TableHead className="min-w-36">Status</TableHead><TableHead className="w-14" />
+                  <TableHead className="w-16">Item</TableHead><TableHead className="min-w-48">Produto</TableHead><TableHead className="min-w-56">Serviço</TableHead><TableHead className="min-w-36">Origem</TableHead><TableHead className="min-w-32">Valor</TableHead><TableHead className="min-w-44">Pagamento</TableHead><TableHead className="min-w-52">Situação financeira</TableHead><TableHead className="min-w-32">Coletado</TableHead><TableHead className="min-w-36">Status</TableHead><TableHead className="w-14" />
                 </TableRow></TableHeader>
                 <TableBody>
                   {([form, ...additionalItems] as VendaItemForm[]).map((saleItem, rowIndex) => {
@@ -1006,6 +1013,8 @@ const VendasPage = () => {
                       <TableCell><Select value={saleItem.origem} onValueChange={(origem) => updateRow({ origem })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{ORIGENS.map((origem) => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></TableCell>
                       <TableCell><Input className="h-9" type="number" min="0" step="0.01" value={saleItem.valor || ""} onChange={(event) => updateRow({ valor: Number(event.target.value) })} /></TableCell>
                       <TableCell><Select value={saleItem.pagamento} onValueChange={(pagamento) => updateRow({ pagamento, parcelas: PAGAMENTOS_COM_PARCELA.includes(pagamento) ? saleItem.parcelas : 1 })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Infinity (Visa/Master)", "Elo/Amex", "Link Gateway", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></TableCell>
+                      <TableCell><Select value={saleItem.condicao_pagamento} onValueChange={(condicao_pagamento) => updateRow({ condicao_pagamento, valor_sinal: condicao_pagamento === "pago" ? saleItem.valor : condicao_pagamento === "a_receber" ? 0 : saleItem.valor_sinal })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pago">Pago integralmente</SelectItem><SelectItem value="sinal">Sinal + saldo</SelectItem><SelectItem value="a_receber">Total a receber</SelectItem><SelectItem value="boleto">Boleto parcelado</SelectItem></SelectContent></Select></TableCell>
+                      <TableCell><Input className="h-9" type="number" min="0" max={saleItem.valor} step="0.01" disabled={saleItem.condicao_pagamento === "pago"} value={saleItem.condicao_pagamento === "pago" ? saleItem.valor : saleItem.valor_sinal || ""} onChange={(event) => updateRow({ valor_sinal: Number(event.target.value) })} /></TableCell>
                       <TableCell><Select value={saleItem.status} onValueChange={(status) => updateRow({ status })}><SelectTrigger className="h-9"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="aprovada">Aprovada</SelectItem><SelectItem value="cancelada">Cancelada</SelectItem></SelectContent></Select></TableCell>
                       <TableCell>{rowIndex > 0 && rowIndex - 1 >= editingRecords.length - 1 && <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeVendaItem(rowIndex - 1)}><Trash2 className="h-4 w-4" /></Button>}</TableCell>
                     </TableRow>;
@@ -1015,79 +1024,9 @@ const VendasPage = () => {
             </div>
           </div>
         )}
-        {/* Informações Principais */}
-        <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Informações Principais</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Data</Label>
-              <Input type="date" value={form.data} onChange={(e) => setForm((p) => ({ ...p, data: e.target.value }))} className="bg-secondary/30 border-border/30 focus:border-primary/50" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Cliente</Label>
-              <Input value={form.cliente} onChange={(e) => setForm((p) => ({ ...p, cliente: e.target.value }))} required placeholder="Nome do cliente" className="bg-secondary/30 border-border/30 focus:border-primary/50" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Produto</Label>
-              <Select value={form.produto || "__none__"} onValueChange={(v) => setForm((p) => ({ ...p, produto: v === "__none__" ? "" : v }))}>
-                <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nenhum produto</SelectItem>
-                  {PRODUTOS.map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Serviço</Label>
-              <Select value={form.servico || "__none__"} onValueChange={(v) => setForm((p) => ({ ...p, servico: v === "__none__" ? "" : v }))}>
-                <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o serviço" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nenhum serviço</SelectItem>
-                  {SERVICOS.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Origem</Label>
-              <Select value={form.origem} onValueChange={(origem) => { setForm((p) => ({ ...p, origem })); syncSaleOrigin({ origem }); }}>
-                <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione a origem" /></SelectTrigger>
-                <SelectContent>
-                  {ORIGENS.map((o) => (
-                    <SelectItem key={o} value={o}>{o}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Criativo de origem</Label>
-              <Select value={metaAdsWithEmoji.some((ad) => ad.name === form.criativo) ? form.criativo : undefined} onValueChange={(criativo) => { setForm((p) => ({ ...p, criativo })); syncSaleOrigin({ criativo }); }}>
-                <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder={isLoadingMetaAds ? "Carregando anúncios..." : "Selecionar anúncio da Meta"} /></SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {metaAdsWithEmoji.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Input
-                list="meta-ad-names"
-                value={form.criativo}
-                onChange={(event) => { const criativo = event.target.value; setForm((p) => ({ ...p, criativo })); syncSaleOrigin({ criativo }); }}
-                placeholder="Ex.: 🪵 ou emoji/nome do anúncio"
-                className="bg-secondary/30 border-border/30 focus:border-primary/50"
-              />
-              <p className="truncate text-[11px] font-medium text-primary/80">
-                {isLoadingMetaAds
-                  ? "Carregando nomes dos anúncios da Meta..."
-                  : isMetaAdsError
-                    ? "Não foi possível carregar a Meta agora; digite manualmente."
-                    : `${metaAdsWithEmoji.length} anúncio(s) com emoji disponível(is) para selecionar.`}
-              </p>
-            </div>
-          </div>
-        </div>
-
+        <details className="rounded-xl border border-border/30 bg-secondary/5">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground">Detalhes financeiros avançados, parcelas, comissão e criativos</summary>
+          <div className="space-y-3 border-t border-border/20 p-3 sm:p-4">
         {/* Valores & Pagamento */}
         <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Valores & Pagamento</p>
@@ -1487,7 +1426,8 @@ const VendasPage = () => {
               </div>
             )}
           </div>
-
+          </div>
+        </details>
         </div>
         <div className="shrink-0 border-t border-border/30 bg-card/95 p-3 backdrop-blur sm:px-5">
           <Button type="submit" className="w-full h-11 text-sm font-semibold" disabled={isSaving}>
