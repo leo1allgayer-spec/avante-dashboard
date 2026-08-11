@@ -62,7 +62,7 @@ export default function MonthlyMetricsTimeline() {
     queryFn: async () => {
       const [metricsResult, vendasResult, metaResult] = await Promise.all([
         supabase.from("daily_metrics").select("date, leads, ads, curso_feito, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
-        supabase.from("vendas").select("data, valor, status").gte("data", startDate),
+        supabase.from("vendas").select("data, cliente, vendedor, valor, status").gte("data", startDate),
         supabase.functions.invoke("meta-ads", { body: { datePreset: "custom", since: startDate, until: localDateKey(new Date()) } }),
       ]);
       if (metricsResult.error) throw metricsResult.error;
@@ -110,12 +110,27 @@ export default function MonthlyMetricsTimeline() {
         row.vendas += 1;
       }
     });
-    fechamentos.forEach((item) => {
-      if ((item.status || "").toLowerCase() === "cancelado") return;
-      const row = rows.get(item.data.slice(0, 7));
-      if (row) {
-        row.faturamento += Number(item.valor_sinal || 0);
-      }
+    const saleGroups = new Map<string, { month: string; total: number; cliente: string; vendedor: string; data: string }>();
+    data?.vendas.forEach((item) => {
+      if (item.status === "recusada" || item.status === "cancelada") return;
+      const cliente = (item.cliente || "").trim().toLocaleLowerCase("pt-BR");
+      const vendedor = (item.vendedor || "").trim().toLocaleLowerCase("pt-BR");
+      const key = [item.data, cliente, vendedor].join("|");
+      const current = saleGroups.get(key) || { month: item.data.slice(0, 7), total: 0, cliente, vendedor, data: item.data };
+      current.total += Number(item.valor || 0);
+      saleGroups.set(key, current);
+    });
+    saleGroups.forEach((group) => {
+      const received = fechamentos
+        .filter((item) =>
+          (item.status || "").toLowerCase() !== "cancelado" &&
+          item.data === group.data &&
+          item.cliente.trim().toLocaleLowerCase("pt-BR") === group.cliente &&
+          item.vendedor.trim().toLocaleLowerCase("pt-BR") === group.vendedor
+        )
+        .reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
+      const row = rows.get(group.month);
+      if (row) row.faturamento += Math.min(group.total, received);
     });
     return Array.from(rows.values());
   }, [data, fechamentos]);

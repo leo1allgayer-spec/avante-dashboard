@@ -289,8 +289,13 @@ const VendasPage = () => {
   const fechamentosFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
     return fechamentosPeriodo.filter((item) => {
+      const fechamentoStatus = normalizeFechamentoStatus(item.status);
       if (origemFilter !== "todos" && (item.origem || "") !== origemFilter) return false;
-      if (statusFilter === "cancelada" && normalizeFechamentoStatus(item.status) !== "cancelado") return false;
+      if (statusFilter === "cancelada") {
+        if (fechamentoStatus !== "cancelado") return false;
+      } else if (fechamentoStatus === "cancelado") {
+        return false;
+      }
       if (!q) return true;
       return [item.cliente, item.vendedor, item.origem || "", getFechamentoCategoria(item), item.produto_servico, item.observacao || ""]
         .some((value) => value.toLowerCase().includes(q));
@@ -407,6 +412,7 @@ const VendasPage = () => {
       const categoria = getVendaCategoria(venda);
       const fechamento = fechamentos.find((item) =>
         !usedFechamentos.has(item.id) &&
+        normalizeFechamentoStatus(item.status) !== "cancelado" &&
         item.data === venda.data &&
         item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
@@ -735,7 +741,9 @@ const VendasPage = () => {
     const records = groupItems.map((venda) => {
       const categoria = venda.servico || venda.produto || "Sem categoria";
       const fechamento = fechamentos.find((item) =>
-        !usedFechamentos.has(item.id) && item.data === venda.data &&
+        !usedFechamentos.has(item.id) &&
+        normalizeFechamentoStatus(item.status) !== "cancelado" &&
+        item.data === venda.data &&
         item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
         getFechamentoCategoria(item) === categoria,
