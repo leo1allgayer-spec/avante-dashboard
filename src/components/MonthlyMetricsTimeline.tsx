@@ -8,7 +8,7 @@ import { useCrmMql } from "@/hooks/useCrmMql";
 import { Button } from "@/components/ui/button";
 
 type Period = "dia" | "semana" | "mes";
-type TimelineRow = { key: string; label: string; faturamento: number; vendas: number; cursosFeitos: number; leads: number; mql: number; ads: number };
+type TimelineRow = { key: string; label: string; start: string; end: string; faturamento: number; vendas: number; cursosFeitos: number; leads: number; mql: number; ads: number; metaPrevista: number };
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -18,6 +18,15 @@ const mondayKey = (value: string) => {
   const day = date.getDay() || 7;
   date.setDate(date.getDate() - day + 1);
   return localDateKey(date);
+};
+const weekdaysInMonth = (year: number, month: number) => {
+  let total = 0;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  for (let day = 1; day <= lastDay; day++) {
+    const weekday = new Date(year, month, day).getDay();
+    if (weekday >= 1 && weekday <= 5) total++;
+  }
+  return total;
 };
 const getFirstAction = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
   for (const type of types) {
@@ -54,7 +63,7 @@ export default function MonthlyMetricsTimeline() {
     queryKey: ["metrics-timeline", period, startDate],
     queryFn: async () => {
       const [metricsResult, vendasResult, metaResult] = await Promise.all([
-        supabase.from("daily_metrics").select("date, leads, ads, curso_feito, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", startDate),
+        supabase.from("daily_metrics").select("date, leads, ads, curso_feito, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", `${startDate.slice(0, 7)}-01`),
         supabase.from("vendas").select("data, cliente, vendedor, valor, status").gte("data", startDate),
         supabase.functions.invoke("meta-ads", { body: { datePreset: "custom", since: startDate, until: endDate } }),
       ]);
@@ -66,12 +75,13 @@ export default function MonthlyMetricsTimeline() {
 
   const periods = useMemo<TimelineRow[]>(() => {
     const rows = new Map<string, TimelineRow>();
-    const createRow = (key: string, label: string) => rows.set(key, { key, label, faturamento: 0, vendas: 0, cursosFeitos: 0, leads: 0, mql: 0, ads: 0 });
+    const createRow = (key: string, label: string, start: string, end: string) => rows.set(key, { key, label, start, end, faturamento: 0, vendas: 0, cursosFeitos: 0, leads: 0, mql: 0, ads: 0, metaPrevista: 0 });
     const now = new Date();
     if (period === "dia") {
       for (let offset = 6; offset >= 0; offset--) {
         const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
-        createRow(localDateKey(date), new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit" }).format(date));
+        const key = localDateKey(date);
+        createRow(key, new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit" }).format(date), key, key);
       }
     } else if (period === "semana") {
       const monday = new Date(now);
@@ -79,12 +89,13 @@ export default function MonthlyMetricsTimeline() {
       for (let offset = 5; offset >= 0; offset--) {
         const start = new Date(monday); start.setDate(start.getDate() - offset * 7);
         const end = new Date(start); end.setDate(end.getDate() + 6);
-        createRow(localDateKey(start), `${String(start.getDate()).padStart(2, "0")}/${String(start.getMonth() + 1).padStart(2, "0")}–${String(end.getDate()).padStart(2, "0")}/${String(end.getMonth() + 1).padStart(2, "0")}`);
+        createRow(localDateKey(start), `${String(start.getDate()).padStart(2, "0")}/${String(start.getMonth() + 1).padStart(2, "0")}–${String(end.getDate()).padStart(2, "0")}/${String(end.getMonth() + 1).padStart(2, "0")}`, localDateKey(start), localDateKey(end));
       }
     } else {
       for (let offset = 5; offset >= 0; offset--) {
         const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-        createRow(localDateKey(date).slice(0, 7), monthLabel.format(date).replace(" de ", "/"));
+        const monthKey = localDateKey(date).slice(0, 7);
+        createRow(monthKey, monthLabel.format(date).replace(" de ", "/"), `${monthKey}-01`, localDateKey(new Date(date.getFullYear(), date.getMonth() + 1, 0)));
       }
     }
     const rowKey = (date: string) => period === "dia" ? date : period === "semana" ? mondayKey(date) : date.slice(0, 7);
@@ -119,6 +130,24 @@ export default function MonthlyMetricsTimeline() {
       const row = rows.get(group.period); if (row) row.faturamento += Math.min(group.total, received);
     });
     Object.entries(crmMql?.daily || {}).forEach(([date, total]) => { const row = rows.get(rowKey(date)); if (row) row.mql += Number(total || 0); });
+    const monthlyTargets = new Map<string, number>();
+    data?.metrics.forEach((item) => {
+      const target = Number(item.meta_mensal_prevista || 0);
+      if (target > 0) monthlyTargets.set(item.date.slice(0, 7), Math.max(monthlyTargets.get(item.date.slice(0, 7)) || 0, target));
+    });
+    rows.forEach((row) => {
+      const cursor = new Date(`${row.start}T12:00:00`);
+      const limit = new Date(`${row.end}T12:00:00`);
+      while (cursor <= limit) {
+        const weekday = cursor.getDay();
+        if (weekday >= 1 && weekday <= 5) {
+          const monthKey = localDateKey(cursor).slice(0, 7);
+          const target = monthlyTargets.get(monthKey) || 0;
+          row.metaPrevista += target / weekdaysInMonth(cursor.getFullYear(), cursor.getMonth());
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    });
     return Array.from(rows.values());
   }, [data, fechamentos, crmMql, period]);
 
@@ -140,6 +169,8 @@ export default function MonthlyMetricsTimeline() {
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">CAC total</span><strong>{row.vendas ? money.format(row.ads / row.vendas) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">CAC cursos</span><strong className="text-primary">{row.cursosFeitos ? money.format(row.ads / row.cursosFeitos) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">ROAS</span><strong className="text-emerald-400">{row.ads ? `${(row.faturamento / row.ads).toFixed(2).replace(".", ",")}x` : "—"}</strong></div>
+        <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Meta prevista</span><strong className="text-blue-400">{money.format(row.metaPrevista)}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground">Meta realizada</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
       </div></div>{index < periods.length - 1 && <ArrowRight className="ml-2 h-4 w-4 shrink-0 text-muted-foreground/40 lg:hidden" />}</div>)}
     </div></div>
     {isLoading && <p className="mt-2 text-xs text-muted-foreground">Carregando histórico...</p>}
