@@ -143,7 +143,7 @@ const countWorkingDaysInMonth = (date: string) => {
   let total = 0;
   for (let day = 1; day <= lastDay; day += 1) {
     const weekDay = new Date(year, month - 1, day).getDay();
-    if (weekDay >= 1 && weekDay <= 6) total += 1;
+    if (weekDay >= 1 && weekDay <= 5) total += 1;
   }
   return total;
 };

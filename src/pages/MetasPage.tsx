@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import MonthlyMetricsTimeline from "@/components/MonthlyMetricsTimeline";
 import { COURSE_PRODUCTS, GENERAL_SERVICE_OPTIONS, SUPPORT_PRODUCTS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
+import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -24,18 +25,18 @@ const normalizeText = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
-/** Count weekdays Mon-Sat in a given month/year */
+/** Count business days Monday through Friday in a given month/year. */
 function countWorkingDays(year: number, month: number) {
   const lastDay = new Date(year, month + 1, 0).getDate();
   let count = 0;
   for (let d = 1; d <= lastDay; d++) {
     const dow = new Date(year, month, d).getDay(); // 0=Sun
-    if (dow >= 1 && dow <= 6) count++; // Mon-Sat
+    if (dow >= 1 && dow <= 5) count++;
   }
   return count;
 }
 
-/** Count remaining working days (Mon-Sat) from a date to end of month (inclusive) */
+/** Count remaining business days (Mon-Fri) from a date to end of month. */
 function remainingWorkingDays(fromDate: Date) {
   const year = fromDate.getFullYear();
   const month = fromDate.getMonth();
@@ -43,7 +44,7 @@ function remainingWorkingDays(fromDate: Date) {
   let count = 0;
   for (let d = fromDate.getDate(); d <= lastDay; d++) {
     const dow = new Date(year, month, d).getDay();
-    if (dow >= 1 && dow <= 6) count++;
+    if (dow >= 1 && dow <= 5) count++;
   }
   return count;
 }
@@ -54,6 +55,7 @@ const MetasPage = () => {
   const periodData = filter.metrics;
   const fullMonthData = filter.monthMetrics;
   const fullMonthVendas = filter.monthVendas;
+  const { data: fechamentos = [] } = useFechamentosDiarios();
 
   const dedup = (data: typeof periodData) => {
     const map = new Map<string, typeof periodData[0]>();
@@ -110,32 +112,51 @@ const MetasPage = () => {
 
   const uniquePeriod = useMemo(() => dedup(periodData), [periodData]);
   const uniqueMonth = useMemo(() => dedup(fullMonthData), [fullMonthData]);
-  const approvedMonthVendas = useMemo(
-    () => fullMonthVendas.filter((v) => v.status === "aprovada"),
+  const registeredMonthVendas = useMemo(
+    () => fullMonthVendas.filter((v) => normalizeText(v.status) !== "cancelada"),
     [fullMonthVendas]
   );
-  const approvedMonthProducts = useMemo(
-    () => approvedMonthVendas.filter((v) => Boolean(v.produto?.trim())),
-    [approvedMonthVendas]
-  );
-
-  const approvedPeriodVendas = useMemo(
-    () => filter.vendas.filter((v) => v.status === "aprovada"),
+  const registeredPeriodVendas = useMemo(
+    () => filter.vendas.filter((v) => normalizeText(v.status) !== "cancelada"),
     [filter.vendas]
   );
-  const periodRealized = approvedPeriodVendas.reduce((s, v) => s + Number(v.valor || 0), 0);
-  const monthRealized = approvedMonthVendas.reduce((s, v) => s + Number(v.valor || 0), 0);
+  const getCollectedTotal = (sales: typeof registeredMonthVendas) => {
+    const groups = new Map<string, { data: string; cliente: string; vendedor: string; total: number }>();
+    sales.forEach((sale) => {
+      const key = [sale.data, normalizeText(sale.cliente), normalizeText(sale.vendedor)].join("|");
+      const group = groups.get(key) || { data: sale.data, cliente: sale.cliente, vendedor: sale.vendedor, total: 0 };
+      group.total += Number(sale.valor || 0);
+      groups.set(key, group);
+    });
+    return Array.from(groups.values()).reduce((total, group) => {
+      const received = fechamentos
+        .filter((item) =>
+          normalizeText(item.status) !== "cancelado" &&
+          item.data === group.data &&
+          normalizeText(item.cliente) === normalizeText(group.cliente) &&
+          normalizeText(item.vendedor) === normalizeText(group.vendedor)
+        )
+        .reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
+      return total + Math.min(group.total, received);
+    }, 0);
+  };
+  const periodRealized = useMemo(() => getCollectedTotal(registeredPeriodVendas), [registeredPeriodVendas, fechamentos]);
+  const monthRealized = useMemo(() => getCollectedTotal(registeredMonthVendas), [registeredMonthVendas, fechamentos]);
 
   const dayWithMeta = [...uniqueMonth].reverse().find((d) => Number(d.meta_mensal_prevista) > 0);
-  const dayWithDiaria = [...uniqueMonth].reverse().find((d) => Number(d.meta_diaria_prevista) > 0);
   const dayWithSuperMensal = [...uniqueMonth].reverse().find((d) => Number(d.super_meta_mensal) > 0);
-  const dayWithSuperDiaria = [...uniqueMonth].reverse().find((d) => Number(d.super_meta_diaria) > 0);
   const metaMensal = dayWithMeta?.meta_mensal_prevista || 0;
-  const metaDiariaPrevista = dayWithDiaria?.meta_diaria_prevista || 0;
   const superMetaMensal = dayWithSuperMensal?.super_meta_mensal || 0;
-  const superMetaDiaria = dayWithSuperDiaria?.super_meta_diaria || 0;
-  const latestDay = uniquePeriod.length > 0 ? uniquePeriod[uniquePeriod.length - 1] : null;
-  const metaDiariaRealizada = latestDay?.meta_diaria_realizada || 0;
+  const totalMonthWorkDays = countWorkingDays(filter.anchor.getFullYear(), filter.anchor.getMonth());
+  const metaDiariaPrevista = totalMonthWorkDays > 0 ? Number(metaMensal) / totalMonthWorkDays : 0;
+  const superMetaDiaria = totalMonthWorkDays > 0 ? Number(superMetaMensal) / totalMonthWorkDays : 0;
+  const referenceDate = filter.mode === "dia"
+    ? filter.range.start
+    : new Date().toISOString().slice(0, 10) >= filter.range.start && new Date().toISOString().slice(0, 10) <= filter.range.end
+      ? new Date().toISOString().slice(0, 10)
+      : filter.range.end;
+  const referenceDaySales = registeredMonthVendas.filter((sale) => sale.data === referenceDate);
+  const metaDiariaRealizada = getCollectedTotal(referenceDaySales);
 
   const svcSource = [...uniqueMonth].reverse();
   const svcMetaCursos = svcSource.find((d) => Number(d.meta_cursos) > 0)?.meta_cursos || 0;
@@ -182,7 +203,9 @@ const MetasPage = () => {
     const faltante = Math.max(0, Number(metaMensal) - monthRealized);
     const metaDiariaAjustada = remaining > 0 ? faltante / remaining : 0;
 
-    const totalCursos = approvedMonthProducts.length;
+    const totalCursos = registeredMonthVendas.filter((sale) =>
+      COURSE_PRODUCTS.some((course) => normalizeText(course) === normalizeText(canonicalizeSaleCategory(sale.servico || sale.produto)))
+    ).length;
 
     const cursosParaMeta = Math.max(0, Number(svcMetaCursos) - totalCursos);
     const cursosPorDia = remaining > 0 ? Math.ceil(cursosParaMeta / remaining) : 0;
@@ -192,10 +215,12 @@ const MetasPage = () => {
     if (filter.mode === "dia") {
       periodMeta = metaDiaPorDiaUtil;
     } else if (filter.mode === "semana") {
-      const weekWorkDays = uniquePeriod.filter((d) => {
-        const dow = new Date(d.date + "T12:00:00").getDay();
-        return dow >= 1 && dow <= 6;
-      }).length;
+      let weekWorkDays = 0;
+      const weekStart = new Date(`${filter.range.start}T12:00:00`);
+      const weekEnd = new Date(`${filter.range.end}T12:00:00`);
+      for (const date = new Date(weekStart); date <= weekEnd; date.setDate(date.getDate() + 1)) {
+        if (date.getDay() >= 1 && date.getDay() <= 5) weekWorkDays += 1;
+      }
       periodMeta = metaDiaPorDiaUtil * weekWorkDays;
     }
 
@@ -210,7 +235,7 @@ const MetasPage = () => {
       totalCursos,
       periodMeta,
     };
-  }, [approvedMonthProducts, filter.anchor, filter.mode, metaMensal, monthRealized, periodRealized, uniquePeriod, svcMetaCursos]);
+  }, [registeredMonthVendas, filter.anchor, filter.mode, filter.range.start, filter.range.end, metaMensal, monthRealized, periodRealized, svcMetaCursos]);
 
   const pctAtingido = calcData.periodMeta > 0 ? ((periodRealized / calcData.periodMeta) * 100).toFixed(1) : "0";
 
@@ -251,7 +276,7 @@ const MetasPage = () => {
         </StaggerContainer>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <h3 className="font-display text-sm font-semibold text-foreground mb-3">Projeção Diária (Seg–Sáb)</h3>
+          <h3 className="font-display text-sm font-semibold text-foreground mb-3">Projeção Diária (Seg–Sex)</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard
               title="Meta/Dia Útil"
@@ -294,8 +319,7 @@ const MetasPage = () => {
               { label: "CRM", metaQty: svcMetaCRM, superMetaQty: svcSuperMetaCRM, metaVal: svcValCRM, superMetaVal: svcSuperValCRM, group: "crm" as const, icon: <Database className="h-5 w-5" />, variant: "primary" as const },
               { label: "Upsell", metaQty: svcMetaUpsell, superMetaQty: svcSuperMetaUpsell, metaVal: svcValUpsell, superMetaVal: svcSuperValUpsell, group: "upsell" as const, icon: <ArrowUpCircle className="h-5 w-5" />, variant: "accent" as const },
             ].map((svc) => {
-              const periodRegisteredSales = filter.vendas.filter((v) => v.status !== "cancelada");
-              const vendasRelacionadas = periodRegisteredSales.filter((v) => {
+              const vendasRelacionadas = registeredMonthVendas.filter((v) => {
                 const categoria = canonicalizeSaleCategory(v.servico || v.produto);
                 if (svc.group === "cursos") return COURSE_PRODUCTS.some((item) => normalizeText(item) === normalizeText(categoria));
                 if (svc.group === "servicos") return GENERAL_SERVICE_OPTIONS.some((item) => normalizeText(item) === normalizeText(categoria));
