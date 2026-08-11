@@ -277,6 +277,14 @@ const Dashboard = () => {
       };
     });
   }, [metaAdsMonth, registeredVendas]);
+  const leadsHistory = useMemo(() => (metaAdsMonth?.dailyInsights || []).map((day) => {
+    const conversations = getCampaignMql(day.actions);
+    return {
+      date: new Date(`${day.date_start}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit" }),
+      leads: getCampaignLeads(day.actions) + conversations,
+      mql: conversations,
+    };
+  }), [metaAdsMonth]);
   const realizedMetaPct = metaMensal > 0 ? Math.min((collectedTotal / metaMensal) * 100, 100) : 0;
   const realizedSuperMetaPct = Number(superMetaMensal) > 0 ? Math.min((collectedTotal / Number(superMetaMensal)) * 100, 100) : 0;
   const businessDays = useMemo(() => {
@@ -727,7 +735,7 @@ const Dashboard = () => {
           <div className="grid gap-3 sm:gap-5 grid-cols-1 lg:grid-cols-2">
             <motion.div variants={item}><RevenueChart data={revenueChartData} /></motion.div>
             <motion.div variants={item}>
-              <LeadsPieChart leads={campaignLeads} leadsMql={campaignMql} monthData={monthData} />
+              <LeadsPieChart leads={campaignLeads} leadsMql={campaignMql} series={leadsHistory} />
             </motion.div>
           </div>
 
@@ -736,7 +744,7 @@ const Dashboard = () => {
               <CostBarChart custoLead={currentCpl} custoMql={currentCplMql} cac={cacTotal} history={acquisitionHistory} />
             </motion.div>
             <motion.div variants={item}>
-              <LeadsFunnelChart monthData={monthData} />
+              <LeadsFunnelChart data={leadsHistory} />
             </motion.div>
           </div>
 

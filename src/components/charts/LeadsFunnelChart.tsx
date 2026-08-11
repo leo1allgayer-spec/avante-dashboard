@@ -12,8 +12,8 @@ const tooltipStyle = {
 const axisStyle = { fontSize: 11, fill: "hsl(260, 10%, 45%)" };
 const gridStroke = "hsl(260, 18%, 14%)";
 
-const LeadsFunnelChart = ({ monthData }: { monthData: DailyMetrics[] }) => {
-  const chartData = monthData.map((d) => ({
+const LeadsFunnelChart = ({ monthData, data }: { monthData?: DailyMetrics[]; data?: Array<{ date: string; leads: number; mql: number }> }) => {
+  const chartData = data || (monthData || []).map((d) => ({
     date: new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit" }),
     leads: d.leads,
     mql: d.lead_mql,

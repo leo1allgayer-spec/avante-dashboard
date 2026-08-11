@@ -10,6 +10,7 @@ interface LeadsPieChartProps {
   leads: number;
   leadsMql: number;
   monthData?: DailyMetrics[];
+  series?: Array<{ date: string; leads: number; mql: number }>;
 }
 
 const tooltipStyle = {
@@ -48,11 +49,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const LeadsPieChart = ({ leads, leadsMql, monthData: providedMonthData }: LeadsPieChartProps) => {
+const LeadsPieChart = ({ leads, leadsMql, monthData: providedMonthData, series }: LeadsPieChartProps) => {
   const { data: fallbackMonthData } = useMonthMetrics();
   const monthData = providedMonthData ?? fallbackMonthData;
 
-  const chartData = (monthData || []).map((d) => ({
+  const chartData = series || (monthData || []).map((d) => ({
     date: new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit" }),
     leads: Number(d.leads),
     mql: Number(d.lead_mql),
