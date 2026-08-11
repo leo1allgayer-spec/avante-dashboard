@@ -6,6 +6,8 @@ import { useDeleteMetrics } from "@/hooks/useMetrics";
 import { useBusinessSummary } from "@/hooks/useBusinessSummary";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
 import { useMetaAds } from "@/hooks/useMetaAds";
+import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
+import { useSurveyResponses } from "@/hooks/useSurveyInsights";
 import { SERVICE_CATEGORIES, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
@@ -42,6 +44,35 @@ const getSaleCategory = (sale: { servico?: string | null; produto?: string | nul
   if (["crm/treinamento comercial", "crm", "assessoria 360"].includes(normalized)) return "CRM";
   if (["upsell", "mentoria meta ads"].includes(normalized)) return "Upsell";
   return raw;
+};
+
+const getFirstMetaAction = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
+  for (const type of types) {
+    const action = actions?.find((item) => item.action_type.toLowerCase() === type);
+    if (action) return Number(action.value || 0);
+  }
+  return 0;
+};
+
+const getCampaignLeads = (actions?: Array<{ action_type: string; value: string }>) => getFirstMetaAction(actions, [
+  "lead",
+  "onsite_conversion.lead_grouped",
+  "offsite_conversion.fb_pixel_lead",
+  "offsite_complete_registration_add_meta_leads",
+  "offsite_content_view_add_meta_leads",
+]);
+
+const getCampaignMql = (actions?: Array<{ action_type: string; value: string }>) => {
+  const preferred = getFirstMetaAction(actions, [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "onsite_conversion.total_messaging_connection",
+    "onsite_conversion.messaging_first_reply",
+  ]);
+  if (preferred > 0) return preferred;
+  return (actions || []).reduce((total, action) => {
+    const type = action.action_type.toLowerCase();
+    return type.includes("conversation_started") || type.includes("whatsapp") ? total + Number(action.value || 0) : total;
+  }, 0);
 };
 
 const container = {
@@ -92,6 +123,8 @@ const Dashboard = () => {
     until: filter.range.end,
   }), [filter.range.start, filter.range.end]);
   const { data: metaAdsMonth } = useMetaAds(metaAdsFilters);
+  const { bookings } = useCourseBookings();
+  const { data: surveyResponses = [] } = useSurveyResponses();
   const selectedMonthAds = useMemo(() => {
     const dailyInsights = metaAdsMonth?.dailyInsights || [];
     if (dailyInsights.length > 0) {
@@ -99,6 +132,14 @@ const Dashboard = () => {
     }
     return totalAds;
   }, [metaAdsMonth, totalAds]);
+  const campaignLeads = useMemo(
+    () => (metaAdsMonth?.campaignInsights || []).reduce((total, campaign) => total + getCampaignLeads(campaign.actions), 0),
+    [metaAdsMonth],
+  );
+  const campaignMql = useMemo(
+    () => (metaAdsMonth?.campaignInsights || []).reduce((total, campaign) => total + getCampaignMql(campaign.actions), 0),
+    [metaAdsMonth],
+  );
   const registeredVendas = useMemo(
     () => vendasData.filter((venda) => normalizeText(venda.status) !== "cancelada"),
     [vendasData],
@@ -167,6 +208,37 @@ const Dashboard = () => {
   );
   const realizedMetaPct = metaMensal > 0 ? Math.min((collectedTotal / metaMensal) * 100, 100) : 0;
   const realizedSuperMetaPct = Number(superMetaMensal) > 0 ? Math.min((collectedTotal / Number(superMetaMensal)) * 100, 100) : 0;
+  const businessDays = useMemo(() => {
+    const start = new Date(`${filter.range.start}T12:00:00`);
+    const end = new Date(`${filter.range.end}T12:00:00`);
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    let total = 0;
+    let remaining = 0;
+    for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      const weekday = date.getDay();
+      if (weekday >= 1 && weekday <= 5) {
+        total += 1;
+        if (date > today) remaining += 1;
+      }
+    }
+    if (today < start) remaining = total;
+    if (today > end) remaining = 0;
+    return { total, remaining };
+  }, [filter.range.start, filter.range.end]);
+  const scheduledCourses = useMemo(() => bookings.filter((booking) =>
+    booking.date >= filter.range.start &&
+    booking.date <= filter.range.end &&
+    normalizeText(booking.status) === "confirmed" &&
+    normalizeText(booking.courseStatus) !== "cancelado"
+  ).length, [bookings, filter.range.start, filter.range.end]);
+  const completedCourses = useMemo(() => surveyResponses.filter((response) => {
+    if (!response.created_at) return false;
+    const date = response.created_at.slice(0, 10);
+    return date >= filter.range.start && date <= filter.range.end;
+  }).length, [surveyResponses, filter.range.start, filter.range.end]);
+  const cacTotal = registeredVendas.length > 0 ? selectedMonthAds / registeredVendas.length : 0;
+  const cacCourses = completedCourses > 0 ? selectedMonthAds / completedCourses : 0;
 
   // ROAS por categoria
   const roasValues = useMemo(() => {
@@ -543,16 +615,16 @@ const Dashboard = () => {
           </div>
 
 
-          <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-6">
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 relative dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <Target className="h-3.5 w-3.5 text-accent/60" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Dias ativos</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Dias úteis restantes</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={daysWithData.length} duration={2} />
+                <CountUp end={businessDays.remaining} duration={2} />
               </p>
-              <p className="text-xs text-muted-foreground/40 mt-1.5">de {monthData.length} dias</p>
+              <p className="text-xs text-muted-foreground/40 mt-1.5">de {businessDays.total} dias úteis no mês</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
@@ -561,7 +633,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Leads</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={totalLeads} duration={2} />
+                <CountUp end={campaignLeads} duration={2} />
               </p>
             </motion.div>
 
@@ -571,18 +643,25 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">MQL</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-accent leading-none tabular-nums">
-                <CountUp end={totalMql} duration={2} />
+                <CountUp end={campaignMql} duration={2} />
               </p>
-              {convRate > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">conversão: {convRate.toFixed(1)}%</p>}
+              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">conversão: {((campaignMql / campaignLeads) * 100).toFixed(1)}%</p>}
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <DollarSign className="h-3.5 w-3.5 text-muted-foreground/50" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">CAC Médio</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">CAC Total</p>
               </div>
-              <p className="font-display text-2xl font-bold text-foreground leading-none tabular-nums">{formatCurrency(avgCac)}</p>
-              <div className="flex gap-3 mt-2 text-[10px] text-muted-foreground/40"><span>CPL {formatCurrency(avgCpl)}</span></div>
+              <p className="font-display text-2xl font-bold text-foreground leading-none tabular-nums">{formatCurrency(cacTotal)}</p>
+            </motion.div>
+
+            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
+              <div className="flex items-center gap-2 mb-3">
+                <DollarSign className="h-3.5 w-3.5 text-primary/70" />
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">CAC Cursos</p>
+              </div>
+              <p className="font-display text-2xl font-bold text-primary leading-none tabular-nums">{formatCurrency(cacCourses)}</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
@@ -591,7 +670,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Cursos Marcados</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={totalCursoMarcado} duration={2} />
+                <CountUp end={scheduledCourses} duration={2} />
               </p>
             </motion.div>
 
@@ -601,7 +680,7 @@ const Dashboard = () => {
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Cursos Feitos</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-success leading-none tabular-nums">
-                <CountUp end={cursosFeitos} duration={2} />
+                <CountUp end={completedCourses} duration={2} />
               </p>
             </motion.div>
           </div>
