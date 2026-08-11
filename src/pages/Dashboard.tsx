@@ -222,6 +222,7 @@ const Dashboard = () => {
       return total + Math.min(group.total, received);
     }, 0);
   }, [fechamentosMes, registeredVendas]);
+  const receivableTotal = Math.max(registeredVendasTotal - collectedTotal, 0);
   const realizedMetaPct = metaMensal > 0 ? Math.min((collectedTotal / metaMensal) * 100, 100) : 0;
   const realizedSuperMetaPct = Number(superMetaMensal) > 0 ? Math.min((collectedTotal / Number(superMetaMensal)) * 100, 100) : 0;
   const businessDays = useMemo(() => {
@@ -487,10 +488,10 @@ const Dashboard = () => {
             >
               <div className="flex items-center gap-2">
                 <DollarSign className="h-3.5 w-3.5 text-muted-foreground/50" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Fat. Marcado</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">A receber</p>
               </div>
               <p className="font-display text-xl sm:text-3xl font-bold text-foreground mt-2 tabular-nums">
-                <CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={receivableTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
             </motion.div>
 
@@ -557,10 +558,10 @@ const Dashboard = () => {
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="h-3.5 w-3.5 text-muted-foreground/50" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Fat. Marcado</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">A receber</p>
               </div>
               <p className="font-display text-xl sm:text-2xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={registeredVendasTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
+                <CountUp end={receivableTotal} duration={2} prefix="R$" separator="." decimal="," decimals={0} />
               </p>
             </motion.div>
 
