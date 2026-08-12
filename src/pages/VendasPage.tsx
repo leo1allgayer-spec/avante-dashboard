@@ -241,6 +241,7 @@ const VendasPage = () => {
   const [quickPayments, setQuickPayments] = useState<Record<string, string>>({});
   const [quickCardInstallments, setQuickCardInstallments] = useState<Record<string, string>>({});
   const [quickPaymentAmounts, setQuickPaymentAmounts] = useState<Record<string, string>>({});
+  const [quickPaymentDates, setQuickPaymentDates] = useState<Record<string, string>>({});
   const [settlingSaleKey, setSettlingSaleKey] = useState<string | null>(null);
 
   const [form, setForm] = useState({ ...defaultForm });
@@ -356,7 +357,6 @@ const VendasPage = () => {
       const liquidosPositivos = itens.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
       const valorLiquido = liquidosPositivos.reduce((total, valor) => total + valor, 0);
       const fechamentosRelacionados = fechamentosFiltrados.filter((item) =>
-        item.data === principal.data &&
         item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase(),
       );
@@ -423,6 +423,7 @@ const VendasPage = () => {
 
   const settleRemainingBalance = async (saleKey: string, items: Venda[]) => {
     const paymentMethod = quickPayments[saleKey] || "PIX";
+    const paymentDate = quickPaymentDates[saleKey] || new Date().toISOString().split("T")[0];
     const installments = Math.max(1, Number(quickCardInstallments[saleKey] || 1));
     const paymentLabel = paymentMethod === "Crédito" ? `Crédito (${installments}x)` : paymentMethod;
     const usedFechamentos = new Set<string>();
@@ -433,7 +434,6 @@ const VendasPage = () => {
       const fechamento = fechamentos.find((item) =>
         !usedFechamentos.has(item.id) &&
         normalizeFechamentoStatus(item.status) !== "cancelado" &&
-        item.data === venda.data &&
         item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
         getFechamentoCategoria(item) === categoria
@@ -499,6 +499,7 @@ const VendasPage = () => {
         }));
 
         const fechamentoPayload = {
+          data: paymentDate,
           valor_sinal: novoColetado,
           valor_a_entrar: novoSaldo,
           valor_recorrente: 0,
@@ -514,7 +515,6 @@ const VendasPage = () => {
         } else if (session?.user?.id) {
           updates.push(createFechamento.mutateAsync({
             user_id: session.user.id,
-            data: venda.data,
             vendedor: venda.vendedor,
             cliente: venda.cliente,
             produto_servico: categoria,
@@ -530,6 +530,7 @@ const VendasPage = () => {
 
       await Promise.all(updates);
       setQuickPaymentAmounts((current) => ({ ...current, [saleKey]: "" }));
+      setQuickPaymentDates((current) => ({ ...current, [saleKey]: "" }));
       toast({
         title: paymentAmount >= groupBalance ? "Saldo quitado" : "Pagamento parcial registrado",
         description: `${formatBRL(paymentAmount)} recebido via ${paymentLabel}.`,
@@ -1871,6 +1872,15 @@ const VendasPage = () => {
                               placeholder={`Valor recebido (até ${formatBRL(grupo.saldo)})`}
                               className="h-7 border-border/30 bg-secondary/30 text-xs"
                             />
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-medium text-muted-foreground">Data do recebimento</Label>
+                              <Input
+                                type="date"
+                                value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]}
+                                onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))}
+                                className="h-7 border-border/30 bg-secondary/30 text-xs"
+                              />
+                            </div>
                             <Select
                               value={quickPayments[grupo.chave] || "PIX"}
                               onValueChange={(value) => setQuickPayments((current) => ({ ...current, [grupo.chave]: value }))}
