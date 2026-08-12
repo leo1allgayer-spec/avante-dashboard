@@ -774,7 +774,6 @@ const VendasPage = () => {
       const fechamento = fechamentos.find((item) =>
         !usedFechamentos.has(item.id) &&
         normalizeFechamentoStatus(item.status) !== "cancelado" &&
-        item.data === venda.data &&
         item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
         getFechamentoCategoria(item) === categoria,
