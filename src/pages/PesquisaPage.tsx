@@ -174,9 +174,49 @@ const PesquisaPage = () => {
   const [form, setForm] = useState<FormData>(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [loadingCep, setLoadingCep] = useState(false);
   const { toast } = useToast();
 
   const set = (key: keyof FormData, val: string | number) => setForm((p) => ({ ...p, [key]: val }));
+
+  const handleCepChange = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+    const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+    set("cep", formatted);
+  };
+
+  const lookupCep = async () => {
+    const cep = form.cep.replace(/\D/g, "");
+    if (cep.length !== 8) return;
+
+    setLoadingCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      if (!response.ok) throw new Error("Não foi possível consultar o CEP");
+      const address = await response.json();
+      if (address.erro) {
+        toast({ title: "CEP não encontrado", description: "Confira o CEP ou preencha o endereço manualmente.", variant: "destructive" });
+        return;
+      }
+
+      const streetAndDistrict = [address.logradouro, address.bairro].filter(Boolean).join(", ");
+      const endereco = [streetAndDistrict, address.uf].filter(Boolean).join(" - ");
+      setForm((previous) => ({
+        ...previous,
+        cep: address.cep || previous.cep,
+        cidade: address.localidade || previous.cidade,
+        endereco: endereco || previous.endereco,
+      }));
+    } catch (error) {
+      toast({
+        title: "Não foi possível buscar o CEP",
+        description: "Você ainda pode preencher cidade e endereço manualmente.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingCep(false);
+    }
+  };
 
 
   const validateStep = (s: number): string | null => {
@@ -328,7 +368,10 @@ const PesquisaPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-sm font-semibold text-foreground mb-1.5 block">CEP *</Label>
-                  <Input value={form.cep} onChange={(e) => set("cep", e.target.value)} placeholder="66000-000" className="bg-secondary/30 border-border/40" />
+                  <div className="relative">
+                    <Input value={form.cep} onChange={(e) => handleCepChange(e.target.value)} onBlur={lookupCep} inputMode="numeric" maxLength={9} placeholder="66000-000" className="bg-secondary/30 border-border/40 pr-9" />
+                    {loadingCep && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />}
+                  </div>
                 </div>
                 <div>
                   <Label className="text-sm font-semibold text-foreground mb-1.5 block">Cidade *</Label>
@@ -345,7 +388,8 @@ const PesquisaPage = () => {
               </div>
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">Endereço completo *</Label>
-                <Input value={form.endereco} onChange={(e) => set("endereco", e.target.value)} className="bg-secondary/30 border-border/40" />
+                <Input value={form.endereco} onChange={(e) => set("endereco", e.target.value)} placeholder="Rua, bairro, número e complemento" className="bg-secondary/30 border-border/40" />
+                <p className="mt-1 text-xs text-muted-foreground">A rua e o bairro são preenchidos pelo CEP. Informe o número e o complemento.</p>
               </div>
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">WhatsApp para contato *</Label>
