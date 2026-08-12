@@ -347,7 +347,8 @@ const VendasPage = () => {
     });
 
     return [...grupos.entries()].map(([chave, itens]) => {
-      const principal = itens[0];
+      const itensPorLancamento = [...itens].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const principal = itensPorLancamento[0];
       const produtos = [...new Set(itens.map((item) => item.produto).filter(Boolean))];
       const servicos = [...new Set(itens.map((item) => item.servico).filter(Boolean))];
       const valoresPositivos = itens.map((item) => Number(item.valor || 0)).filter((valor) => valor > 0);
@@ -367,7 +368,7 @@ const VendasPage = () => {
       return {
         chave,
         principal,
-        itens,
+        itens: itensPorLancamento,
         produtos,
         servicos,
         quantidade: itens.length,
@@ -381,6 +382,10 @@ const VendasPage = () => {
       if (statusFilter === "paga") return grupo.saldo <= 0;
       if (statusFilter === "pendente") return grupo.saldo > 0;
       return true;
+    }).sort((a, b) => {
+      const ultimoLancamentoA = Math.max(...a.itens.map((item) => new Date(item.created_at).getTime()));
+      const ultimoLancamentoB = Math.max(...b.itens.map((item) => new Date(item.created_at).getTime()));
+      return ultimoLancamentoB - ultimoLancamentoA;
     });
   }, [filtered, fechamentosFiltrados, taxProfile, statusFilter]);
 
