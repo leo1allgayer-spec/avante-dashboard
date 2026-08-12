@@ -582,7 +582,17 @@ const VendasPage = () => {
     setAdditionalItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   };
 
-  const vendasAprovadas = useMemo(() => filtered.filter((v) => v.status === "aprovada"), [filtered]);
+  const vendasAprovadas = useMemo(() => filtered.filter((venda) => {
+    const status = normalizeText(venda.status);
+    if (["aprovada", "aprovado", "paga", "pago"].includes(status)) return true;
+
+    return fechamentosFiltrados.some((fechamento) =>
+      fechamento.data === venda.data &&
+      normalizeText(fechamento.cliente) === normalizeText(venda.cliente) &&
+      normalizeText(fechamento.vendedor) === normalizeText(venda.vendedor) &&
+      normalizeFechamentoStatus(fechamento.status) === "recebido"
+    );
+  }), [filtered, fechamentosFiltrados]);
   const vendasRegistradas = useMemo(() => filtered.filter((v) => v.status !== "cancelada"), [filtered]);
 
   const fechamentoTotals = useMemo(() => {
