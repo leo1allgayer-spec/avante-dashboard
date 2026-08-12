@@ -64,6 +64,7 @@ export function useCourseBookings(courseName?: string) {
   };
 
   const updateBooking = async (id: string, updates: Partial<{ status: string; courseStatus: string; studentName: string; email: string; phone: string; instagram: string; certificateName: string; date: string }>) => {
+    const wasRescheduled = updates.date !== undefined;
     const mapped: any = {};
     if (updates.status !== undefined) mapped.status = updates.status;
     if (updates.courseStatus !== undefined) mapped.course_status = updates.courseStatus;
@@ -82,8 +83,34 @@ export function useCourseBookings(courseName?: string) {
       toast.error("Erro ao atualizar agendamento", { description: error.message });
       return;
     }
+
+    if (wasRescheduled) {
+      const { error: cancelError } = await supabase
+        .from("whatsapp_scheduled_messages")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("booking_id", id)
+        .eq("status", "pending")
+        .in("message_type", ["reminder_24h", "reminder_1h", "post_course"]);
+
+      if (cancelError) {
+        console.error("Erro ao cancelar avisos da data anterior:", cancelError);
+      }
+
+      const { error: scheduleError } = await supabase.functions.invoke("whatsapp-trigger", {
+        body: { bookingId: id, rescheduled: true },
+      });
+
+      if (scheduleError) {
+        console.error("Erro ao reagendar avisos do WhatsApp:", scheduleError);
+        toast.warning("Data atualizada, mas os avisos não foram reagendados", {
+          description: "Tente salvar a nova data novamente ou envie os lembretes manualmente.",
+        });
+      } else {
+        toast.success("Avisos reagendados para a nova data");
+      }
+    }
     setBookings(prev => prev.map(x => x.id === id ? { ...x, ...updates } : x));
-    toast.success("Agendamento atualizado");
+    if (!wasRescheduled) toast.success("Agendamento atualizado");
   };
 
   const deleteBooking = async (id: string) => {
