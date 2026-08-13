@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Copy, DollarSign, Link2, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
+import { Check, Copy, DollarSign, Link2, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const PUBLIC_SIGNUP_PATH = "/aluno-futuro";
@@ -24,12 +24,28 @@ const formatDate = (date: string) =>
   new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date));
 
 const cleanCpf = (value?: string | null) => String(value || "").replace(/\D/g, "");
+const getPendingTotal = (student: FutureStudent) => (student.itens || []).reduce((sum, item) => sum + Number(item.valor_pendente || 0), 0);
+
+const distributeTotal = (values: number[], total: number) => {
+  if (!values.length) return [];
+  const safeTotal = Math.max(Number(total || 0), 0);
+  const currentTotal = values.reduce((sum, value) => sum + Number(value || 0), 0);
+  if (currentTotal <= 0) return values.map((_, index) => index === 0 ? safeTotal : 0);
+  let distributed = 0;
+  return values.map((value, index) => {
+    if (index === values.length - 1) return Number(Math.max(safeTotal - distributed, 0).toFixed(2));
+    const next = Number((safeTotal * (Number(value || 0) / currentTotal)).toFixed(2));
+    distributed += next;
+    return next;
+  });
+};
 
 export default function FutureStudentsPage() {
   const { data: students = [], isLoading } = useFutureStudents();
   const { data: surveys = [] } = useSurveyResponses();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<FutureStudent | null>(null);
+  const [valueDrafts, setValueDrafts] = useState<Record<string, { signal: string; pending: string }>>({});
   const [editForm, setEditForm] = useState({ nome: "", telefone: "", cpf: "", observacao: "", itens: [] as NonNullable<FutureStudent["itens"]> });
   const updateStudent = useUpdateFutureStudent();
   const deleteStudent = useDeleteFutureStudent();
@@ -96,6 +112,43 @@ export default function FutureStudentsPage() {
       toast({ title: "Aluno removido", description: `O cadastro de ${student.nome} foi excluído.` });
     } catch (error) {
       toast({ title: "Erro ao remover", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
+  const updateValueDraft = (student: FutureStudent, field: "signal" | "pending", value: string) => {
+    setValueDrafts((current) => ({
+      ...current,
+      [student.id]: {
+        signal: current[student.id]?.signal ?? String(Number(student.valor_sinal || 0)),
+        pending: current[student.id]?.pending ?? String(getPendingTotal(student)),
+        [field]: value,
+      },
+    }));
+  };
+
+  const cancelValueDraft = (studentId: string) => setValueDrafts((current) => {
+    const next = { ...current };
+    delete next[studentId];
+    return next;
+  });
+
+  const saveInlineValues = async (student: FutureStudent) => {
+    const draft = valueDrafts[student.id];
+    if (!draft) return;
+    const signal = Math.max(Number(draft.signal.replace(",", ".")) || 0, 0);
+    const pending = Math.max(Number(draft.pending.replace(",", ".")) || 0, 0);
+    const currentItems = student.itens?.length
+      ? student.itens.map((item) => ({ ...item }))
+      : student.curso ? [{ tipo: "curso" as const, nome: student.curso, valor_sinal: Number(student.valor_sinal || 0), valor_pendente: 0, data: student.created_at }] : [];
+    const signalValues = distributeTotal(currentItems.map((item) => Number(item.valor_sinal || 0)), signal);
+    const pendingValues = distributeTotal(currentItems.map((item) => Number(item.valor_pendente || 0)), pending);
+    const itens = currentItems.map((item, index) => ({ ...item, valor_sinal: signalValues[index], valor_pendente: pendingValues[index] }));
+    try {
+      await updateStudent.mutateAsync({ id: student.id, valor_sinal: signal, itens });
+      cancelValueDraft(student.id);
+      toast({ title: "Valores atualizados", description: `${student.nome}: sinal ${formatCurrency(signal)} · a receber ${formatCurrency(pending)}` });
+    } catch (error) {
+      toast({ title: "Erro ao salvar valores", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
 
@@ -221,8 +274,18 @@ export default function FutureStudentsPage() {
                             {!student.itens?.length && !student.curso && <span className="text-muted-foreground">Não informado</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-success">{formatCurrency(student.valor_sinal)}</TableCell>
-                        <TableCell className="text-right font-semibold text-warning">{formatCurrency((student.itens || []).reduce((sum, item) => sum + Number(item.valor_pendente || 0), 0))}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="relative ml-auto w-28">
+                            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-success">R$</span>
+                            <Input type="number" min={0} step="0.01" value={valueDrafts[student.id]?.signal ?? Number(student.valor_sinal || 0)} onChange={(event) => updateValueDraft(student, "signal", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-success" aria-label={`Valor do sinal de ${student.nome}`} />
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="relative ml-auto w-28">
+                            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-warning">R$</span>
+                            <Input type="number" min={0} step="0.01" value={valueDrafts[student.id]?.pending ?? getPendingTotal(student)} onChange={(event) => updateValueDraft(student, "pending", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-warning" aria-label={`Valor a receber de ${student.nome}`} />
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="border-success/30 bg-success/10 text-success">
                             Sinal pago
@@ -236,6 +299,7 @@ export default function FutureStudentsPage() {
                         <TableCell className="text-muted-foreground">{formatDate(student.created_at)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            {valueDrafts[student.id] && <><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => void saveInlineValues(student)} title="Salvar valores" className="text-success hover:text-success"><Check className="h-4 w-4" /></Button><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => cancelValueDraft(student.id)} title="Cancelar alteração"><X className="h-4 w-4" /></Button></>}
                             <Button size="icon" variant="ghost" onClick={() => openEdit(student)} title="Editar aluno"><Pencil className="h-4 w-4" /></Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild><Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" title="Remover aluno"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
