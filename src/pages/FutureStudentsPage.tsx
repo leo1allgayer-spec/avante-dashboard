@@ -2,13 +2,16 @@ import { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import MetricCard from "@/components/MetricCard";
-import { useFutureStudents } from "@/hooks/useFutureStudents";
+import { useFutureStudents, useUpdateFutureStudent, type FutureStudent } from "@/hooks/useFutureStudents";
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Copy, DollarSign, Link2, Search, ShieldCheck, UserCheck, Users } from "lucide-react";
+import { Copy, DollarSign, Link2, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const PUBLIC_SIGNUP_PATH = "/aluno-futuro";
@@ -25,6 +28,9 @@ export default function FutureStudentsPage() {
   const { data: students = [], isLoading } = useFutureStudents();
   const { data: surveys = [] } = useSurveyResponses();
   const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<FutureStudent | null>(null);
+  const [editForm, setEditForm] = useState({ nome: "", telefone: "", cpf: "", observacao: "", itens: [] as NonNullable<FutureStudent["itens"]> });
+  const updateStudent = useUpdateFutureStudent();
   const { toast } = useToast();
 
   const publicLink = `${window.location.origin}${PUBLIC_SIGNUP_PATH}`;
@@ -52,6 +58,35 @@ export default function FutureStudentsPage() {
     toast({ title: "Link copiado", description: publicLink });
   };
 
+  const openEdit = (student: FutureStudent) => {
+    const itens = student.itens?.length
+      ? student.itens.map((item) => ({ ...item }))
+      : student.curso ? [{ tipo: "curso" as const, nome: student.curso, valor_sinal: Number(student.valor_sinal || 0), data: student.created_at }] : [];
+    setEditing(student);
+    setEditForm({ nome: student.nome, telefone: student.telefone, cpf: student.cpf, observacao: student.observacao || "", itens });
+  };
+
+  const saveEdit = async () => {
+    if (!editing || !editForm.nome.trim() || cleanCpf(editForm.cpf).length !== 11) {
+      toast({ title: "Verifique os dados", description: "Nome e CPF válido são obrigatórios.", variant: "destructive" });
+      return;
+    }
+    const itens = editForm.itens.filter((item) => item.nome.trim()).map((item) => ({ ...item, valor_sinal: Number(item.valor_sinal || 0) }));
+    const total = itens.reduce((sum, item) => sum + item.valor_sinal, 0);
+    try {
+      await updateStudent.mutateAsync({
+        id: editing.id,
+        nome: editForm.nome.trim(), telefone: editForm.telefone.trim(), cpf: editForm.cpf.trim(),
+        observacao: editForm.observacao.trim(), itens, valor_sinal: total,
+        curso: itens.find((item) => item.tipo === "curso")?.nome || itens[0]?.nome || "",
+      });
+      toast({ title: "Cadastro atualizado" });
+      setEditing(null);
+    } catch (error) {
+      toast({ title: "Erro ao atualizar", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
   return (
     <PageTransition>
       <DashboardLayout
@@ -63,6 +98,32 @@ export default function FutureStudentsPage() {
           </Button>
         }
       >
+        <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+          <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+            <DialogHeader><DialogTitle>Editar cadastro do aluno</DialogTitle></DialogHeader>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><label className="mb-1.5 block text-xs text-muted-foreground">Nome</label><Input value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })} /></div>
+              <div><label className="mb-1.5 block text-xs text-muted-foreground">Telefone</label><Input value={editForm.telefone} onChange={(e) => setEditForm({ ...editForm, telefone: e.target.value })} /></div>
+              <div><label className="mb-1.5 block text-xs text-muted-foreground">CPF</label><Input value={editForm.cpf} onChange={(e) => setEditForm({ ...editForm, cpf: e.target.value })} /></div>
+              <div className="sm:col-span-2"><label className="mb-1.5 block text-xs text-muted-foreground">Observação</label><Textarea value={editForm.observacao} onChange={(e) => setEditForm({ ...editForm, observacao: e.target.value })} /></div>
+            </div>
+            <div className="mt-2 rounded-xl border border-border/40 p-4">
+              <div className="mb-3 flex items-center justify-between"><div><h3 className="font-semibold">Produtos e serviços</h3><p className="text-xs text-muted-foreground">Edite ou adicione itens ao cadastro.</p></div><Button type="button" size="sm" variant="outline" onClick={() => setEditForm({ ...editForm, itens: [...editForm.itens, { tipo: "curso", nome: "", valor_sinal: 0, data: new Date().toISOString() }] })}><Plus className="mr-1 h-4 w-4" /> Adicionar</Button></div>
+              <div className="space-y-2">
+                {editForm.itens.map((item, index) => (
+                  <div key={index} className="grid gap-2 rounded-lg bg-secondary/20 p-2 sm:grid-cols-[120px_1fr_150px_40px]">
+                    <Select value={item.tipo} onValueChange={(value: "curso" | "produto" | "servico") => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, tipo: value } : current) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="curso">Curso</SelectItem><SelectItem value="produto">Produto</SelectItem><SelectItem value="servico">Serviço</SelectItem></SelectContent></Select>
+                    <Input value={item.nome} placeholder="Nome do item" onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, nome: e.target.value } : current) })} />
+                    <Input type="number" min={0} step="0.01" value={item.valor_sinal} onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, valor_sinal: Number(e.target.value) } : current) })} />
+                    <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => setEditForm({ ...editForm, itens: editForm.itens.filter((_, i) => i !== index) })}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-right text-sm">Total em sinais: <strong className="text-success">{formatCurrency(editForm.itens.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0))}</strong></p>
+            </div>
+            <Button onClick={saveEdit} disabled={updateStudent.isPending}>{updateStudent.isPending ? "Salvando..." : "Salvar alterações"}</Button>
+          </DialogContent>
+        </Dialog>
         <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard title="Alunos com sinal" value={students.length} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
           <MetricCard title="Total em sinais" value={totalSignal} icon={<DollarSign className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={2} />
@@ -111,16 +172,17 @@ export default function FutureStudentsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Formulario</TableHead>
                   <TableHead>Cadastro</TableHead>
+                  <TableHead className="w-14">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
+                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
                   </TableRow>
                 ) : filteredStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                       Nenhum aluno futuro cadastrado ainda.
                     </TableCell>
                   </TableRow>
@@ -155,6 +217,7 @@ export default function FutureStudentsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{formatDate(student.created_at)}</TableCell>
+                        <TableCell><Button size="icon" variant="ghost" onClick={() => openEdit(student)} title="Editar aluno"><Pencil className="h-4 w-4" /></Button></TableCell>
                       </TableRow>
                     );
                   })
