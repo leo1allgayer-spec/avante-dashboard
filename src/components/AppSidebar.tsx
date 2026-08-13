@@ -18,6 +18,7 @@ import {
   Calendar,
   Settings2,
   Cpu,
+  UserRoundPlus,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -53,6 +54,7 @@ const metricsItems = [
   { title: "Campanhas", url: "/campanhas", icon: Megaphone },
   { title: "Análise de Alunos", url: "/analise-alunos", icon: Brain },
   { title: "Pagamentos", url: "/pagamentos", icon: Wallet },
+  { title: "Alunos Futuros", url: "/alunos-futuros", icon: UserRoundPlus },
   { title: "Pesquisa", url: "/pesquisa", icon: ClipboardList },
   { title: "Dashboard TV", url: "/dashboard-tv", icon: Monitor },
   { title: "Configurações", url: "/configuracoes", icon: Settings },

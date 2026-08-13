@@ -29,6 +29,8 @@ import CursosDadosPage from "./pages/CursosDadosPage";
 import CriativosPage from "./pages/CriativosPage";
 import PlanilhaInstaPage from "./pages/PlanilhaInstaPage";
 import PagamentosPage from "./pages/PagamentosPage";
+import FutureStudentSignupPage from "./pages/FutureStudentSignupPage";
+import FutureStudentsPage from "./pages/FutureStudentsPage";
 import NotFound from "./pages/NotFound";
 
 // Imports das Novas Páginas e Integrações
@@ -144,6 +146,8 @@ const AnimatedRoutes = () => {
         <Route path="/criativos" element={<ProtectedRoute><CriativosPage /></ProtectedRoute>} />
         <Route path="/planilha-insta" element={<ProtectedRoute><PlanilhaInstaPage /></ProtectedRoute>} />
         <Route path="/pagamentos" element={<ProtectedRoute><PagamentosPage /></ProtectedRoute>} />
+        <Route path="/alunos-futuros" element={<ProtectedRoute><FutureStudentsPage /></ProtectedRoute>} />
+        <Route path="/aluno-futuro" element={<FutureStudentSignupPage />} />
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
         <Route path="/gestao-clientes" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
