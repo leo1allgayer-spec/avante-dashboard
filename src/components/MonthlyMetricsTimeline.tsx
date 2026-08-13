@@ -172,7 +172,7 @@ export default function MonthlyMetricsTimeline() {
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Faturamento</span><strong>{money.format(row.faturamento)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Vendas</span><strong className="text-accent">{row.vendas}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Leads</span><strong>{row.leads}</strong></div>
-        <div className="flex justify-between gap-3"><span className="text-muted-foreground">MQL</span><strong className="text-accent">{row.mql}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground">MQL</span><strong className="text-accent">{row.mql} <span className="ml-1 text-[10px] font-medium text-violet-400">({row.leads ? `${((row.mql / row.leads) * 100).toFixed(1).replace(".", ",")}%` : "—"})</span></strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Anúncios</span><strong className="text-amber-400">{money.format(row.ads)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Custo por lead</span><strong className="text-cyan-400">{row.leads ? money.format(row.ads / row.leads) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Custo por lead MQL</span><strong className="text-violet-400">{row.mql ? money.format(row.ads / row.mql) : "—"}</strong></div>
