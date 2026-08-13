@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useMonthMetrics } from "@/hooks/useMetrics";
 import { useCursosDados } from "@/hooks/useCursosDados";
+import { useClients } from "@/hooks/clients/useGestaoClients";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -220,6 +221,7 @@ const VendasPage = () => {
   const { data: criativosVendas = [] } = useCriativosVendas();
   const { data: metaAdCreatives = [], isLoading: isLoadingMetaAds, isError: isMetaAdsError } = useMetaAdCreatives();
   const { data: cursosDados = [] } = useCursosDados();
+  const { clients: gestaoClients = [] } = useClients();
   const dateFilter = useLocalDateFilter();
   const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
   const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
@@ -431,6 +433,13 @@ const VendasPage = () => {
     }),
     { coletado: 0, aReceber: 0 },
   ), [vendasAgrupadas]);
+
+  const recurringContractsTotal = useMemo(
+    () => gestaoClients
+      .filter((client) => client.status === "Ativo")
+      .reduce((total, client) => total + Number(client.contractValue || 0), 0),
+    [gestaoClients],
+  );
 
   const getItemValores = (item: VendaItemForm) => {
     const itemTemParcela = PAGAMENTOS_COM_PARCELA.includes(item.pagamento);
@@ -1604,7 +1613,10 @@ const VendasPage = () => {
                 <Layers3 className="h-4 w-4 text-accent" /> Recorrente
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(fechamentoTotals.recorrente)}</CardContent>
+            <CardContent>
+              <div className="font-display text-2xl font-bold">{formatBRL(recurringContractsTotal)}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Contratos dos clientes ativos</p>
+            </CardContent>
           </Card>
         </div>
 
