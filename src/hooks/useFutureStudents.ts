@@ -93,6 +93,17 @@ export function useUpdateFutureStudent() {
   });
 }
 
+export function useDeleteFutureStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("alunos_futuros" as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["future-students"] }),
+  });
+}
+
 export async function findFutureStudentByCpf(cpf: string) {
   const cpfLimpo = cpf.replace(/\D/g, "");
   if (!cpfLimpo) return null;

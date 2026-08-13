@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import MetricCard from "@/components/MetricCard";
-import { useFutureStudents, useUpdateFutureStudent, type FutureStudent } from "@/hooks/useFutureStudents";
+import { useDeleteFutureStudent, useFutureStudents, useUpdateFutureStudent, type FutureStudent } from "@/hooks/useFutureStudents";
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Copy, DollarSign, Link2, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users } from "lucide-react";
@@ -31,6 +32,7 @@ export default function FutureStudentsPage() {
   const [editing, setEditing] = useState<FutureStudent | null>(null);
   const [editForm, setEditForm] = useState({ nome: "", telefone: "", cpf: "", observacao: "", itens: [] as NonNullable<FutureStudent["itens"]> });
   const updateStudent = useUpdateFutureStudent();
+  const deleteStudent = useDeleteFutureStudent();
   const { toast } = useToast();
 
   const publicLink = `${window.location.origin}${PUBLIC_SIGNUP_PATH}`;
@@ -85,6 +87,15 @@ export default function FutureStudentsPage() {
       setEditing(null);
     } catch (error) {
       toast({ title: "Erro ao atualizar", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
+  const removeStudent = async (student: FutureStudent) => {
+    try {
+      await deleteStudent.mutateAsync(student.id);
+      toast({ title: "Aluno removido", description: `O cadastro de ${student.nome} foi excluído.` });
+    } catch (error) {
+      toast({ title: "Erro ao remover", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
 
@@ -177,7 +188,7 @@ export default function FutureStudentsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Formulario</TableHead>
                   <TableHead>Cadastro</TableHead>
-                  <TableHead className="w-14">Ações</TableHead>
+                  <TableHead className="w-24">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -223,7 +234,18 @@ export default function FutureStudentsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{formatDate(student.created_at)}</TableCell>
-                        <TableCell><Button size="icon" variant="ghost" onClick={() => openEdit(student)} title="Editar aluno"><Pencil className="h-4 w-4" /></Button></TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="ghost" onClick={() => openEdit(student)} title="Editar aluno"><Pencil className="h-4 w-4" /></Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild><Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" title="Remover aluno"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader><AlertDialogTitle>Remover cadastro?</AlertDialogTitle><AlertDialogDescription>O cadastro de <strong>{student.nome}</strong> e todos os produtos e serviços vinculados serão removidos. Os agendamentos existentes não serão apagados.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => removeStudent(student)}>Remover cadastro</AlertDialogAction></AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })
