@@ -719,8 +719,26 @@ const VendasPage = () => {
     };
 
     const cursosFeitosNoMes = cursosDados.filter((item) => item.data >= monthRange.start && item.data <= monthRange.end);
+    const cursosFeitosNoPeriodo = cursosDados.filter((item) => item.data >= dateFilter.range.start && item.data <= dateFilter.range.end);
+    const vendasRegistradasNoPeriodo = allVendas.filter((venda) =>
+      venda.data >= dateFilter.range.start &&
+      venda.data <= dateFilter.range.end &&
+      venda.status !== "cancelada"
+    );
+    const diasUteisNoMes = (() => {
+      const totalDias = new Date(filterYear, filterMonth || 1, 0).getDate();
+      let total = 0;
+      for (let dia = 1; dia <= totalDias; dia += 1) {
+        const semana = new Date(filterYear, (filterMonth || 1) - 1, dia).getDay();
+        if (semana >= 1 && semana <= 5) total += 1;
+      }
+      return Math.max(total, 1);
+    })();
 
     const countRegisteredSales = (category: string) => vendasRegistradasNoMes.filter(
+      (venda) => normalizeText(getVendaCategoria(venda)) === normalizeText(category),
+    ).length;
+    const countPeriodSales = (category: string) => vendasRegistradasNoPeriodo.filter(
       (venda) => normalizeText(getVendaCategoria(venda)) === normalizeText(category),
     ).length;
 
@@ -735,17 +753,37 @@ const VendasPage = () => {
       upsell: vendasRegistradasNoMes.filter((venda) => normalizeText(venda.origem) === normalizeText("Upsell") || normalizeText(getVendaCategoria(venda)) === normalizeText("Upsell")).length,
     };
 
+    const periodCounts = {
+      cursosMarcados: vendasRegistradasNoPeriodo.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
+      cursosFeitos: cursosFeitosNoPeriodo.filter((item) => !!item.survey_response_id).length,
+      servicos: vendasRegistradasNoPeriodo.filter((venda) => GENERAL_SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
+      suporteExtra: countPeriodSales("Suporte Extra"),
+      site: countPeriodSales("Desenvolvimento de Site"),
+      negocioLocal: countPeriodSales("Captacao/Edicao de Conteudo"),
+      crm: countPeriodSales("CRM/Treinamento Comercial"),
+      upsell: vendasRegistradasNoPeriodo.filter((venda) => normalizeText(venda.origem) === normalizeText("Upsell") || normalizeText(getVendaCategoria(venda)) === normalizeText("Upsell")).length,
+    };
+
+    const withPeriodGoals = (label: string, atualMes: number, atualPeriodo: number, meta: number) => ({
+      label,
+      atualMes,
+      atualPeriodo,
+      meta,
+      metaDia: meta > 0 ? Math.ceil(meta / diasUteisNoMes) : 0,
+      metaSemana: meta > 0 ? Math.ceil((meta / diasUteisNoMes) * 5) : 0,
+    });
+
     return [
-      { label: "Cursos marcados", atual: counts.cursosMarcados, meta: metas.cursosMarcados },
-      { label: "Cursos feitos", atual: counts.cursosFeitos, meta: metas.cursosFeitos },
-      { label: "Serviços", atual: counts.servicos, meta: metas.servicos },
-      { label: "Suporte Extra", atual: counts.suporteExtra, meta: metas.suporteExtra },
-      { label: "Site", atual: counts.site, meta: metas.site },
-      { label: "Captação", atual: counts.negocioLocal, meta: metas.negocioLocal },
-      { label: "CRM", atual: counts.crm, meta: metas.crm },
-      { label: "Upsell", atual: counts.upsell, meta: metas.upsell },
+      withPeriodGoals("Cursos marcados", counts.cursosMarcados, periodCounts.cursosMarcados, metas.cursosMarcados),
+      withPeriodGoals("Cursos feitos", counts.cursosFeitos, periodCounts.cursosFeitos, metas.cursosFeitos),
+      withPeriodGoals("Serviços", counts.servicos, periodCounts.servicos, metas.servicos),
+      withPeriodGoals("Suporte Extra", counts.suporteExtra, periodCounts.suporteExtra, metas.suporteExtra),
+      withPeriodGoals("Site", counts.site, periodCounts.site, metas.site),
+      withPeriodGoals("Captação", counts.negocioLocal, periodCounts.negocioLocal, metas.negocioLocal),
+      withPeriodGoals("CRM", counts.crm, periodCounts.crm, metas.crm),
+      withPeriodGoals("Upsell", counts.upsell, periodCounts.upsell, metas.upsell),
     ];
-  }, [monthMetrics, vendasRegistradasNoMes, cursosDados, monthRange.start, monthRange.end]);
+  }, [monthMetrics, vendasRegistradasNoMes, cursosDados, monthRange.start, monthRange.end, allVendas, dateFilter.range.start, dateFilter.range.end, filterYear, filterMonth]);
 
   const renameCategoryFechamentos = async (categoria: string, items: FechamentoDiario[]) => {
     if (items.length === 0) {
@@ -1574,9 +1612,9 @@ const VendasPage = () => {
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <CardTitle>Metas principais do mês</CardTitle>
+                <CardTitle>Metas principais do mês, semana e dia</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Quantidade realizada e quanto falta para cada objetivo do mês.
+                  Acompanhe a meta mensal e o ritmo necessário por semana e por dia útil.
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">
@@ -1587,20 +1625,34 @@ const VendasPage = () => {
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {metasPrincipais.map((item) => {
-                const falta = item.meta > 0 ? Math.max(item.meta - item.atual, 0) : 0;
+                const falta = item.meta > 0 ? Math.max(item.meta - item.atualMes, 0) : 0;
                 return (
                   <div key={item.label} className="rounded-xl border border-border/30 bg-secondary/20 p-4">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{item.label}</p>
-                      <Badge variant="outline" className="text-[10px]">Meta {item.meta || "—"}</Badge>
+                      <Badge variant="outline" className="text-[10px]">Meta mês {item.meta || "—"}</Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg border border-border/20 bg-background/20 p-2 text-center">
+                      <div>
+                        <span className="block text-[9px] uppercase text-muted-foreground">Meta dia</span>
+                        <strong className="mt-1 block text-xs text-foreground">{item.metaDia || "—"}</strong>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] uppercase text-muted-foreground">Meta semana</span>
+                        <strong className="mt-1 block text-xs text-foreground">{item.metaSemana || "—"}</strong>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] uppercase text-muted-foreground">Meta mês</span>
+                        <strong className="mt-1 block text-xs text-foreground">{item.meta || "—"}</strong>
+                      </div>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <span className="block text-[10px] uppercase text-muted-foreground">Até agora no mês</span>
-                        <strong className="mt-1 block text-foreground">{item.atual}</strong>
+                        <span className="block text-[10px] uppercase text-muted-foreground">Realizado no período</span>
+                        <strong className="mt-1 block text-foreground">{item.atualPeriodo}</strong>
                       </div>
                       <div>
-                        <span className="block text-[10px] uppercase text-muted-foreground">Falta</span>
+                        <span className="block text-[10px] uppercase text-muted-foreground">Falta no mês</span>
                         <strong className="mt-1 block text-amber-400">{item.meta > 0 ? falta : "—"}</strong>
                       </div>
                     </div>
