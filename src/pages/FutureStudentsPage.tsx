@@ -126,6 +126,14 @@ export default function FutureStudentsPage() {
     }));
   };
 
+  const startValueEdit = (student: FutureStudent) => setValueDrafts((current) => ({
+    ...current,
+    [student.id]: current[student.id] || {
+      signal: String(Number(student.valor_sinal || 0)),
+      pending: String(getPendingTotal(student)),
+    },
+  }));
+
   const cancelValueDraft = (studentId: string) => setValueDrafts((current) => {
     const next = { ...current };
     delete next[studentId];
@@ -275,16 +283,16 @@ export default function FutureStudentsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="relative ml-auto w-28">
+                          {valueDrafts[student.id] ? <div className="relative ml-auto w-28">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-success">R$</span>
-                            <Input type="number" min={0} step="0.01" value={valueDrafts[student.id]?.signal ?? Number(student.valor_sinal || 0)} onChange={(event) => updateValueDraft(student, "signal", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-success" aria-label={`Valor do sinal de ${student.nome}`} />
-                          </div>
+                            <Input autoFocus type="number" min={0} step="0.01" value={valueDrafts[student.id].signal} onChange={(event) => updateValueDraft(student, "signal", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-success" aria-label={`Valor do sinal de ${student.nome}`} />
+                          </div> : <button type="button" onClick={() => startValueEdit(student)} className="rounded-md px-2 py-1 font-semibold text-success transition-colors hover:bg-success/10" title="Clique para editar o valor do sinal">{formatCurrency(student.valor_sinal)}</button>}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="relative ml-auto w-28">
+                          {valueDrafts[student.id] ? <div className="relative ml-auto w-28">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-warning">R$</span>
-                            <Input type="number" min={0} step="0.01" value={valueDrafts[student.id]?.pending ?? getPendingTotal(student)} onChange={(event) => updateValueDraft(student, "pending", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-warning" aria-label={`Valor a receber de ${student.nome}`} />
-                          </div>
+                            <Input type="number" min={0} step="0.01" value={valueDrafts[student.id].pending} onChange={(event) => updateValueDraft(student, "pending", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-warning" aria-label={`Valor a receber de ${student.nome}`} />
+                          </div> : <button type="button" onClick={() => startValueEdit(student)} className="rounded-md px-2 py-1 font-semibold text-warning transition-colors hover:bg-warning/10" title="Clique para editar o valor a receber">{formatCurrency(getPendingTotal(student))}</button>}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="border-success/30 bg-success/10 text-success">
