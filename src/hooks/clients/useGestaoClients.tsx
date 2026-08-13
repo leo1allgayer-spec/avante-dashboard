@@ -25,9 +25,27 @@ interface DbClient {
   created_at: string;
 }
 
+const CONTRACT_CONFIG_NOTE_ID = "__contract_config__";
+
+function getContractConfig(notes: ClientNote[] | null | undefined, contractValue: number) {
+  const stored = (notes || []).find((note) => note.id === CONTRACT_CONFIG_NOTE_ID);
+  if (!stored) return { type: "MRR" as const, months: 1, monthly: contractValue };
+  try {
+    const parsed = JSON.parse(stored.text);
+    const type = parsed.type === "TCV" ? "TCV" : "MRR";
+    const months = Math.max(1, Number(parsed.months || 1));
+    const monthly = type === "TCV" ? contractValue / months : contractValue;
+    return { type, months, monthly } as const;
+  } catch {
+    return { type: "MRR" as const, months: 1, monthly: contractValue };
+  }
+}
+
 function dbToClient(row: DbClient): Client {
   const clientName = row.name || "";
   const manager = row.manager || "Leonardo";
+  const contractValue = Number((row as any).contract_value || 0) || 0;
+  const contractConfig = getContractConfig(row.notes, contractValue);
   return {
     id: row.id,
     name: clientName,
@@ -39,7 +57,10 @@ function dbToClient(row: DbClient): Client {
     monthlyBudget: Number(row.monthly_budget || 0),
     paymentDate: Number(row.payment_date || 1),
     commissionValue: Number(row.commission_value || 0),
-    contractValue: Number((row as any).contract_value || 0) || 0,
+    contractValue,
+    contractType: contractConfig.type,
+    contractMonths: contractConfig.months,
+    monthlyContractValue: contractConfig.monthly,
     lastBalanceDate: row.last_balance_date || "",
     balanceNote: row.balance_note || "",
     lastReportDate: row.last_report_date || "",
@@ -47,7 +68,7 @@ function dbToClient(row: DbClient): Client {
     lastAccountUpdate: row.last_account_update || "",
     startDate: row.start_date || "",
     nextChargeDate: (row as any).next_charge_date || "",
-    notes: (row.notes as ClientNote[]) || [],
+    notes: ((row.notes as ClientNote[]) || []).filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID),
   };
 }
 
@@ -68,6 +89,11 @@ function sanitizeClientDates<T extends Record<string, any>>(data: T): T {
 }
 
 function clientToDb(client: Client, userId: string) {
+  const contractConfigNote: ClientNote = {
+    id: CONTRACT_CONFIG_NOTE_ID,
+    date: "",
+    text: JSON.stringify({ type: client.contractType, months: Math.max(client.contractMonths || 1, 1) }),
+  };
   return sanitizeClientDates({
     id: client.id,
     user_id: userId,
@@ -88,7 +114,7 @@ function clientToDb(client: Client, userId: string) {
     last_account_update: nullableDate(client.lastAccountUpdate),
     start_date: nullableDate(client.startDate),
     next_charge_date: nullableDate(client.nextChargeDate),
-    notes: client.notes as any,
+    notes: [...client.notes.filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID), contractConfigNote] as any,
   });
 }
 

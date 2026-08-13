@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Client, PaymentStatus, AlertStatus, getAlertStatus, getAlertLabel, getRetentionMonths, formatCurrency, MANAGERS, WEEKDAYS } from "@/types/clients/client";
+import { Client, PaymentStatus, AlertStatus, getAlertStatus, getAlertLabel, getRetentionMonths, getMonthlyContractValue, getTotalContractValue, formatCurrency, MANAGERS, WEEKDAYS } from "@/types/clients/client";
 import { StatusIndicator } from "@/components/clients/StatusIndicator";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -97,7 +97,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
   };
 
   const handleInlineEdit = (client: Client, field: keyof Client, value: string) => {
-    const numericFields: (keyof Client)[] = ["monthlyBudget", "commissionValue", "paymentDate", "contractValue"];
+    const numericFields: (keyof Client)[] = ["monthlyBudget", "commissionValue", "paymentDate", "contractValue", "contractMonths"];
     const updated = { ...client, [field]: numericFields.includes(field) ? Number(value) : value };
     onUpdateClient(updated);
     setEditingCell(null);
@@ -235,7 +235,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
       {/* Table */}
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <div className="overflow-x-auto overscroll-contain">
-        <table className="min-w-[1660px] w-full table-fixed text-xs">
+        <table className="min-w-[1860px] w-full table-fixed text-xs">
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
               <SortHeader label="Cliente" sortField="name" className="w-[150px]" />
@@ -249,7 +249,10 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
               <SortHeader label="Atualizacao" sortField="lastAccountUpdate" className="w-[150px]" />
               <SortHeader label="Retencao" sortField="retention" className="w-[85px]" />
               <StaticHeader label="Cobranca" className="w-[95px]" />
-              <StaticHeader label="Contrato" className="w-[95px]" />
+              <StaticHeader label="Tipo" className="w-[75px]" />
+              <StaticHeader label="Meses" className="w-[60px]" />
+              <StaticHeader label="Contrato" className="w-[105px]" />
+              <StaticHeader label="Mensal" className="w-[105px]" />
               <StaticHeader label="Status pgto" className="w-[120px]" />
               <SortHeader label="Pgto" sortField="paymentDate" className="w-[75px]" />
               <StaticHeader label="Comissao" className="w-[90px]" />
@@ -397,7 +400,15 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     </td>
                   );
                 })()}
+                <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                  <Select value={client.contractType} onValueChange={(v: "MRR" | "TCV") => onUpdateClient({ ...client, contractType: v })}>
+                    <SelectTrigger className="h-7 w-[66px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="MRR">MRR</SelectItem><SelectItem value="TCV">TCV</SelectItem></SelectContent>
+                  </Select>
+                </td>
+                <td className="px-2 py-2">{renderEditable(client, "contractMonths", String(client.contractMonths), "number")}</td>
                 <td className={cn("px-2 py-2", moneyTone(client.contractValue))}>{renderEditable(client, "contractValue", formatCurrency(client.contractValue), "number")}</td>
+                <td className={cn("px-2 py-2", moneyTone(getMonthlyContractValue(client)))} title={`Total do período: ${formatCurrency(getTotalContractValue(client))}`}>{formatCurrency(getMonthlyContractValue(client))}</td>
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                   <Select value={client.paymentStatus} onValueChange={(v) => onUpdateClient({ ...client, paymentStatus: v as PaymentStatus })}>
                     <SelectTrigger className={cn("h-6 w-[112px] text-xs border-border rounded-full", paymentStatusColors[client.paymentStatus])}>
@@ -441,7 +452,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={16} className="px-2 py-6 text-center text-muted-foreground">
+                <td colSpan={19} className="px-2 py-6 text-center text-muted-foreground">
                   Nenhum cliente encontrado.
                 </td>
               </tr>
@@ -466,10 +477,11 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   })()}
                 </td>
                 <td className="px-2 py-2"></td>
+                <td colSpan={3}></td>
                 <td className="px-2 py-2 font-semibold text-primary">
                   {(() => {
                     const ativosNaoPermuta = filtered.filter(c => c.status === "Ativo" && c.paymentStatus !== "permuta");
-                    const total = ativosNaoPermuta.reduce((sum, c) => sum + (Number(c.contractValue) || 0), 0);
+                    const total = ativosNaoPermuta.reduce((sum, c) => sum + getMonthlyContractValue(c), 0);
                     const media = ativosNaoPermuta.length > 0 ? total / ativosNaoPermuta.length : 0;
                     return (
                       <div className="flex flex-col">

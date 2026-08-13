@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMonthMetrics } from "@/hooks/useMetrics";
 import { useCursosDados } from "@/hooks/useCursosDados";
 import { useClients } from "@/hooks/clients/useGestaoClients";
+import { getMonthlyContractValue } from "@/types/clients/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -437,7 +438,7 @@ const VendasPage = () => {
   const recurringContractsTotal = useMemo(
     () => gestaoClients
       .filter((client) => client.status === "Ativo")
-      .reduce((total, client) => total + Number(client.contractValue || 0), 0),
+      .reduce((total, client) => total + getMonthlyContractValue(client), 0),
     [gestaoClients],
   );
 

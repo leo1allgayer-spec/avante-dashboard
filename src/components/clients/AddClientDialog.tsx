@@ -22,6 +22,8 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
     paymentDate: 1,
     commissionValue: 0,
     contractValue: 0,
+    contractType: "MRR" as "MRR" | "TCV",
+    contractMonths: 1,
     reportDay: WEEKDAYS[0],
   });
 
@@ -41,6 +43,9 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
       paymentDate: form.paymentDate,
       commissionValue: form.commissionValue,
       contractValue: form.contractValue,
+      contractType: form.contractType,
+      contractMonths: Math.max(1, form.contractMonths),
+      monthlyContractValue: form.contractType === "TCV" ? form.contractValue / Math.max(1, form.contractMonths) : form.contractValue,
       lastBalanceDate: today,
       balanceNote: "",
       lastReportDate: today,
@@ -51,7 +56,7 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
     };
     try {
       await onAdd(newClient);
-      setForm({ name: "", company: "", instagram: "", manager: MANAGERS[0], monthlyBudget: 0, paymentDate: 1, commissionValue: 0, contractValue: 0, reportDay: WEEKDAYS[0] });
+      setForm({ name: "", company: "", instagram: "", manager: MANAGERS[0], monthlyBudget: 0, paymentDate: 1, commissionValue: 0, contractValue: 0, contractType: "MRR", contractMonths: 1, reportDay: WEEKDAYS[0] });
       onClose();
     } finally {
       setSaving(false);
@@ -90,8 +95,16 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
           </Select>
           <div className="grid grid-cols-2 gap-2">
             <Input type="number" placeholder="Orçamento" value={form.monthlyBudget || ""} onChange={(e) => setForm({ ...form, monthlyBudget: Number(e.target.value) })} className="bg-input border-border" />
-            <Input type="number" placeholder="Contrato" value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />
+            <Select value={form.contractType} onValueChange={(v: "MRR" | "TCV") => setForm({ ...form, contractType: v })}>
+              <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Tipo do contrato" /></SelectTrigger>
+              <SelectContent><SelectItem value="MRR">MRR — valor mensal</SelectItem><SelectItem value="TCV">TCV — valor total</SelectItem></SelectContent>
+            </Select>
+            <Input type="number" min={1} placeholder="Duração (meses)" value={form.contractMonths || ""} onChange={(e) => setForm({ ...form, contractMonths: Math.max(1, Number(e.target.value)) })} className="bg-input border-border" />
+            <Input type="number" placeholder={form.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal"} value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />
           </div>
+          <p className="text-xs text-muted-foreground">
+            Mensal: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue / Math.max(1, form.contractMonths) : form.contractValue)} · Total do período: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue : form.contractValue * Math.max(1, form.contractMonths))}
+          </p>
           <div className="grid grid-cols-3 gap-2">
             <Input type="number" placeholder="Dia pgto" min={1} max={31} value={form.paymentDate || ""} onChange={(e) => setForm({ ...form, paymentDate: Number(e.target.value) })} className="bg-input border-border" />
             <Input type="number" placeholder="Comissão" value={form.commissionValue || ""} onChange={(e) => setForm({ ...form, commissionValue: Number(e.target.value) })} className="bg-input border-border" />

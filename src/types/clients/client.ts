@@ -5,6 +5,7 @@ export interface ClientNote {
 }
 
 export type PaymentStatus = "pago" | "atrasado" | "a receber" | "permuta";
+export type ContractType = "MRR" | "TCV";
 
 export interface Client {
   id: string;
@@ -19,6 +20,9 @@ export interface Client {
   paymentDate: number; // day of month
   commissionValue: number;
   contractValue: number;
+  contractType: ContractType;
+  contractMonths: number;
+  monthlyContractValue: number;
   // Balance
   lastBalanceDate: string;
   balanceNote: string;
@@ -33,6 +37,18 @@ export interface Client {
   nextChargeDate?: string;
   // Notes
   notes: ClientNote[];
+}
+
+export function getMonthlyContractValue(client: Pick<Client, "contractType" | "contractValue" | "contractMonths" | "monthlyContractValue">): number {
+  if (client.contractType === "TCV") {
+    return client.contractMonths > 0 ? client.contractValue / client.contractMonths : client.contractValue;
+  }
+  return client.monthlyContractValue || client.contractValue;
+}
+
+export function getTotalContractValue(client: Pick<Client, "contractType" | "contractValue" | "contractMonths" | "monthlyContractValue">): number {
+  if (client.contractType === "TCV") return client.contractValue;
+  return getMonthlyContractValue(client) * Math.max(client.contractMonths || 1, 1);
 }
 
 export type AlertStatus = "ok" | "warn" | "today" | "late";

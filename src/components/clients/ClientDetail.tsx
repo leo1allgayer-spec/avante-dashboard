@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Client, getAlertStatus, getRetentionMonths, formatCurrency, MANAGERS } from "@/types/clients/client";
+import { Client, getAlertStatus, getRetentionMonths, formatCurrency, getMonthlyContractValue, getTotalContractValue, MANAGERS } from "@/types/clients/client";
 import { StatusIndicator } from "@/components/clients/StatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +109,24 @@ export function ClientDetail({ client, onBack, onUpdate }: ClientDetailProps) {
 
         {/* Financial */}
         <InfoCard title="Financeiro">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Tipo do contrato">
+              <Select value={client.contractType} onValueChange={(v: "MRR" | "TCV") => updateField("contractType", v)}>
+                <SelectTrigger className="bg-input border-border"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="MRR">MRR — mensal</SelectItem><SelectItem value="TCV">TCV — total</SelectItem></SelectContent>
+              </Select>
+            </Field>
+            <Field label="Duração (meses)">
+              <Input type="number" min={1} value={client.contractMonths} onChange={(e) => updateField("contractMonths", Math.max(1, Number(e.target.value)))} className="bg-input border-border" />
+            </Field>
+          </div>
+          <Field label={client.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal (MRR)"}>
+            <Input type="number" value={client.contractValue} onChange={(e) => updateField("contractValue", Number(e.target.value))} className="bg-input border-border" />
+          </Field>
+          <div className="rounded-md border border-border bg-secondary/40 p-3 text-sm">
+            <div className="flex justify-between"><span className="text-muted-foreground">Valor mensal</span><strong>{formatCurrency(getMonthlyContractValue(client))}</strong></div>
+            <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Total do período</span><strong>{formatCurrency(getTotalContractValue(client))}</strong></div>
+          </div>
           <Field label="Orçamento Mensal">
             <Input
               type="number"
