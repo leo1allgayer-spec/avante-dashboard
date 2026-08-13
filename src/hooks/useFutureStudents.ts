@@ -8,6 +8,12 @@ export interface FutureStudent {
   cpf: string;
   cpf_limpo?: string | null;
   curso: string;
+  itens?: Array<{
+    tipo: "curso" | "produto" | "servico";
+    nome: string;
+    valor_sinal: number;
+    data: string;
+  }> | null;
   valor_sinal: number;
   status: string;
   observacao: string | null;

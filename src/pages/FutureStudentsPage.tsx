@@ -39,7 +39,8 @@ export default function FutureStudentsPage() {
       student.nome.toLowerCase().includes(q) ||
       student.telefone.toLowerCase().includes(q) ||
       student.cpf.toLowerCase().includes(q) ||
-      (student.curso || "").toLowerCase().includes(q),
+      (student.curso || "").toLowerCase().includes(q) ||
+      (student.itens || []).some((item) => item.nome.toLowerCase().includes(q)),
     );
   }, [search, students]);
 
@@ -105,7 +106,7 @@ export default function FutureStudentsPage() {
                   <TableHead>Aluno</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>CPF</TableHead>
-                  <TableHead>Curso</TableHead>
+                  <TableHead>Produtos / serviços</TableHead>
                   <TableHead className="text-right">Valor sinal</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Formulario</TableHead>
@@ -132,7 +133,16 @@ export default function FutureStudentsPage() {
                         <TableCell className="font-semibold">{student.nome}</TableCell>
                         <TableCell>{student.telefone}</TableCell>
                         <TableCell>{student.cpf}</TableCell>
-                        <TableCell><Badge variant="secondary">{student.curso || "Não informado"}</Badge></TableCell>
+                        <TableCell>
+                          <div className="flex max-w-md flex-wrap gap-1.5">
+                            {(student.itens?.length ? student.itens : student.curso ? [{ tipo: "curso", nome: student.curso, valor_sinal: student.valor_sinal, data: student.created_at }] : []).map((item, index) => (
+                              <Badge key={`${item.nome}-${index}`} variant="secondary" title={`${item.tipo} · ${formatCurrency(item.valor_sinal)}`}>
+                                {item.nome}
+                              </Badge>
+                            ))}
+                            {!student.itens?.length && !student.curso && <span className="text-muted-foreground">Não informado</span>}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right font-semibold text-success">{formatCurrency(student.valor_sinal)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="border-success/30 bg-success/10 text-success">
