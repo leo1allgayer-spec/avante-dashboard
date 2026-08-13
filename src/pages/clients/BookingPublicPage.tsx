@@ -4,6 +4,7 @@ import { supabaseClients as supabase } from "@/integrations/supabase/clientsClie
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { format, parse, addDays, startOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,6 +25,13 @@ const COURSES: { id: string; slug: string; label: string; subtitle?: string }[] 
 
 const MAX_STUDENTS = 5;
 const DAYS_AHEAD = 60;
+const currencyFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+const parseMoney = (value: string) => {
+  const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const getSupabaseErrorMessage = (error: unknown) => {
   if (!error) return "";
@@ -57,8 +65,8 @@ export default function BookingPublic() {
   const [availabilityError, setAvailabilityError] = useState("");
   const [availabilityReload, setAvailabilityReload] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "55", instagram: "", certificateName: "" });
-  const [errors, setErrors] = useState({ name: "", email: "", phone: "", instagram: "", certificateName: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "55", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+  const [errors, setErrors] = useState({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -230,13 +238,32 @@ export default function BookingPublic() {
   };
 
   const validate = () => {
-    const e = { name: "", email: "", phone: "", instagram: "", certificateName: "" };
+    const e = { name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" };
     if (!form.name.trim()) e.name = "Nome é obrigatório";
     if (!form.email.trim()) e.email = "E-mail é obrigatório";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = "E-mail inválido";
     if (!form.phone.trim() || form.phone.length < 12) e.phone = "Telefone deve ter pelo menos 12 dígitos (55 + DDD + número)";
+    const cleanCpf = form.cpf.replace(/\D/g, "");
+    if (cleanCpf.length !== 11) e.cpf = "Informe um CPF com 11 dígitos";
+    if (parseMoney(form.signalValue) <= 0) e.signalValue = "Informe o valor do sinal pago";
     setErrors(e);
-    return !e.name && !e.email && !e.phone;
+    return !e.name && !e.email && !e.phone && !e.cpf && !e.signalValue;
+  };
+
+  const saveStudentRegistration = async () => {
+    if (!selectedShift) return;
+    const { error } = await supabase.rpc("register_future_student_from_booking" as any, {
+      p_nome: form.name.trim(),
+      p_telefone: form.phone.trim(),
+      p_cpf: form.cpf.trim(),
+      p_valor_sinal: parseMoney(form.signalValue),
+      p_observacao: [
+        `Curso: ${selectedCourseInfo?.label || selectedCourse}`,
+        `Agendamento: ${selectedShift.date} - ${selectedShift.shift}`,
+        form.observation.trim(),
+      ].filter(Boolean).join("\n"),
+    } as any);
+    if (error) throw error;
   };
 
   const handleSubmit = async () => {
@@ -279,6 +306,8 @@ export default function BookingPublic() {
           setSubmitting(false);
           return;
         }
+
+        await saveStudentRegistration();
 
         setSubmitting(false);
         setStep("rescheduleSent");
@@ -332,6 +361,8 @@ export default function BookingPublic() {
         return;
       }
 
+      await saveStudentRegistration();
+
       // Show loading step while processing
       setStep("loading");
 
@@ -362,7 +393,8 @@ export default function BookingPublic() {
   const reset = () => {
     setStep(lockedCourse ? "date" : "course"); setSelectedCourse(lockedCourse?.id || ""); setSelectedShift(null); setSelectedDate(null);
     if (!lockedCourse) setDateShifts([]);
-    setForm({ name: "", email: "", phone: "55", instagram: "", certificateName: "" }); setErrors({ name: "", email: "", phone: "", instagram: "", certificateName: "" });
+    setForm({ name: "", email: "", phone: "55", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+    setErrors({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
   };
 
   // Build a set of available dates and their shifts
@@ -670,6 +702,39 @@ export default function BookingPublic() {
                   {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
                 </div>
                 <div className="space-y-1.5">
+                  <label className="text-sm font-medium">CPF <span className="text-destructive">*</span></label>
+                  <Input
+                    value={form.cpf}
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+                      const masked = digits
+                        .replace(/(\d{3})(\d)/, "$1.$2")
+                        .replace(/(\d{3})(\d)/, "$1.$2")
+                        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+                      setForm({ ...form, cpf: masked });
+                      setErrors({ ...errors, cpf: "" });
+                    }}
+                    placeholder="000.000.000-00"
+                    className={errors.cpf ? "border-destructive" : ""}
+                  />
+                  {errors.cpf && <p className="text-xs text-destructive mt-1">{errors.cpf}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Valor do sinal pago <span className="text-destructive">*</span></label>
+                  <Input
+                    value={form.signalValue}
+                    onChange={e => { setForm({ ...form, signalValue: e.target.value }); setErrors({ ...errors, signalValue: "" }); }}
+                    onBlur={() => {
+                      const value = parseMoney(form.signalValue);
+                      if (value > 0) setForm(current => ({ ...current, signalValue: currencyFormatter.format(value) }));
+                    }}
+                    placeholder="R$ 0,00"
+                    inputMode="decimal"
+                    className={errors.signalValue ? "border-destructive" : ""}
+                  />
+                  {errors.signalValue && <p className="text-xs text-destructive mt-1">{errors.signalValue}</p>}
+                </div>
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium">Instagram</label>
                   <Input
                     value={form.instagram}
@@ -686,6 +751,15 @@ export default function BookingPublic() {
                     placeholder="Nome que deseja no certificado"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Se deixar em branco, será usado o nome completo</p>
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-sm font-medium">Observação</label>
+                  <Textarea
+                    value={form.observation}
+                    onChange={e => setForm({ ...form, observation: e.target.value })}
+                    placeholder="Informação adicional sobre o pagamento ou cadastro (opcional)"
+                    className="min-h-[82px]"
+                  />
                 </div>
               </div>
 
