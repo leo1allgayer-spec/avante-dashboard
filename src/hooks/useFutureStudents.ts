@@ -12,6 +12,7 @@ export interface FutureStudent {
     tipo: "curso" | "produto" | "servico";
     nome: string;
     valor_sinal: number;
+    valor_pendente?: number;
     data: string;
   }> | null;
   valor_sinal: number;

@@ -51,6 +51,7 @@ export default function FutureStudentsPage() {
   }, [search, students]);
 
   const totalSignal = students.reduce((sum, student) => sum + Number(student.valor_sinal || 0), 0);
+  const totalPending = students.reduce((sum, student) => sum + (student.itens || []).reduce((itemSum, item) => itemSum + Number(item.valor_pendente || 0), 0), 0);
   const linkedCount = students.filter((student) => surveyCpfSet.has(cleanCpf(student.cpf))).length;
 
   const copyLink = async () => {
@@ -61,7 +62,7 @@ export default function FutureStudentsPage() {
   const openEdit = (student: FutureStudent) => {
     const itens = student.itens?.length
       ? student.itens.map((item) => ({ ...item }))
-      : student.curso ? [{ tipo: "curso" as const, nome: student.curso, valor_sinal: Number(student.valor_sinal || 0), data: student.created_at }] : [];
+      : student.curso ? [{ tipo: "curso" as const, nome: student.curso, valor_sinal: Number(student.valor_sinal || 0), valor_pendente: 0, data: student.created_at }] : [];
     setEditing(student);
     setEditForm({ nome: student.nome, telefone: student.telefone, cpf: student.cpf, observacao: student.observacao || "", itens });
   };
@@ -71,7 +72,7 @@ export default function FutureStudentsPage() {
       toast({ title: "Verifique os dados", description: "Nome e CPF válido são obrigatórios.", variant: "destructive" });
       return;
     }
-    const itens = editForm.itens.filter((item) => item.nome.trim()).map((item) => ({ ...item, valor_sinal: Number(item.valor_sinal || 0) }));
+    const itens = editForm.itens.filter((item) => item.nome.trim()).map((item) => ({ ...item, valor_sinal: Number(item.valor_sinal || 0), valor_pendente: Number(item.valor_pendente || 0) }));
     const total = itens.reduce((sum, item) => sum + item.valor_sinal, 0);
     try {
       await updateStudent.mutateAsync({
@@ -108,25 +109,28 @@ export default function FutureStudentsPage() {
               <div className="sm:col-span-2"><label className="mb-1.5 block text-xs text-muted-foreground">Observação</label><Textarea value={editForm.observacao} onChange={(e) => setEditForm({ ...editForm, observacao: e.target.value })} /></div>
             </div>
             <div className="mt-2 rounded-xl border border-border/40 p-4">
-              <div className="mb-3 flex items-center justify-between"><div><h3 className="font-semibold">Produtos e serviços</h3><p className="text-xs text-muted-foreground">Edite ou adicione itens ao cadastro.</p></div><Button type="button" size="sm" variant="outline" onClick={() => setEditForm({ ...editForm, itens: [...editForm.itens, { tipo: "curso", nome: "", valor_sinal: 0, data: new Date().toISOString() }] })}><Plus className="mr-1 h-4 w-4" /> Adicionar</Button></div>
+              <div className="mb-3 flex items-center justify-between"><div><h3 className="font-semibold">Produtos e serviços</h3><p className="text-xs text-muted-foreground">Edite ou adicione itens ao cadastro.</p></div><Button type="button" size="sm" variant="outline" onClick={() => setEditForm({ ...editForm, itens: [...editForm.itens, { tipo: "curso", nome: "", valor_sinal: 0, valor_pendente: 0, data: new Date().toISOString() }] })}><Plus className="mr-1 h-4 w-4" /> Adicionar</Button></div>
+              <div className="mb-1 hidden grid-cols-[110px_1fr_130px_130px_40px] gap-2 px-2 text-[10px] uppercase text-muted-foreground sm:grid"><span>Tipo</span><span>Item</span><span>Sinal pago</span><span>Falta pagar</span><span /></div>
               <div className="space-y-2">
                 {editForm.itens.map((item, index) => (
-                  <div key={index} className="grid gap-2 rounded-lg bg-secondary/20 p-2 sm:grid-cols-[120px_1fr_150px_40px]">
+                  <div key={index} className="grid gap-2 rounded-lg bg-secondary/20 p-2 sm:grid-cols-[110px_1fr_130px_130px_40px]">
                     <Select value={item.tipo} onValueChange={(value: "curso" | "produto" | "servico") => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, tipo: value } : current) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="curso">Curso</SelectItem><SelectItem value="produto">Produto</SelectItem><SelectItem value="servico">Serviço</SelectItem></SelectContent></Select>
                     <Input value={item.nome} placeholder="Nome do item" onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, nome: e.target.value } : current) })} />
                     <Input type="number" min={0} step="0.01" value={item.valor_sinal} onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, valor_sinal: Number(e.target.value) } : current) })} />
+                    <Input type="number" min={0} step="0.01" value={item.valor_pendente || 0} onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, valor_pendente: Number(e.target.value) } : current) })} />
                     <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => setEditForm({ ...editForm, itens: editForm.itens.filter((_, i) => i !== index) })}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-right text-sm">Total em sinais: <strong className="text-success">{formatCurrency(editForm.itens.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0))}</strong></p>
+              <div className="mt-3 flex flex-wrap justify-end gap-4 text-sm"><span>Total em sinais: <strong className="text-success">{formatCurrency(editForm.itens.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0))}</strong></span><span>Total a receber: <strong className="text-warning">{formatCurrency(editForm.itens.reduce((sum, item) => sum + Number(item.valor_pendente || 0), 0))}</strong></span></div>
             </div>
             <Button onClick={saveEdit} disabled={updateStudent.isPending}>{updateStudent.isPending ? "Salvando..." : "Salvar alterações"}</Button>
           </DialogContent>
         </Dialog>
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard title="Alunos com sinal" value={students.length} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
           <MetricCard title="Total em sinais" value={totalSignal} icon={<DollarSign className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={2} />
+          <MetricCard title="Total a receber" value={totalPending} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Ja preencheram formulario" value={linkedCount} icon={<UserCheck className="h-5 w-5" />} variant="accent" countUp />
           <MetricCard title="Pendentes" value={Math.max(students.length - linkedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
         </div>
@@ -169,6 +173,7 @@ export default function FutureStudentsPage() {
                   <TableHead>CPF</TableHead>
                   <TableHead>Produtos / serviços</TableHead>
                   <TableHead className="text-right">Valor sinal</TableHead>
+                  <TableHead className="text-right">A receber</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Formulario</TableHead>
                   <TableHead>Cadastro</TableHead>
@@ -178,11 +183,11 @@ export default function FutureStudentsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
+                    <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
                   </TableRow>
                 ) : filteredStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                       Nenhum aluno futuro cadastrado ainda.
                     </TableCell>
                   </TableRow>
@@ -206,6 +211,7 @@ export default function FutureStudentsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-semibold text-success">{formatCurrency(student.valor_sinal)}</TableCell>
+                        <TableCell className="text-right font-semibold text-warning">{formatCurrency((student.itens || []).reduce((sum, item) => sum + Number(item.valor_pendente || 0), 0))}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="border-success/30 bg-success/10 text-success">
                             Sinal pago
