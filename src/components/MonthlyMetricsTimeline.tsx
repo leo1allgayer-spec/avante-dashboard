@@ -183,6 +183,7 @@ export default function MonthlyMetricsTimeline() {
         <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Meta prevista</span><strong className="text-blue-400">{money.format(row.metaPrevista)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Meta realizada</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">% da meta</span><strong className="text-violet-400">{row.metaPrevista > 0 ? `${((row.faturamento / row.metaPrevista) * 100).toFixed(1).replace(".", ",")}%` : "—"}</strong></div>
+        <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Total vendido</span><strong className="text-primary">{money.format(row.faturamento + row.aReceber)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Coletado</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">A receber</span><strong className="text-amber-400">{money.format(row.aReceber)}</strong></div>
       </div></div>{index < periods.length - 1 && <ArrowRight className="ml-2 h-4 w-4 shrink-0 text-muted-foreground/40 lg:hidden" />}</div>)}
