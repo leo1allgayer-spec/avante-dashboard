@@ -141,6 +141,13 @@ const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =
 const appendPaymentHistory = (observation: string | null | undefined, entry: PaymentHistoryEntry) =>
   [observation?.trim(), `${PAYMENT_HISTORY_PREFIX}${JSON.stringify(entry)}`].filter(Boolean).join("\n");
 
+const getSalePaymentLabel = (sale: Venda) => {
+  const installments = Number.parseInt(String(sale.parcelas || ""), 10);
+  return PAGAMENTOS_COM_PARCELA.includes(sale.pagamento) && installments > 1
+    ? `${sale.pagamento} — ${installments}x`
+    : sale.pagamento;
+};
+
 const defaultForm = {
   data: new Date().toISOString().split("T")[0],
   vendedor: "",
@@ -389,7 +396,7 @@ const VendasPage = () => {
       const paymentHistory = [...historyById.values()].sort((a, b) => b.date.localeCompare(a.date));
       const historyTotal = paymentHistory.reduce((total, entry) => total + entry.amount, 0);
       if (sinal > historyTotal + 0.01) {
-        paymentHistory.push({ id: `legacy-${chave}`, date: principal.data, amount: sinal - historyTotal, method: "Recebimento anterior" });
+        paymentHistory.push({ id: `legacy-${chave}`, date: principal.data, amount: sinal - historyTotal, method: getSalePaymentLabel(principal) });
       }
 
       return {
@@ -1899,9 +1906,9 @@ const VendasPage = () => {
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
                         <Badge variant={v.pagamento === "Cartão" ? "secondary" : "outline"} className="text-xs">
-                          {v.pagamento}
+                          {getSalePaymentLabel(v)}
                         </Badge>
-                        {v.pagamento_saldo && <p className="mt-1 text-xs text-muted-foreground">Saldo: {v.pagamento_saldo}</p>}
+                        {grupo.saldo > 0 && v.pagamento_saldo && <p className="mt-1 text-xs text-muted-foreground">Saldo: {v.pagamento_saldo}</p>}
                         <p className="mt-2 text-xs"><span className="text-muted-foreground">Comissão: </span><strong>{formatBRL(grupo.comissao)}</strong></p>
                         {grupo.saldo > 0 ? (
                           <div className="mt-3 space-y-1.5 border-t border-border/20 pt-2">
