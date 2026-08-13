@@ -6,12 +6,18 @@ import type { MetaAdsData } from "@/hooks/useMetaAds";
 import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { useCrmMql } from "@/hooks/useCrmMql";
 import { Button } from "@/components/ui/button";
+import { COURSE_PRODUCTS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 
 type Period = "dia" | "semana" | "mes";
-type TimelineRow = { key: string; label: string; start: string; end: string; faturamento: number; valorVendido: number; aReceber: number; vendas: number; cursosFeitos: number; leads: number; mql: number; ads: number; metaPrevista: number };
+type TimelineRow = { key: string; label: string; start: string; end: string; faturamento: number; valorVendido: number; aReceber: number; vendas: number; cursosVendidos: number; cursosFeitos: number; leads: number; mql: number; ads: number; metaPrevista: number };
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const normalizeText = (value?: string | null) => (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const isCourseSale = (produto?: string | null, servico?: string | null) => {
+  const category = normalizeText(canonicalizeSaleCategory(servico || produto));
+  return COURSE_PRODUCTS.some((course) => normalizeText(course) === category);
+};
 const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const mondayKey = (value: string) => {
   const date = new Date(`${value}T12:00:00`);
@@ -64,7 +70,7 @@ export default function MonthlyMetricsTimeline() {
     queryFn: async () => {
       const [metricsResult, vendasResult, metaResult] = await Promise.all([
         supabase.from("daily_metrics").select("date, leads, ads, curso_feito, faturamento_marcado, meta_mensal_prevista, super_meta_mensal").gte("date", `${startDate.slice(0, 7)}-01`),
-        supabase.from("vendas").select("data, cliente, vendedor, valor, status").gte("data", startDate),
+        supabase.from("vendas").select("data, cliente, vendedor, valor, status, produto, servico").gte("data", startDate),
         supabase.functions.invoke("meta-ads", { body: { datePreset: "custom", since: startDate, until: endDate } }),
       ]);
       if (metricsResult.error) throw metricsResult.error;
@@ -75,7 +81,7 @@ export default function MonthlyMetricsTimeline() {
 
   const periods = useMemo<TimelineRow[]>(() => {
     const rows = new Map<string, TimelineRow>();
-    const createRow = (key: string, label: string, start: string, end: string) => rows.set(key, { key, label, start, end, faturamento: 0, valorVendido: 0, aReceber: 0, vendas: 0, cursosFeitos: 0, leads: 0, mql: 0, ads: 0, metaPrevista: 0 });
+    const createRow = (key: string, label: string, start: string, end: string) => rows.set(key, { key, label, start, end, faturamento: 0, valorVendido: 0, aReceber: 0, vendas: 0, cursosVendidos: 0, cursosFeitos: 0, leads: 0, mql: 0, ads: 0, metaPrevista: 0 });
     const now = new Date();
     if (period === "dia") {
       for (let offset = 6; offset >= 0; offset--) {
@@ -114,7 +120,10 @@ export default function MonthlyMetricsTimeline() {
     data?.vendas.forEach((item) => {
       if (item.status === "recusada" || item.status === "cancelada") return;
       const row = rows.get(rowKey(item.data));
-      if (row) row.vendas += 1;
+      if (row) {
+        row.vendas += 1;
+        if (isCourseSale(item.produto, item.servico)) row.cursosVendidos += 1;
+      }
     });
     const saleGroups = new Map<string, { period: string; total: number; cliente: string; vendedor: string; data: string }>();
     data?.vendas.forEach((item) => {
@@ -173,7 +182,7 @@ export default function MonthlyMetricsTimeline() {
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Custo por lead MQL</span><strong className="text-violet-400">{row.mql ? money.format(row.ads / row.mql) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Taxa de conversão</span><strong className="text-emerald-400">{row.leads ? `${((row.mql / row.leads) * 100).toFixed(1).replace(".", ",")}%` : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">CAC total</span><strong>{row.vendas ? money.format(row.ads / row.vendas) : "—"}</strong></div>
-        <div className="flex justify-between gap-3"><span className="text-muted-foreground">CAC cursos</span><strong className="text-primary">{row.cursosFeitos ? money.format(row.ads / row.cursosFeitos) : "—"}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground">CAC cursos</span><strong className="text-primary">{row.cursosVendidos ? money.format(row.ads / row.cursosVendidos) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">ROAS</span><strong className="text-emerald-400">{row.ads ? `${(row.faturamento / row.ads).toFixed(2).replace(".", ",")}x` : "—"}</strong></div>
         <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Meta prevista</span><strong className="text-blue-400">{money.format(row.metaPrevista)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Meta realizada</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
