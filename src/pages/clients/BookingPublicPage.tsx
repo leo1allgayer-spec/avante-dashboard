@@ -256,6 +256,7 @@ export default function BookingPublic() {
       p_nome: form.name.trim(),
       p_telefone: form.phone.trim(),
       p_cpf: form.cpf.trim(),
+      p_curso: selectedCourse,
       p_valor_sinal: parseMoney(form.signalValue),
       p_observacao: [
         `Curso: ${selectedCourseInfo?.label || selectedCourse}`,

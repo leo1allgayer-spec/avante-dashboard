@@ -38,7 +38,8 @@ export default function FutureStudentsPage() {
     return students.filter((student) =>
       student.nome.toLowerCase().includes(q) ||
       student.telefone.toLowerCase().includes(q) ||
-      student.cpf.toLowerCase().includes(q),
+      student.cpf.toLowerCase().includes(q) ||
+      (student.curso || "").toLowerCase().includes(q),
     );
   }, [search, students]);
 
@@ -104,6 +105,7 @@ export default function FutureStudentsPage() {
                   <TableHead>Aluno</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>CPF</TableHead>
+                  <TableHead>Curso</TableHead>
                   <TableHead className="text-right">Valor sinal</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Formulario</TableHead>
@@ -113,11 +115,11 @@ export default function FutureStudentsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
                   </TableRow>
                 ) : filteredStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       Nenhum aluno futuro cadastrado ainda.
                     </TableCell>
                   </TableRow>
@@ -130,6 +132,7 @@ export default function FutureStudentsPage() {
                         <TableCell className="font-semibold">{student.nome}</TableCell>
                         <TableCell>{student.telefone}</TableCell>
                         <TableCell>{student.cpf}</TableCell>
+                        <TableCell><Badge variant="secondary">{student.curso || "Não informado"}</Badge></TableCell>
                         <TableCell className="text-right font-semibold text-success">{formatCurrency(student.valor_sinal)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="border-success/30 bg-success/10 text-success">

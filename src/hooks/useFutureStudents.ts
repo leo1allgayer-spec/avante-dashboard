@@ -7,6 +7,7 @@ export interface FutureStudent {
   telefone: string;
   cpf: string;
   cpf_limpo?: string | null;
+  curso: string;
   valor_sinal: number;
   status: string;
   observacao: string | null;
