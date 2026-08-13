@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle2, ChevronLeft, ChevronRight, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { formatLocalDate } from "@/hooks/useMetrics";
 
 const STEPS = ["Sobre Você", "Jornada de Compra", "Atendimento"];
 
@@ -125,7 +126,7 @@ const initialForm: FormData = {
   instagram: "",
   endereco: "",
   whatsapp: "",
-  data_curso: "",
+  data_curso: formatLocalDate(new Date()),
   curso_realizado: "",
 };
 
@@ -175,9 +176,66 @@ const PesquisaPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loadingCep, setLoadingCep] = useState(false);
+  const [loadingCpf, setLoadingCpf] = useState(false);
+  const [cpfLookupMessage, setCpfLookupMessage] = useState("");
+  const [whatsappLast4, setWhatsappLast4] = useState("");
   const { toast } = useToast();
 
   const set = (key: keyof FormData, val: string | number) => setForm((p) => ({ ...p, [key]: val }));
+
+  const handleCpfChange = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+    const formatted = digits
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    set("cpf", formatted);
+    setCpfLookupMessage("");
+    if (digits.length === 11 && whatsappLast4.length === 4) void lookupStudentByCpf(formatted, whatsappLast4);
+  };
+
+  const handleWhatsappLast4Change = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 4);
+    setWhatsappLast4(digits);
+    setCpfLookupMessage("");
+    if (form.cpf.replace(/\D/g, "").length === 11 && digits.length === 4) {
+      void lookupStudentByCpf(form.cpf, digits);
+    }
+  };
+
+  const lookupStudentByCpf = async (cpf: string, last4: string) => {
+    setLoadingCpf(true);
+    try {
+      const { data, error } = await supabase.rpc("lookup_student_registration_by_cpf" as any, {
+        p_cpf: cpf,
+        p_whatsapp_last4: last4,
+      } as any);
+      if (error) throw error;
+      const registration = data as any;
+      if (!registration) {
+        setCpfLookupMessage("CPF ou final do WhatsApp não conferem. Verifique os dados ou preencha o cadastro manualmente.");
+        return;
+      }
+      setForm((current) => ({
+        ...current,
+        cpf,
+        nome: registration.nome || current.nome,
+        whatsapp: registration.whatsapp || current.whatsapp,
+        cep: registration.cep || current.cep,
+        cidade: registration.cidade || current.cidade,
+        email: registration.email || current.email,
+        instagram: registration.instagram || current.instagram,
+        endereco: registration.endereco || current.endereco,
+        curso_realizado: registration.curso_realizado || current.curso_realizado,
+        data_curso: formatLocalDate(new Date()),
+      }));
+      setCpfLookupMessage("Cadastro encontrado. Conferimos e preenchemos seus dados automaticamente.");
+    } catch {
+      setCpfLookupMessage("Não foi possível consultar agora. Você pode preencher os dados manualmente.");
+    } finally {
+      setLoadingCpf(false);
+    }
+  };
 
   const handleCepChange = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 8);
@@ -353,17 +411,24 @@ const PesquisaPage = () => {
             <div className="space-y-5">
               <p className="text-sm text-muted-foreground">Informações para matrícula</p>
               <div>
-                <Label className="text-sm font-semibold text-foreground mb-1.5 block">Nome completo *</Label>
-                <Input value={form.nome} onChange={(e) => set("nome", e.target.value)} className="bg-secondary/30 border-border/40" />
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">CPF *</Label>
+                <div className="relative">
+                  <Input value={form.cpf} onChange={(e) => handleCpfChange(e.target.value)} inputMode="numeric" maxLength={14} placeholder="000.000.000-00" className="bg-secondary/30 border-border/40 pr-9" />
+                  {loadingCpf && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />}
+                </div>
               </div>
               <div>
-                <Label className="text-sm font-semibold text-foreground mb-1.5 block">CPF *</Label>
-                <Input
-                  value={form.cpf}
-                  onChange={(e) => set("cpf", e.target.value)}
-                  placeholder="Somente números"
-                  className="bg-secondary/30 border-border/40"
-                />
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">4 últimos números do WhatsApp *</Label>
+                <div className="relative">
+                  <Input value={whatsappLast4} onChange={(e) => handleWhatsappLast4Change(e.target.value)} inputMode="numeric" maxLength={4} placeholder="0000" className="bg-secondary/30 border-border/40 pr-9" />
+                  {loadingCpf && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Usado somente para confirmar seu cadastro e preencher os demais campos.</p>
+                {cpfLookupMessage && <p className="mt-1 text-xs text-muted-foreground">{cpfLookupMessage}</p>}
+              </div>
+              <div>
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">Nome completo *</Label>
+                <Input value={form.nome} onChange={(e) => set("nome", e.target.value)} className="bg-secondary/30 border-border/40" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -396,8 +461,9 @@ const PesquisaPage = () => {
                 <Input value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="55 91 99999-9999" className="bg-secondary/30 border-border/40" />
               </div>
               <div>
-                <Label className="text-sm font-semibold text-foreground mb-1.5 block">Data em que você fez o curso</Label>
-                <Input type="date" value={form.data_curso} onChange={(e) => set("data_curso", e.target.value)} className="bg-secondary/30 border-border/40" />
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">Data do preenchimento</Label>
+                <Input type="date" value={form.data_curso} readOnly className="bg-secondary/20 border-border/40 text-muted-foreground" />
+                <p className="mt-1 text-xs text-muted-foreground">Preenchida automaticamente com a data de hoje.</p>
               </div>
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">Qual curso voce esta fazendo? *</Label>
