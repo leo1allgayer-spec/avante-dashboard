@@ -124,6 +124,23 @@ const MonthYearPicker = ({ value, onChange }: { value: string; onChange: (value:
   );
 };
 
+type PaymentHistoryEntry = { id: string; date: string; amount: number; method: string };
+const PAYMENT_HISTORY_PREFIX = "[PAGAMENTO_VENDA]";
+
+const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =>
+  (observation || "").split("\n").flatMap((line) => {
+    if (!line.startsWith(PAYMENT_HISTORY_PREFIX)) return [];
+    try {
+      const entry = JSON.parse(line.slice(PAYMENT_HISTORY_PREFIX.length));
+      return entry?.id && entry?.date && Number(entry?.amount) > 0 ? [{ ...entry, amount: Number(entry.amount) }] : [];
+    } catch {
+      return [];
+    }
+  });
+
+const appendPaymentHistory = (observation: string | null | undefined, entry: PaymentHistoryEntry) =>
+  [observation?.trim(), `${PAYMENT_HISTORY_PREFIX}${JSON.stringify(entry)}`].filter(Boolean).join("\n");
+
 const defaultForm = {
   data: new Date().toISOString().split("T")[0],
   vendedor: "",
@@ -364,6 +381,16 @@ const VendasPage = () => {
         valorTotal,
         fechamentosRelacionados.reduce((total, item) => total + Number(item.valor_sinal || 0), 0),
       );
+      const historyById = new Map<string, PaymentHistoryEntry>();
+      fechamentosRelacionados.flatMap((item) => getPaymentHistory(item.observacao)).forEach((entry) => {
+        const previous = historyById.get(entry.id);
+        historyById.set(entry.id, previous ? { ...previous, amount: previous.amount + entry.amount } : entry);
+      });
+      const paymentHistory = [...historyById.values()].sort((a, b) => b.date.localeCompare(a.date));
+      const historyTotal = paymentHistory.reduce((total, entry) => total + entry.amount, 0);
+      if (sinal > historyTotal + 0.01) {
+        paymentHistory.push({ id: `legacy-${chave}`, date: principal.data, amount: sinal - historyTotal, method: "Recebimento anterior" });
+      }
 
       return {
         chave,
@@ -377,6 +404,7 @@ const VendasPage = () => {
         sinal,
         saldo: Math.max(0, valorTotal - sinal),
         comissao: +(sinal * 0.15).toFixed(2),
+        paymentHistory,
       };
     }).filter((grupo) => {
       if (statusFilter === "paga") return grupo.saldo <= 0;
@@ -426,6 +454,7 @@ const VendasPage = () => {
     const paymentDate = quickPaymentDates[saleKey] || new Date().toISOString().split("T")[0];
     const installments = Math.max(1, Number(quickCardInstallments[saleKey] || 1));
     const paymentLabel = paymentMethod === "Crédito" ? `Crédito (${installments}x)` : paymentMethod;
+    const paymentId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${saleKey}`;
     const usedFechamentos = new Set<string>();
     const usedCriativos = new Set<string>();
 
@@ -509,6 +538,9 @@ const VendasPage = () => {
           parcelas_datas: [],
           status: novoSaldo <= 0 ? "recebido" : "a receber",
           pagamento_saldo: paymentLabel,
+          observacao: baixaItem > 0
+            ? appendPaymentHistory(fechamento?.observacao, { id: paymentId, date: paymentDate, amount: baixaItem, method: paymentLabel })
+            : (fechamento?.observacao || null),
         };
         if (fechamento) {
           updates.push(updateFechamento.mutateAsync({ id: fechamento.id, ...fechamentoPayload }));
@@ -521,7 +553,6 @@ const VendasPage = () => {
             categoria,
             origem: venda.origem || null,
             ...fechamentoPayload,
-            observacao: null,
             pagamento_sinal: null,
           }));
         }
@@ -1851,6 +1882,20 @@ const VendasPage = () => {
                         <p><span className="text-muted-foreground">Total: </span><strong>{formatBRL(grupo.valorTotal)}</strong></p>
                         <p className="mt-1"><span className="text-muted-foreground">Coletado: </span><strong className="text-success">{formatBRL(grupo.sinal)}</strong></p>
                         <p className="mt-1"><span className="text-muted-foreground">Saldo: </span><strong className="text-amber-500">{formatBRL(grupo.saldo)}</strong></p>
+                        {grupo.paymentHistory.length > 0 && (
+                          <div className="mt-2 space-y-1 border-t border-border/20 pt-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Pagamentos ({grupo.paymentHistory.length})</p>
+                            {grupo.paymentHistory.map((payment) => (
+                              <div key={payment.id} className="flex items-start justify-between gap-2 rounded bg-secondary/25 px-2 py-1.5">
+                                <div className="min-w-0">
+                                  <p className="font-medium text-foreground">{formatDate(payment.date)}</p>
+                                  <p className="truncate text-[10px] text-muted-foreground">{payment.method}</p>
+                                </div>
+                                <strong className="shrink-0 text-success">{formatBRL(payment.amount)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
                         <Badge variant={v.pagamento === "Cartão" ? "secondary" : "outline"} className="text-xs">
