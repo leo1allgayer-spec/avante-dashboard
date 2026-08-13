@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, parse, addDays, startOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -57,7 +58,7 @@ interface DateShift {
 export default function BookingPublic() {
   const { courseSlug } = useParams();
   const lockedCourse = useMemo(() => COURSES.find(c => c.slug === courseSlug), [courseSlug]);
-  const [step, setStep] = useState<"course" | "date" | "form" | "loading" | "done" | "rescheduleSent">(() => lockedCourse ? "date" : "course");
+  const [step, setStep] = useState<"course" | "form" | "date" | "confirm" | "loading" | "registered" | "done" | "rescheduleSent">(() => lockedCourse ? "form" : "course");
   const [selectedCourse, setSelectedCourse] = useState(() => lockedCourse?.id || "");
   const [dateShifts, setDateShifts] = useState<DateShift[]>([]);
   const [selectedShift, setSelectedShift] = useState<DateShift | null>(null);
@@ -69,12 +70,13 @@ export default function BookingPublic() {
   const [errors, setErrors] = useState({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [intendedTime, setIntendedTime] = useState<"15_dias" | "30_dias">("15_dias");
 
   useEffect(() => {
     if (!courseSlug) return;
     if (lockedCourse) {
       setSelectedCourse(lockedCourse.id);
-      setStep("date");
+      setStep("form");
       setSelectedShift(null);
       setSelectedDate(null);
     }
@@ -228,13 +230,13 @@ export default function BookingPublic() {
 
   const handleSelectCourse = (c: string) => {
     setSelectedCourse(c);
-    setStep("date");
+    setStep("form");
   };
 
   const handleSelectShift = (s: DateShift) => {
     if (!s.available) return;
     setSelectedShift(s);
-    setStep("form");
+    setStep("confirm");
   };
 
   const validate = () => {
@@ -250,25 +252,39 @@ export default function BookingPublic() {
     return !e.name && !e.email && !e.phone && !e.cpf && !e.signalValue;
   };
 
-  const saveStudentRegistration = async () => {
-    if (!selectedShift) return;
+  const saveStudentRegistration = async (prazo: "agendar_agora" | "15_dias" | "30_dias") => {
     const { error } = await supabase.rpc("register_future_student_from_booking" as any, {
       p_nome: form.name.trim(),
       p_telefone: form.phone.trim(),
       p_cpf: form.cpf.trim(),
       p_curso: selectedCourse,
       p_valor_sinal: parseMoney(form.signalValue),
+      p_prazo: prazo,
       p_observacao: [
         `Curso: ${selectedCourseInfo?.label || selectedCourse}`,
-        `Agendamento: ${selectedShift.date} - ${selectedShift.shift}`,
+        prazo === "agendar_agora" ? "Aluno optou por agendar agora" : `Pretende realizar em: ${prazo === "15_dias" ? "até 15 dias" : "até 30 dias"}`,
         form.observation.trim(),
       ].filter(Boolean).join("\n"),
     } as any);
     if (error) throw error;
   };
 
+  const finishRegistration = async (scheduleNow: boolean) => {
+    if (!validate()) return;
+    setSubmitting(true);
+    try {
+      await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      setSubmitting(false);
+      setStep(scheduleNow ? "date" : "registered");
+    } catch (error) {
+      setSubmitting(false);
+      const message = getSupabaseErrorMessage(error);
+      alert(message ? `Erro ao cadastrar: ${message}` : "Não foi possível concluir o cadastro.");
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!validate() || !selectedShift) return;
+    if (!selectedShift) return;
     setSubmitting(true);
 
     const bookingPayload = {
@@ -307,8 +323,6 @@ export default function BookingPublic() {
           setSubmitting(false);
           return;
         }
-
-        await saveStudentRegistration();
 
         setSubmitting(false);
         setStep("rescheduleSent");
@@ -362,8 +376,6 @@ export default function BookingPublic() {
         return;
       }
 
-      await saveStudentRegistration();
-
       // Show loading step while processing
       setStep("loading");
 
@@ -387,15 +399,17 @@ export default function BookingPublic() {
   };
 
   const goBack = () => {
-    if (step === "form") setStep("date");
-    else if (step === "date" && !lockedCourse) { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
+    if (step === "confirm") setStep("date");
+    else if (step === "date") setStep("form");
+    else if (step === "form" && !lockedCourse) { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
   };
 
   const reset = () => {
-    setStep(lockedCourse ? "date" : "course"); setSelectedCourse(lockedCourse?.id || ""); setSelectedShift(null); setSelectedDate(null);
+    setStep(lockedCourse ? "form" : "course"); setSelectedCourse(lockedCourse?.id || ""); setSelectedShift(null); setSelectedDate(null);
     if (!lockedCourse) setDateShifts([]);
     setForm({ name: "", email: "", phone: "55", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
     setErrors({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+    setIntendedTime("15_dias");
   };
 
   // Build a set of available dates and their shifts
@@ -445,21 +459,22 @@ export default function BookingPublic() {
               </div>
             </div>
             <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
-              Escolha o curso, selecione uma data e turno disponíveis.
+              Escolha o curso, registre seus dados e decida se deseja agendar agora.
             </p>
           </div>
 
           {/* Step indicators */}
-          {step !== "done" && (
+          {["course", "form", "date", "confirm"].includes(step) && (
             <div className="mb-6 grid grid-cols-3 gap-2">
               {[
                 { key: "course", label: "Curso" },
-                { key: "date", label: "Data" },
                 { key: "form", label: "Dados" },
+                { key: "date", label: "Agendamento" },
               ].map((s, i) => {
-                const stepOrder = ["course", "date", "form"];
-                const current = stepOrder.indexOf(step);
-                const isActive = step === s.key;
+                const stepOrder = ["course", "form", "date"];
+                const indicatorStep = step === "confirm" ? "date" : step;
+                const current = stepOrder.indexOf(indicatorStep);
+                const isActive = indicatorStep === s.key;
                 const isPast = current > i;
                 return (
                   <div key={s.key} className={`rounded-2xl border p-3 transition-colors ${
@@ -514,11 +529,9 @@ export default function BookingPublic() {
           {/* Step 2: Choose date and shift */}
           {step === "date" && (
             <div className="space-y-4">
-              {!lockedCourse && (
-                <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground">
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
-                </Button>
-              )}
+              <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
+              </Button>
 
               <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3">
                 <div className="flex items-center gap-2">
@@ -639,8 +652,8 @@ export default function BookingPublic() {
             </div>
           )}
 
-          {/* Step 3: Form */}
-          {step === "form" && selectedShift && (
+          {/* Step 2: Registration before scheduling */}
+          {step === "form" && (
             <div className="space-y-4">
               <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground">
                 <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
@@ -648,18 +661,9 @@ export default function BookingPublic() {
 
               <Card className="rounded-2xl border-primary/20 bg-primary/10">
                 <CardContent className="p-4">
-                  <div className="text-xs text-muted-foreground mb-1">Você está agendando:</div>
+                  <div className="text-xs text-muted-foreground mb-1">Você selecionou:</div>
                   <div className="font-semibold text-foreground">{selectedCourseInfo?.label || selectedCourse}</div>
-                  <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5" />
-                      <span className="capitalize">{formatDate(selectedShift.date)}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      {shiftIcon(selectedShift.shift)}
-                      {selectedShift.shift} — {shiftTime(selectedShift.shift)}
-                    </span>
-                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">Seu cadastro e sinal serão registrados antes da escolha da data.</p>
                 </CardContent>
               </Card>
 
@@ -764,16 +768,29 @@ export default function BookingPublic() {
                 </div>
               </div>
 
-              <Button
-                className="h-11 w-full"
-                size="lg"
-                onClick={handleSubmit}
-                disabled={submitting}
-              >
-                {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Confirmar Agendamento
-              </Button>
+              <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
+                <p className="text-sm font-semibold">Você quer agendar o curso agora?</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Button className="h-12" size="lg" onClick={() => finishRegistration(true)} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sim, escolher data agora</Button>
+                  <div className="flex gap-2">
+                    <Select value={intendedTime} onValueChange={(value: "15_dias" | "30_dias") => setIntendedTime(value)}><SelectTrigger className="h-12 flex-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="15_dias">Nos próximos 15 dias</SelectItem><SelectItem value="30_dias">Nos próximos 30 dias</SelectItem></SelectContent></Select>
+                    <Button className="h-12" variant="outline" onClick={() => finishRegistration(false)} disabled={submitting}>Só concluir</Button>
+                  </div>
+                </div>
+              </div>
             </div>
+          )}
+
+          {step === "confirm" && selectedShift && (
+            <div className="space-y-4">
+              <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="mr-1 h-4 w-4" /> Voltar</Button>
+              <Card className="rounded-2xl border-primary/20 bg-primary/10"><CardContent className="p-5"><div className="text-xs text-muted-foreground">Confirme seu agendamento:</div><div className="mt-1 font-semibold">{selectedCourseInfo?.label || selectedCourse}</div><div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDate(selectedShift.date)}</span><span className="flex items-center gap-1.5">{shiftIcon(selectedShift.shift)}{selectedShift.shift} — {shiftTime(selectedShift.shift)}</span></div></CardContent></Card>
+              <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar agendamento</Button>
+            </div>
+          )}
+
+          {step === "registered" && (
+            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">Seu sinal foi registrado. Anotamos que você pretende realizar o curso {intendedTime === "15_dias" ? "nos próximos 15 dias" : "nos próximos 30 dias"}. Nossa equipe poderá entrar em contato para ajudar no agendamento.</p><Button variant="outline" onClick={reset}>Voltar ao início</Button></CardContent></Card>
           )}
 
           {/* Loading step */}
