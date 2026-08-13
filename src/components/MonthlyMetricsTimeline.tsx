@@ -6,18 +6,14 @@ import type { MetaAdsData } from "@/hooks/useMetaAds";
 import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { useCrmMql } from "@/hooks/useCrmMql";
 import { Button } from "@/components/ui/button";
-import { COURSE_PRODUCTS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
+import { isCourseCategory } from "@/constants/serviceCategories";
 
 type Period = "dia" | "semana" | "mes";
 type TimelineRow = { key: string; label: string; start: string; end: string; faturamento: number; valorVendido: number; aReceber: number; vendas: number; cursosVendidos: number; cursosFeitos: number; leads: number; mql: number; ads: number; metaPrevista: number };
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const normalizeText = (value?: string | null) => (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-const isCourseSale = (produto?: string | null, servico?: string | null) => {
-  const category = normalizeText(canonicalizeSaleCategory(servico || produto));
-  return COURSE_PRODUCTS.some((course) => normalizeText(course) === category);
-};
+const isCourseSale = (produto?: string | null, servico?: string | null) => isCourseCategory(produto) || isCourseCategory(servico);
 const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const mondayKey = (value: string) => {
   const date = new Date(`${value}T12:00:00`);

@@ -8,7 +8,7 @@ import { useSyncSheets } from "@/hooks/useSyncSheets";
 import { useMetaAds } from "@/hooks/useMetaAds";
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
 import { useCrmMql } from "@/hooks/useCrmMql";
-import { COURSE_PRODUCTS, SERVICE_CATEGORIES, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
+import { COURSE_PRODUCTS, SERVICE_CATEGORIES, SERVICE_OPTIONS, canonicalizeSaleCategory, isCourseCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
 
@@ -334,9 +334,7 @@ const Dashboard = () => {
   const realizedSuperMetaPct = periodSuperMetaTarget > 0 ? Math.min((collectedTotal / periodSuperMetaTarget) * 100, 100) : 0;
   const periodLabel = filter.mode === "dia" ? "dia" : filter.mode === "semana" ? "semana" : "mês";
   const scheduledCourses = useMemo(() => registeredVendas.filter((venda) =>
-    COURSE_PRODUCTS.some((produto) =>
-      normalizeText(produto) === normalizeText(canonicalizeSaleCategory(venda.servico || venda.produto))
-    )
+    isCourseCategory(venda.produto) || isCourseCategory(venda.servico)
   ).length, [registeredVendas]);
   const completedCourses = useMemo(() => surveyResponses.filter((response) => {
     if (!response.created_at) return false;
@@ -344,7 +342,7 @@ const Dashboard = () => {
     return date >= filter.range.start && date <= filter.range.end;
   }).length, [surveyResponses, filter.range.start, filter.range.end]);
   const cacTotal = registeredVendas.length > 0 ? selectedMonthAds / registeredVendas.length : 0;
-  const cacCourses = completedCourses > 0 ? selectedMonthAds / completedCourses : 0;
+  const cacCourses = scheduledCourses > 0 ? selectedMonthAds / scheduledCourses : 0;
 
   const roasLabels = useMemo<Record<string, string>>(() => ({
     geral: "Geral",
