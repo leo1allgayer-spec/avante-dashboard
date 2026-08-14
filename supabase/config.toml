@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.future-student-lookup]
 verify_jwt = false
+
+[functions.complete-course-from-survey]
+verify_jwt = false

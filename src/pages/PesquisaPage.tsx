@@ -311,7 +311,7 @@ const PesquisaPage = () => {
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("survey_responses").insert({
+      const { data: savedSurvey, error } = await supabase.from("survey_responses").insert({
         nome: form.nome,
         cpf: form.cpf || null,
         cep: form.cep || null,
@@ -340,8 +340,12 @@ const PesquisaPage = () => {
         sugestao_atendimento: form.sugestao_atendimento || null,
         indicaria_alguem: form.indicaria_alguem || null,
         nota_indicacao: form.nota_indicacao,
-      });
+      }).select("id").single();
       if (error) throw error;
+      const completion = await supabase.functions.invoke("complete-course-from-survey", {
+        body: { surveyId: savedSurvey.id },
+      });
+      if (completion.error) console.error("Não foi possível atualizar o curso como concluído", completion.error);
       setSubmitted(true);
     } catch (err: any) {
       const message = String(err?.message || "");
