@@ -1959,6 +1959,32 @@ const VendasPage = () => {
                   </TableRow>
                 );
               })}
+              {vendasAgrupadas.length > 0 && (() => {
+                const totalVendido = vendasAgrupadas.reduce((total, grupo) => total + grupo.valorTotal, 0);
+                const totalItens = vendasAgrupadas.reduce((total, grupo) => total + grupo.quantidade, 0);
+                const totalComissaoPendente = vendasAgrupadas.reduce(
+                  (total, grupo) => total + grupo.itens
+                    .filter((item) => item.status_comissao !== "paga")
+                    .reduce((subtotal, item) => subtotal + Number(item.comissao || 0), 0),
+                  0,
+                );
+                return (
+                  <TableRow className="border-t-2 border-accent/40 bg-secondary/50 hover:bg-secondary/50">
+                    <TableCell className="px-2 py-3 font-bold text-accent">TOTAL</TableCell>
+                    <TableCell className="px-2 py-3 font-semibold">
+                      {vendasAgrupadas.length} clientes · {totalItens} itens
+                    </TableCell>
+                    <TableCell className="px-2 py-3 text-right font-bold">{formatBRL(totalVendido)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right font-bold text-success">{formatBRL(visibleSalesTotals.coletado)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right font-bold text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</TableCell>
+                    <TableCell className="px-2 py-3">—</TableCell>
+                    <TableCell className="px-2 py-3 text-right font-bold">{formatBRL(totalComissaoPendente)}</TableCell>
+                    <TableCell colSpan={7} className="px-2 py-3 text-right text-[10px] font-semibold text-muted-foreground">
+                      Comissão pendente
+                    </TableCell>
+                  </TableRow>
+                );
+              })()}
             </TableBody>
           </Table>
         </div>
