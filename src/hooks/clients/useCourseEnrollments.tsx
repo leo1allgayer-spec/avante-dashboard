@@ -32,6 +32,28 @@ function rowToEnrollment(r: any): CourseEnrollment {
   };
 }
 
+const normalizeCourseName = (value?: string | null) => (value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, " ")
+  .trim();
+
+const COURSE_NAME_ALIASES: Record<string, string[]> = {
+  google: ["curso google ads", "curso de google ads", "google ads"],
+  social_media: ["curso social media", "curso de social media", "curso social midia", "social media", "social midia"],
+  meta_ads: ["curso meta ads", "curso de meta ads", "curso trafego pago meta ads", "curso de trafego pago meta ads", "meta ads"],
+  meta_ads_advanced: ["curso meta ads avancado", "curso de meta ads avancado", "meta ads avancado", "gestor pro", "curso de trafego gestor pro"],
+  canva: ["curso canva", "curso de canva", "curso canva para empreendedores", "canva"],
+  ia: ["curso inteligencia artificial", "curso de inteligencia artificial", "curso de ia", "curso ia", "inteligencia artificial"],
+  video: ["curso captacao e edicao de video", "curso de captacao e edicao de video", "curso captacao edicao", "captacao e edicao de video"],
+};
+
+const matchesCourseType = (courseName: string, courseType: string) => {
+  const normalized = normalizeCourseName(courseName);
+  return (COURSE_NAME_ALIASES[courseType] || []).some((alias) => normalizeCourseName(alias) === normalized);
+};
+
 export function useCourseEnrollments(courseType: "google" | "social_media" | "meta_ads" | "meta_ads_advanced" | "canva" | "ia" | "video") {
   const { session } = useAuth();
   const [enrollments, setEnrollments] = useState<CourseEnrollment[]>([]);
@@ -39,16 +61,6 @@ export function useCourseEnrollments(courseType: "google" | "social_media" | "me
 
   const fetch = useCallback(async () => {
     setLoading(true);
-    const typeToName: Record<string, string> = {
-      google: "Curso Google Ads",
-      social_media: "Curso Social Media",
-      meta_ads: "Curso Meta Ads",
-      canva: "Curso Canva",
-      meta_ads_advanced: "Curso Meta Ads Avançado",
-      ia: "Curso Inteligência Artificial",
-      video: "Curso Captação e Edição de Vídeo",
-    };
-    const courseName = typeToName[courseType];
     const [{ data, error }, { data: bookings, error: bookingsError }] = await Promise.all([
       supabase
         .from("course_enrollments")
@@ -57,8 +69,7 @@ export function useCourseEnrollments(courseType: "google" | "social_media" | "me
         .order("date", { ascending: false }),
       supabase
         .from("course_bookings")
-        .select("id,student_name,email,phone,instagram,date,time")
-        .eq("course_name", courseName)
+        .select("id,student_name,course_name,email,phone,instagram,date,time")
         .order("date", { ascending: false }),
     ]);
     if (error || bookingsError) {
@@ -67,6 +78,7 @@ export function useCourseEnrollments(courseType: "google" | "social_media" | "me
       const enrollmentRows = (data || []).map((r: any) => ({ ...rowToEnrollment(r), enrollmentId: r.id, source: "enrollment" as const }));
       const enrollmentKeys = new Set(enrollmentRows.map(e => `${e.studentName.trim().toLowerCase()}|${e.date}|${e.time}`));
       const bookingRows = (bookings || [])
+        .filter((booking: any) => matchesCourseType(booking.course_name, courseType))
         .map((b: any) => ({
           id: `booking:${b.id}`,
           bookingId: b.id,
