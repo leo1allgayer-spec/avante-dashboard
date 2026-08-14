@@ -28,11 +28,13 @@ const PESSOAS = [
 
 const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonardo Allgayer", "Leonardo Webster"];
 const PESSOAS_COM_TABELA_META = ["Lucas Pilger", "Nicolas Patizlaff"];
-const PESSOAS_COM_TABELA_CURSOS_DADOS = ["Leonardo Allgayer"];
+const PESSOAS_COM_TABELA_CURSOS_DADOS = ["Leonardo Allgayer", "Lucas Pilger", "Nicolas Patizlaff"];
 const PERCENTUAL_COMISSAO_CURSOS_VENDIDOS = 0.15;
 const DIVISOR_COMISSAO_CURSOS_VENDIDOS = 4;
 const DIVISOR_COMISSAO_CURSOS_DADOS: Record<string, number> = {
   "Leonardo Allgayer": 3,
+  "Lucas Pilger": 3,
+  "Nicolas Patizlaff": 3,
 };
 
 const MESES_PT: Record<string, string> = {
@@ -194,15 +196,12 @@ const PagamentosPage = () => {
 
   const cursosDadosPessoa = useMemo<LinhaCursoDado[]>(() => {
     if (!showCursosDadosTable) return [];
-    const selectedPessoa = PESSOAS.find((p) => p.label === pessoaFilter);
-    const matchTerms = selectedPessoa?.match || [];
     const divisor = DIVISOR_COMISSAO_CURSOS_DADOS[pessoaFilter] || 1;
 
     return cursosDados
       .filter((c) => {
         if (getMonthKey(c.data) !== mesFilter) return false;
         if (!filterByDateRange(c.data, dateFrom, dateTo)) return false;
-        if (!matchPessoa(c.instrutor || "", matchTerms)) return false;
         return normalizeName(c.tipo_curso || "").includes("meta ads");
       })
       .map((c) => ({
