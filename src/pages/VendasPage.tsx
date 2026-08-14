@@ -1927,7 +1927,17 @@ const VendasPage = () => {
                 const nomesTexto = nomes.join(" · ") || "Sem produto ou serviço";
                 const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
                 return (
-                  <TableRow key={grupo.chave} className="border-border/20 hover:bg-secondary/20" style={{ background: index % 2 === 0 ? "hsl(260, 22%, 6.2%)" : "hsl(260, 22%, 10%)" }}>
+                  <TableRow
+                    key={grupo.chave}
+                    className="cursor-pointer border-border/20 hover:bg-secondary/20"
+                    style={{ background: index % 2 === 0 ? "hsl(260, 22%, 6.2%)" : "hsl(260, 22%, 10%)" }}
+                    title="Clique duas vezes para editar esta venda"
+                    onDoubleClick={(event) => {
+                      const target = event.target as HTMLElement;
+                      if (target.closest("button, input, select, [role='combobox'], [role='button']")) return;
+                      openEditDialog(grupo.itens);
+                    }}
+                  >
                     <TableCell className="px-2 py-3" title={`${v.cliente} · ${formatDate(v.data)} · ${v.origem || "Sem origem"}`}>
                       <p className="truncate font-semibold">{v.cliente}</p><p className="truncate text-[10px] text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
                     </TableCell>
