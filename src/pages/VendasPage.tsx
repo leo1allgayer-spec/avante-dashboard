@@ -1895,8 +1895,64 @@ const VendasPage = () => {
           })}
         </div>
 
-        {/* Compact table keeps all sale information visible without horizontal scrolling. */}
-        <div className="rounded-lg overflow-hidden border border-border/30">
+        {/* Flat spreadsheet-style sales table: one piece of information per column. */}
+        <div className="overflow-hidden rounded-lg border border-border/30">
+          <Table className="table-fixed text-xs">
+            <TableHeader>
+              <TableRow className="border-border/30 bg-secondary/30">
+                <TableHead className="w-[11%] px-2">Cliente</TableHead>
+                <TableHead className="w-[13%] px-2">Produtos / serviços</TableHead>
+                <TableHead className="w-[6%] px-2 text-right">Total</TableHead>
+                <TableHead className="w-[6%] px-2 text-right">Coletado</TableHead>
+                <TableHead className="w-[6%] px-2 text-right">A receber</TableHead>
+                <TableHead className="w-[6%] px-2">Pagamento</TableHead>
+                <TableHead className="w-[6%] px-2 text-right">Comissão</TableHead>
+                <TableHead className="w-[8%] px-2">Valor recebido</TableHead>
+                <TableHead className="w-[8%] px-2">Data</TableHead>
+                <TableHead className="w-[6%] px-2">Forma</TableHead>
+                <TableHead className="w-[7%] px-2"></TableHead>
+                <TableHead className="w-[8%] px-2">Comissão</TableHead>
+                <TableHead className="w-[5%] px-2">Venda</TableHead>
+                <TableHead className="w-[4%] px-2"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Carregando...</TableCell></TableRow>
+              ) : vendasAgrupadas.length === 0 ? (
+                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
+              ) : vendasAgrupadas.map((grupo, index) => {
+                const v = grupo.principal;
+                const nomes = [...grupo.produtos, ...grupo.servicos];
+                const nomesTexto = nomes.join(" · ") || "Sem produto ou serviço";
+                const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
+                return (
+                  <TableRow key={grupo.chave} className="border-border/20 hover:bg-secondary/20" style={{ background: index % 2 === 0 ? "hsl(260, 22%, 6.2%)" : "hsl(260, 22%, 10%)" }}>
+                    <TableCell className="px-2 py-3" title={`${v.cliente} · ${formatDate(v.data)} · ${v.origem || "Sem origem"}`}>
+                      <p className="truncate font-semibold">{v.cliente}</p><p className="truncate text-[10px] text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
+                    </TableCell>
+                    <TableCell className="px-2 py-3" title={nomesTexto}><p className="truncate font-medium">{nomesTexto}</p><p className="text-[10px] text-muted-foreground">{grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}</p></TableCell>
+                    <TableCell className="px-2 py-3 text-right font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right font-semibold text-success" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>{formatBRL(grupo.sinal)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">{formatBRL(grupo.saldo)}</TableCell>
+                    <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{getSalePaymentLabel(v)}</Badge></TableCell>
+                    <TableCell className="px-2 py-3 text-right font-semibold">{formatBRL(grupo.comissao)}</TableCell>
+                    <TableCell className="px-2 py-3">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-7 px-1.5 text-[10px]" /> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="px-2 py-3">{grupo.saldo > 0 ? <Input type="date" value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]} onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))} className="h-7 px-1 text-[9px]" /> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="px-2 py-3">{grupo.saldo > 0 ? <Select value={quickPayments[grupo.chave] || "PIX"} onValueChange={(value) => setQuickPayments((current) => ({ ...current, [grupo.chave]: value }))}><SelectTrigger className="h-7 px-1.5 text-[10px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PIX">PIX</SelectItem><SelectItem value="Dinheiro">Dinheiro</SelectItem><SelectItem value="Débito">Débito</SelectItem><SelectItem value="Crédito">Crédito</SelectItem></SelectContent></Select> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="px-2 py-3">{grupo.saldo > 0 ? <Button type="button" size="sm" className="h-7 w-full px-1.5 text-[10px]" disabled={settlingSaleKey === grupo.chave} onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}>{settlingSaleKey === grupo.chave ? "..." : "Registrar"}</Button> : <Badge variant="secondary" className="px-1.5 text-[9px]">Quitado</Badge>}</TableCell>
+                    <TableCell className="px-2 py-3"><Select value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}><SelectTrigger className="h-7 px-1.5 text-[9px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent></Select></TableCell>
+                    <TableCell className="px-2 py-3"><Badge className="max-w-full truncate px-1.5 text-[9px]" variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}>{statusVenda === "paga" ? "pago" : statusVenda}</Badge></TableCell>
+                    <TableCell className="px-1 py-3"><div className="flex items-center justify-end gap-0.5"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(grupo.itens)} title="Editar venda"><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => Promise.all(grupo.itens.map((item) => deleteVenda.mutateAsync(item.id))).then(() => toast({ title: "Venda removida" })).catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }))} title="Remover venda"><Trash2 className="h-3.5 w-3.5" /></Button></div></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Previous detailed table kept out of view while the flat layout is in use. */}
+        <div className="hidden rounded-lg overflow-hidden border border-border/30">
           <div>
             <Table>
               <TableHeader>
