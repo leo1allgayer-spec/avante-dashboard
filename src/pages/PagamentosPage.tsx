@@ -27,7 +27,6 @@ const PESSOAS = [
 ];
 
 const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonardo Allgayer", "Leonardo Webster"];
-const PESSOAS_COM_TABELA_META = ["Lucas Pilger", "Nicolas Patizlaff"];
 const PESSOAS_COM_TABELA_CURSOS_DADOS = ["Leonardo Allgayer", "Lucas Pilger", "Nicolas Patizlaff"];
 const PERCENTUAL_COMISSAO_CURSOS_VENDIDOS = 0.15;
 const DIVISOR_COMISSAO_CURSOS_VENDIDOS = 4;
@@ -62,7 +61,6 @@ const matchPessoa = (vendedor: string, matchTerms: string[]) => {
   return matchTerms.some((term) => v.startsWith(term));
 };
 
-const COMISSAO_META_ADS = 50;
 const VALOR_CURSO_META_ADS_DADO = 100;
 
 const filterByDateRange = (dataStr: string, dateFrom?: Date, dateTo?: Date) => {
@@ -106,7 +104,6 @@ const PagamentosPage = () => {
   const [filterDiaPagamento, setFilterDiaPagamento] = useState("todos");
 
   const showCursosTable = PESSOAS_COM_TABELA_CURSOS.includes(pessoaFilter);
-  const showMetaTable = PESSOAS_COM_TABELA_META.includes(pessoaFilter);
   const showCursosDadosTable = PESSOAS_COM_TABELA_CURSOS_DADOS.includes(pessoaFilter);
 
   // --- Comissão de Vendas ---
@@ -221,23 +218,6 @@ const PagamentosPage = () => {
     [cursosDadosPessoa]
   );
 
-
-  // --- Meta Ads ---
-  const vendasMeta = useMemo(() => {
-    if (!showMetaTable) return [];
-    return vendas.filter(
-      (v) =>
-        v.produto.toLowerCase().includes("meta ads") &&
-        getMonthKey(v.data) === mesFilter &&
-        filterByDateRange(v.data, dateFrom, dateTo)
-    );
-  }, [vendas, showMetaTable, mesFilter, dateFrom, dateTo]);
-
-  const totalComissaoMeta = useMemo(
-    () => vendasMeta.length * COMISSAO_META_ADS,
-    [vendasMeta]
-  );
-
   // --- Available months ---
   const availableMonths = useMemo(() => {
     const months = new Set(vendas.map((v) => getMonthKey(v.data)));
@@ -253,7 +233,7 @@ const PagamentosPage = () => {
     return items.reduce((s, p) => s + p.valor, 0);
   }, [pagVariaveis, pessoaFilter, mesFilter, filterDiaPagamento]);
 
-  const totalComissao = totalComissaoCursos + totalComissaoMeta + totalComissaoCursosDados + totalPagVariaveis;
+  const totalComissao = totalComissaoCursos + totalComissaoCursosDados + totalPagVariaveis;
 
   return (
     <DashboardLayout title="Pagamentos">
@@ -447,52 +427,6 @@ const PagamentosPage = () => {
                             <TableCell className="text-sm">{c.instrutor}</TableCell>
                             <TableCell className="text-right text-sm font-semibold">{formatBRL(c.valor)}</TableCell>
                             <TableCell className="text-right text-sm font-semibold text-emerald-400">{formatBRL(c.comissao)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Meta Ads */}
-          {showMetaTable && (
-            <Card className="bg-card/80 backdrop-blur border-border/40">
-              <CardHeader>
-                <CardTitle className="text-base">Comissão por vendas de Meta Ads</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  </div>
-                ) : vendasMeta.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm">Nenhuma venda neste mês.</div>
-                ) : (
-                  <>
-                    <div className="px-4 py-2 bg-muted/30 border-b border-border/30 flex items-center justify-end gap-4 text-xs">
-                      <span>Comissão: <span className="text-emerald-400 font-semibold">{formatBRL(totalComissaoMeta)}</span></span>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Produto</TableHead>
-                          <TableHead className="text-right">Comissão</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {vendasMeta.map((v) => (
-                          <TableRow key={v.id}>
-                            <TableCell className="text-sm">{formatDate(v.data)}</TableCell>
-                            <TableCell className="text-sm font-medium">{v.cliente}</TableCell>
-                            <TableCell className="text-sm">{v.produto}</TableCell>
-                            <TableCell className="text-right text-sm font-semibold text-emerald-400">
-                              {formatBRL(COMISSAO_META_ADS)}
-                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
