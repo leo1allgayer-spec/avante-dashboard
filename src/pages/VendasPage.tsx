@@ -1970,17 +1970,29 @@ const VendasPage = () => {
                 );
                 return (
                   <TableRow className="border-t-2 border-accent/40 bg-secondary/50 hover:bg-secondary/50">
-                    <TableCell className="px-2 py-3 font-bold text-accent">TOTAL</TableCell>
-                    <TableCell className="px-2 py-3 font-semibold">
-                      {vendasAgrupadas.length} clientes · {totalItens} itens
-                    </TableCell>
-                    <TableCell className="px-2 py-3 text-right font-bold">{formatBRL(totalVendido)}</TableCell>
-                    <TableCell className="px-2 py-3 text-right font-bold text-success">{formatBRL(visibleSalesTotals.coletado)}</TableCell>
-                    <TableCell className="px-2 py-3 text-right font-bold text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</TableCell>
-                    <TableCell className="px-2 py-3">—</TableCell>
-                    <TableCell className="px-2 py-3 text-right font-bold">{formatBRL(totalComissaoPendente)}</TableCell>
-                    <TableCell colSpan={7} className="px-2 py-3 text-right text-[10px] font-semibold text-muted-foreground">
-                      Comissão pendente
+                    <TableCell colSpan={14} className="px-3 py-3">
+                      <div className="grid grid-cols-5 gap-5">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Registros</p>
+                          <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} itens</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Total vendido</p>
+                          <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalVendido)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Coletado</p>
+                          <p className="mt-1 whitespace-nowrap font-bold text-success">{formatBRL(visibleSalesTotals.coletado)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">A receber</p>
+                          <p className="mt-1 whitespace-nowrap font-bold text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Comissão pendente</p>
+                          <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalComissaoPendente)}</p>
+                        </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
