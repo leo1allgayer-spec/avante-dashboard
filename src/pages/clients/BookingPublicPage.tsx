@@ -26,6 +26,7 @@ const COURSES: { id: string; slug: string; label: string; subtitle?: string }[] 
 
 const MAX_STUDENTS = 5;
 const DAYS_AHEAD = 60;
+const SAVED_REGISTRATION_KEY = "avante-course-registration";
 const currencyFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 const parseMoney = (value: string) => {
@@ -71,6 +72,19 @@ export default function BookingPublic() {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [intendedTime, setIntendedTime] = useState<"15_dias" | "30_dias">("15_dias");
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVED_REGISTRATION_KEY) || "null");
+      if (!saved?.form) return;
+      setForm((current) => ({ ...current, ...saved.form }));
+      if (!lockedCourse && saved.course && COURSES.some((course) => course.id === saved.course)) {
+        setSelectedCourse(saved.course);
+      }
+    } catch {
+      localStorage.removeItem(SAVED_REGISTRATION_KEY);
+    }
+  }, [lockedCourse]);
 
   useEffect(() => {
     if (!courseSlug) return;
@@ -274,6 +288,7 @@ export default function BookingPublic() {
     setSubmitting(true);
     try {
       await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      localStorage.setItem(SAVED_REGISTRATION_KEY, JSON.stringify({ course: selectedCourse, form }));
       setSubmitting(false);
       setStep(scheduleNow ? "date" : "registered");
     } catch (error) {
@@ -790,7 +805,7 @@ export default function BookingPublic() {
           )}
 
           {step === "registered" && (
-            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">Seu sinal foi registrado. Anotamos que você pretende realizar o curso {intendedTime === "15_dias" ? "nos próximos 15 dias" : "nos próximos 30 dias"}. Nossa equipe poderá entrar em contato para ajudar no agendamento.</p><Button variant="outline" onClick={reset}>Voltar ao início</Button></CardContent></Card>
+            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">Seu sinal foi registrado. Anotamos que você pretende realizar o curso {intendedTime === "15_dias" ? "nos próximos 15 dias" : "nos próximos 30 dias"}. Quando quiser, você pode escolher a data sem preencher seus dados novamente.</p><div className="flex flex-col justify-center gap-2 sm:flex-row"><Button onClick={() => setStep("date")}>Escolher data agora</Button><Button variant="outline" onClick={reset}>Voltar ao início</Button></div></CardContent></Card>
           )}
 
           {/* Loading step */}
