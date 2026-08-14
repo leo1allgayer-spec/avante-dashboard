@@ -41,6 +41,14 @@ export const canonicalizeCourseName = (value?: string | null) => {
   return COURSE_NAME_ALIASES[normalizeCourseKey(courseName)] || courseName;
 };
 
+export const getCourseInstructor = (courseName?: string | null, fallback = "Leonardo") => {
+  const key = normalizeCourseKey(courseName || "");
+  if (key.includes("google ads")) return "Henrique";
+  if (key.includes("social media") || key.includes("social midia")) return "Luana";
+  if (key.includes("meta ads")) return "Leonardo";
+  return fallback;
+};
+
 export function useCursosDados() {
   return useQuery({
     queryKey: ["cursos_dados"],
@@ -52,9 +60,10 @@ export function useCursosDados() {
       if (error) throw error;
       return ((data as CursoDado[]) || []).map((curso) => ({
         ...curso,
-        instrutor: !curso.instrutor.trim() || normalizeCourseKey(curso.instrutor) === "nao informado"
-          ? "Leonardo"
-          : curso.instrutor,
+        instrutor: getCourseInstructor(
+          curso.tipo_curso,
+          !curso.instrutor.trim() || normalizeCourseKey(curso.instrutor) === "nao informado" ? "Leonardo" : curso.instrutor,
+        ),
         tipo_curso: canonicalizeCourseName(curso.tipo_curso),
       }));
     },
