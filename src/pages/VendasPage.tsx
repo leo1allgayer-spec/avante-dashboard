@@ -1932,9 +1932,11 @@ const VendasPage = () => {
                     className="cursor-pointer border-border/20 hover:bg-secondary/20"
                     style={{ background: index % 2 === 0 ? "hsl(260, 22%, 6.2%)" : "hsl(260, 22%, 10%)" }}
                     title="Clique duas vezes para editar esta venda"
-                    onDoubleClick={(event) => {
+                    onMouseDown={(event) => {
+                      if (event.detail !== 2) return;
                       const target = event.target as HTMLElement;
                       if (target.closest("button, input, select, [role='combobox'], [role='button']")) return;
+                      event.preventDefault();
                       openEditDialog(grupo.itens);
                     }}
                   >
