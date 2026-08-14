@@ -1959,46 +1959,42 @@ const VendasPage = () => {
                   </TableRow>
                 );
               })}
-              {vendasAgrupadas.length > 0 && (() => {
-                const totalVendido = vendasAgrupadas.reduce((total, grupo) => total + grupo.valorTotal, 0);
-                const totalItens = vendasAgrupadas.reduce((total, grupo) => total + grupo.quantidade, 0);
-                const totalComissaoPendente = vendasAgrupadas.reduce(
-                  (total, grupo) => total + grupo.itens
-                    .filter((item) => item.status_comissao !== "paga")
-                    .reduce((subtotal, item) => subtotal + Number(item.comissao || 0), 0),
-                  0,
-                );
-                return (
-                  <TableRow className="border-t-2 border-accent/40 bg-secondary/50 hover:bg-secondary/50">
-                    <TableCell colSpan={14} className="px-3 py-3">
-                      <div className="grid grid-cols-5 gap-5">
-                        <div>
-                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Registros</p>
-                          <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} itens</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Total vendido</p>
-                          <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalVendido)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Coletado</p>
-                          <p className="mt-1 whitespace-nowrap font-bold text-success">{formatBRL(visibleSalesTotals.coletado)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">A receber</p>
-                          <p className="mt-1 whitespace-nowrap font-bold text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Comissão pendente</p>
-                          <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalComissaoPendente)}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })()}
             </TableBody>
           </Table>
+          {vendasAgrupadas.length > 0 && (() => {
+            const totalVendido = vendasAgrupadas.reduce((total, grupo) => total + grupo.valorTotal, 0);
+            const totalItens = vendasAgrupadas.reduce((total, grupo) => total + grupo.quantidade, 0);
+            const totalComissaoPendente = vendasAgrupadas.reduce(
+              (total, grupo) => total + grupo.itens
+                .filter((item) => item.status_comissao !== "paga")
+                .reduce((subtotal, item) => subtotal + Number(item.comissao || 0), 0),
+              0,
+            );
+            return (
+              <div className="grid grid-cols-5 gap-6 border-t-2 border-accent/40 bg-secondary/50 px-5 py-4 text-xs">
+                <div className="min-w-0">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Registros</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} itens</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Total vendido</p>
+                  <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalVendido)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Coletado</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-success">{formatBRL(visibleSalesTotals.coletado)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">A receber</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Comissão pendente</p>
+                  <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalComissaoPendente)}</p>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Previous detailed table kept out of view while the flat layout is in use. */}
