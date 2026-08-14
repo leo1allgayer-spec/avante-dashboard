@@ -22,6 +22,7 @@ interface AllEnrollment {
   contact: string;
   email: string;
   instagram: string;
+  certificateName: string;
   date: string;
   time: string;
   courseType: string;
@@ -107,9 +108,12 @@ export function AllCoursesSection() {
     }
 
       const statusMap = new Map<string, string>();
+      const certificateMap = new Map<string, string>();
       (bookings || []).forEach((b: any) => {
         const t = COURSE_NAME_TO_TYPE[b.course_name] || "other";
-        statusMap.set(`${b.student_name}|${t}|${b.date}|${b.time}`, b.course_status);
+        const key = `${b.student_name}|${t}|${b.date}|${b.time}`;
+        statusMap.set(key, b.course_status);
+        certificateMap.set(key, b.certificate_name || b.student_name || "");
       });
       const enrollmentRows: AllEnrollment[] = (data || []).map((r: any) => ({
         id: r.id,
@@ -119,6 +123,7 @@ export function AllCoursesSection() {
         contact: r.contact || "",
         email: r.email || "",
         instagram: r.instagram || "",
+        certificateName: certificateMap.get(`${r.student_name}|${r.course_type}|${r.date}|${r.time}`) || r.student_name || "",
         date: r.date || "",
         time: r.time || "",
         courseType: r.course_type,
@@ -139,6 +144,7 @@ export function AllCoursesSection() {
             contact: b.phone || "",
             email: b.email || "",
             instagram: b.instagram || "",
+            certificateName: b.certificate_name || b.student_name || "",
             date: b.date || "",
             time: b.time || "",
             courseType,
@@ -404,7 +410,7 @@ export function AllCoursesSection() {
               <div className="space-y-2">
                 {selectedEnrollments.map((e) => (
                   <div key={e.id} className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 p-2 sm:p-3 md:p-4 rounded-md bg-muted/50 border">
-                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[120px_1fr_1fr_1.5fr_1fr_80px_120px] gap-2 sm:gap-2 md:gap-4 text-xs sm:text-sm md:text-sm">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[100px_1fr_1fr_1.4fr_1fr_1fr_70px_110px] gap-2 sm:gap-2 md:gap-3 text-xs sm:text-sm md:text-sm">
                       <div className="min-w-0">
                         <span className="text-muted-foreground text-[10px] sm:text-xs">Curso</span>
                         <div className="mt-0.5">
@@ -439,6 +445,10 @@ export function AllCoursesSection() {
                             </a>
                           ) : "—"}
                         </p>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground text-[10px] sm:text-xs">Nome no certificado</span>
+                        <p className="break-words font-medium md:leading-tight">{e.certificateName || e.studentName}</p>
                       </div>
                       <div className="min-w-0">
                         <span className="text-muted-foreground text-[10px] sm:text-xs">Horário</span>
