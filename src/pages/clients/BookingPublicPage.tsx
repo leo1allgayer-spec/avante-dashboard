@@ -72,6 +72,9 @@ export default function BookingPublic() {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [intendedTime, setIntendedTime] = useState<"15_dias" | "30_dias">("15_dias");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [existingRegistration, setExistingRegistration] = useState(false);
+  const [lookupMessage, setLookupMessage] = useState("");
 
   useEffect(() => {
     try {
@@ -266,6 +269,39 @@ export default function BookingPublic() {
     return !e.name && !e.email && !e.phone && !e.cpf && !e.signalValue;
   };
 
+  const lookupRegistration = async () => {
+    const cpf = form.cpf.replace(/\D/g, "");
+    if (cpf.length !== 11) return;
+    setLookupLoading(true);
+    setLookupMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("future-student-lookup", { body: { cpf } });
+      if (error) throw error;
+      if (!data?.found) {
+        setExistingRegistration(false);
+        setLookupMessage("Cadastro não encontrado. Preencha os dados para realizar o cadastro.");
+        return;
+      }
+      setForm((current) => ({
+        ...current,
+        name: data.name || current.name,
+        phone: data.phone || current.phone,
+        email: data.email || current.email,
+        instagram: data.instagram || current.instagram,
+        certificateName: data.certificateName || data.name || current.certificateName,
+        signalValue: Number(data.signalValue || 0) > 0 ? currencyFormatter.format(Number(data.signalValue)) : current.signalValue,
+      }));
+      setExistingRegistration(true);
+      setErrors({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+      setLookupMessage(data.email ? "Cadastro localizado. Seus dados foram preenchidos." : "Cadastro localizado. Confirme apenas o e-mail antes de escolher a data.");
+    } catch (error) {
+      setExistingRegistration(false);
+      setLookupMessage(`Não foi possível consultar o cadastro: ${getSupabaseErrorMessage(error)}`);
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
   const saveStudentRegistration = async (prazo: "agendar_agora" | "15_dias" | "30_dias") => {
     const { error } = await supabase.rpc("register_future_student_from_booking" as any, {
       p_nome: form.name.trim(),
@@ -287,7 +323,7 @@ export default function BookingPublic() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      if (!existingRegistration) await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
       localStorage.setItem(SAVED_REGISTRATION_KEY, JSON.stringify({ course: selectedCourse, form }));
       setSubmitting(false);
       setStep(scheduleNow ? "date" : "registered");
@@ -682,6 +718,31 @@ export default function BookingPublic() {
                 </CardContent>
               </Card>
 
+              <div className="rounded-2xl border border-primary/25 bg-card/70 p-4 shadow-lg shadow-black/10 backdrop-blur-lg sm:p-5">
+                <label className="text-sm font-medium">Primeiro, informe seu CPF <span className="text-destructive">*</span></label>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    value={form.cpf}
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+                      const masked = digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+                      setForm({ ...form, cpf: masked });
+                      setExistingRegistration(false);
+                      setLookupMessage("");
+                      setErrors({ ...errors, cpf: "" });
+                    }}
+                    onKeyDown={event => event.key === "Enter" && void lookupRegistration()}
+                    placeholder="000.000.000-00"
+                    className={errors.cpf ? "border-destructive" : ""}
+                  />
+                  <Button type="button" variant="outline" onClick={lookupRegistration} disabled={lookupLoading || form.cpf.replace(/\D/g, "").length !== 11}>
+                    {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar cadastro"}
+                  </Button>
+                </div>
+                {errors.cpf && <p className="mt-1 text-xs text-destructive">{errors.cpf}</p>}
+                {lookupMessage && <p className={`mt-2 text-xs ${existingRegistration ? "text-success" : "text-muted-foreground"}`}>{lookupMessage}</p>}
+              </div>
+
               <div className="grid gap-4 rounded-2xl border border-border/60 bg-card/70 p-4 shadow-lg shadow-black/10 backdrop-blur-lg sm:grid-cols-2 sm:p-5">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Nome completo <span className="text-destructive">*</span></label>
@@ -720,24 +781,6 @@ export default function BookingPublic() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">Formato: 55 + DDD + número (ex: 5551999999999)</p>
                   {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">CPF <span className="text-destructive">*</span></label>
-                  <Input
-                    value={form.cpf}
-                    onChange={e => {
-                      const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
-                      const masked = digits
-                        .replace(/(\d{3})(\d)/, "$1.$2")
-                        .replace(/(\d{3})(\d)/, "$1.$2")
-                        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-                      setForm({ ...form, cpf: masked });
-                      setErrors({ ...errors, cpf: "" });
-                    }}
-                    placeholder="000.000.000-00"
-                    className={errors.cpf ? "border-destructive" : ""}
-                  />
-                  {errors.cpf && <p className="text-xs text-destructive mt-1">{errors.cpf}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Valor do sinal pago <span className="text-destructive">*</span></label>

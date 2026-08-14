@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.crm-mql]
 verify_jwt = true
+
+[functions.future-student-lookup]
+verify_jwt = false
