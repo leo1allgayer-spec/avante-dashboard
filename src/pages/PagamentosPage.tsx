@@ -61,6 +61,7 @@ const matchPessoa = (vendedor: string, matchTerms: string[]) => {
 };
 
 const COMISSAO_META_ADS = 50;
+const VALOR_CURSO_META_ADS_DADO = 100;
 
 const filterByDateRange = (dataStr: string, dateFrom?: Date, dateTo?: Date) => {
   if (dateFrom && dataStr < format(dateFrom, "yyyy-MM-dd")) return false;
@@ -201,7 +202,8 @@ const PagamentosPage = () => {
       .filter((c) => {
         if (getMonthKey(c.data) !== mesFilter) return false;
         if (!filterByDateRange(c.data, dateFrom, dateTo)) return false;
-        return matchPessoa(c.instrutor || "", matchTerms);
+        if (!matchPessoa(c.instrutor || "", matchTerms)) return false;
+        return normalizeName(c.tipo_curso || "").includes("meta ads");
       })
       .map((c) => ({
         id: c.id,
@@ -209,8 +211,8 @@ const PagamentosPage = () => {
         aluno: c.nome_aluno,
         tipo: c.tipo_curso || "Curso",
         instrutor: c.instrutor,
-        valor: Number(c.comissao_extra || 0),
-        comissao: +(Number(c.comissao_extra || 0) / divisor).toFixed(2),
+        valor: VALOR_CURSO_META_ADS_DADO,
+        comissao: +(VALOR_CURSO_META_ADS_DADO / divisor).toFixed(2),
       }))
       .sort((a, b) => a.data.localeCompare(b.data));
   }, [cursosDados, showCursosDadosTable, pessoaFilter, mesFilter, dateFrom, dateTo]);
