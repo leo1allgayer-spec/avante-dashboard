@@ -1904,9 +1904,9 @@ const VendasPage = () => {
                   <TableHead className="w-[12%] px-3 text-xs font-semibold text-muted-foreground">Cliente / venda</TableHead>
                   <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
                   <TableHead className="w-[12%] px-3 text-xs font-semibold text-muted-foreground">Valores</TableHead>
-                  <TableHead className="w-[45%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
-                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Status / comissão</TableHead>
-                  <TableHead className="w-[3%] px-2 text-xs font-semibold text-muted-foreground"></TableHead>
+                  <TableHead className="w-[41%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
+                  <TableHead className="w-[16%] px-3 text-xs font-semibold text-muted-foreground">Status / comissão</TableHead>
+                  <TableHead className="w-[5%] px-2 text-xs font-semibold text-muted-foreground"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2055,17 +2055,17 @@ const VendasPage = () => {
                         )}
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
-                        <div className="grid grid-cols-2 items-end gap-1.5">
-                          <div className="space-y-1">
-                            <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Comissão</p>
+                        <div className="grid min-w-0 grid-cols-2 items-end gap-2">
+                          <div className="min-w-0 space-y-1">
+                            <p className="truncate text-[8px] font-medium uppercase tracking-wide text-muted-foreground">Comissão</p>
                             <Select value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}>
-                              <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 px-2 text-[10px]"><SelectValue /></SelectTrigger>
+                              <SelectTrigger className="h-7 min-w-0 w-full border-border/30 bg-secondary/30 px-1.5 text-[9px]"><SelectValue /></SelectTrigger>
                               <SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent>
                             </Select>
                           </div>
-                          <div className="space-y-1">
-                            <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Venda</p>
-                            <div className="flex h-7 items-center"><Badge className="text-[10px]" variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}>{statusVenda === "paga" ? "pago" : statusVenda}</Badge></div>
+                          <div className="min-w-0 space-y-1">
+                            <p className="truncate text-[8px] font-medium uppercase tracking-wide text-muted-foreground">Venda</p>
+                            <div className="flex h-7 min-w-0 items-center"><Badge className="max-w-full truncate px-1.5 text-[9px]" variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}>{statusVenda === "paga" ? "pago" : statusVenda}</Badge></div>
                           </div>
                         </div>
                       </TableCell>
