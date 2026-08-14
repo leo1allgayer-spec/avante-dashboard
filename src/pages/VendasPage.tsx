@@ -255,7 +255,6 @@ const VendasPage = () => {
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
-  const [salesView, setSalesView] = useState<"cards" | "table">("cards");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [vendedorFilter, setVendedorFilter] = useState("todos");
   const [pagamentoFilter, setPagamentoFilter] = useState("todos");
@@ -1841,14 +1840,10 @@ const VendasPage = () => {
               ))}
             </SelectContent>
           </Select>
-          <div className="ml-auto flex rounded-lg border border-border/30 bg-secondary/20 p-1">
-            <Button type="button" size="sm" variant={salesView === "cards" ? "default" : "ghost"} className="h-7 px-3 text-xs" onClick={() => setSalesView("cards")}>Lado a lado</Button>
-            <Button type="button" size="sm" variant={salesView === "table" ? "default" : "ghost"} className="h-7 px-3 text-xs" onClick={() => setSalesView("table")}>Tabela</Button>
-          </div>
         </div>
 
         {/* Compact cards keep every action visible without horizontal scrolling. */}
-        <div className={salesView === "cards" ? "grid gap-4 xl:grid-cols-2" : "hidden"}>
+        <div className="hidden">
           {isLoading ? (
             <div className="rounded-lg border border-border/30 p-8 text-center text-muted-foreground">Carregando...</div>
           ) : vendasAgrupadas.length === 0 ? (
@@ -1901,7 +1896,7 @@ const VendasPage = () => {
         </div>
 
         {/* Compact table keeps all sale information visible without horizontal scrolling. */}
-        <div className={salesView === "table" ? "rounded-lg overflow-hidden border border-border/30" : "hidden"}>
+        <div className="rounded-lg overflow-hidden border border-border/30">
           <div>
             <Table>
               <TableHeader>
