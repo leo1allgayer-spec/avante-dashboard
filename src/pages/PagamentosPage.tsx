@@ -461,7 +461,7 @@ const PagamentosPage = () => {
           {showMetaTable && (
             <Card className="bg-card/80 backdrop-blur border-border/40">
               <CardHeader>
-                <CardTitle className="text-base">Cursos Dados</CardTitle>
+                <CardTitle className="text-base">Comissão por vendas de Meta Ads</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 {isLoading ? (
