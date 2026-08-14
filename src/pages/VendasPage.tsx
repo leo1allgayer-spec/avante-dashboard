@@ -541,7 +541,7 @@ const VendasPage = () => {
           id: venda.id,
           pagamento_saldo: paymentLabel,
           comissao: +(novoColetado * 0.15).toFixed(2),
-          status: novoSaldo <= 0 ? "aprovada" : "pendente",
+          status: novoSaldo <= 0 ? "pago" : "pendente",
         }));
 
         const fechamentoPayload = {
@@ -934,7 +934,7 @@ const VendasPage = () => {
       parcelas: itemValores.parcelas,
       valor_com_juros: itemValores.parcelas ? itemValores.valorLiquido : null,
       comissao: itemValores.comissao,
-      status: item.status,
+      status: item.status === "cancelada" ? "cancelada" : item.condicao_pagamento === "pago" ? "pago" : item.status,
       servico: item.servico,
       origem: item.origem,
     };
@@ -2096,7 +2096,9 @@ const VendasPage = () => {
                   const totalValor = vendasAgrupadas.reduce((s, grupo) => s + grupo.valorTotal, 0);
                   const totalSinal = vendasAgrupadas.reduce((s, grupo) => s + grupo.sinal, 0);
                   const totalSaldo = vendasAgrupadas.reduce((s, grupo) => s + grupo.saldo, 0);
-                  const totalComissao = vendasAgrupadas.reduce((s, grupo) => s + grupo.comissao, 0);
+                  const totalComissao = vendasAgrupadas.reduce((total, grupo) => total + grupo.itens
+                    .filter((item) => item.status_comissao !== "paga")
+                    .reduce((subtotal, item) => subtotal + Number(item.comissao || 0), 0), 0);
                   const totalServicos = vendasAgrupadas.reduce((s, grupo) => s + grupo.quantidade, 0);
                   return (
                     <TableRow className="border-t-2 border-accent/30" style={{ background: "hsl(260, 22%, 11%)" }}>
@@ -2107,7 +2109,7 @@ const VendasPage = () => {
                         <p className="mt-1 text-success">Coletado: {formatBRL(totalSinal)}</p>
                         <p className="mt-1 text-amber-500">Saldo: {formatBRL(totalSaldo)}</p>
                       </TableCell>
-                      <TableCell className="px-3 py-3 text-xs font-bold">Comissão: {formatBRL(totalComissao)}</TableCell>
+                      <TableCell className="px-3 py-3 text-xs font-bold">Comissão pendente: {formatBRL(totalComissao)}</TableCell>
                       <TableCell className="px-3 py-3"></TableCell>
                       <TableCell className="px-2 py-3"></TableCell>
                     </TableRow>
