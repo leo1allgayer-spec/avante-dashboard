@@ -1901,11 +1901,11 @@ const VendasPage = () => {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/30" style={{ background: "hsl(260, 22%, 9%)" }}>
-                  <TableHead className="w-[16%] px-3 text-xs font-semibold text-muted-foreground">Cliente / venda</TableHead>
-                  <TableHead className="w-[17%] px-3 text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
-                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Valores</TableHead>
-                  <TableHead className="w-[39%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
-                  <TableHead className="w-[11%] px-3 text-xs font-semibold text-muted-foreground">Status / comissão</TableHead>
+                  <TableHead className="w-[12%] px-3 text-xs font-semibold text-muted-foreground">Cliente / venda</TableHead>
+                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
+                  <TableHead className="w-[12%] px-3 text-xs font-semibold text-muted-foreground">Valores</TableHead>
+                  <TableHead className="w-[45%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
+                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Status / comissão</TableHead>
                   <TableHead className="w-[3%] px-2 text-xs font-semibold text-muted-foreground"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1970,15 +1970,21 @@ const VendasPage = () => {
                         )}
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
-                        <Badge variant={v.pagamento === "Cartão" ? "secondary" : "outline"} className="text-xs">
-                          {getSalePaymentLabel(v)}
-                        </Badge>
-                        {grupo.saldo > 0 && v.pagamento_saldo && <p className="mt-1 text-xs text-muted-foreground">Saldo: {v.pagamento_saldo}</p>}
-                        <p className="mt-2 text-xs"><span className="text-muted-foreground">Comissão: </span><strong>{formatBRL(grupo.comissao)}</strong></p>
                         {grupo.saldo > 0 ? (
-                          <div className="mt-2 border-t border-border/20 pt-2">
-                            <p className="mb-1.5 text-[11px] font-medium text-amber-500">Quitar {formatBRL(grupo.saldo)}</p>
-                            <div className="grid grid-cols-[minmax(110px,1fr)_118px_90px_130px] items-end gap-1.5">
+                          <div>
+                            <div className="grid grid-cols-[70px_82px_76px_minmax(90px,1fr)_108px_76px_90px] items-end gap-1.5">
+                              <div className="min-w-0 space-y-1">
+                                <Label className="text-[9px] text-muted-foreground">Pagamento</Label>
+                                <Badge variant={v.pagamento === "Cartão" ? "secondary" : "outline"} className="block max-w-full truncate text-[10px]">{getSalePaymentLabel(v)}</Badge>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[9px] text-muted-foreground">Comissão</Label>
+                                <p className="h-7 truncate pt-1.5 text-[10px] font-semibold">{formatBRL(grupo.comissao)}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[9px] text-muted-foreground">A quitar</Label>
+                                <p className="h-7 truncate pt-1.5 text-[10px] font-semibold text-amber-500">{formatBRL(grupo.saldo)}</p>
+                              </div>
                               <div className="space-y-1">
                                 <Label className="text-[9px] font-medium text-muted-foreground">Valor recebido</Label>
                                 <Input
@@ -2041,28 +2047,27 @@ const VendasPage = () => {
                             )}
                           </div>
                         ) : (
-                          <Badge className="mt-3 text-xs" variant="secondary">Saldo quitado</Badge>
+                          <div className="flex items-center gap-3">
+                            <Badge variant={v.pagamento === "Cartão" ? "secondary" : "outline"} className="text-xs">{getSalePaymentLabel(v)}</Badge>
+                            <p className="text-xs"><span className="text-muted-foreground">Comissão: </span><strong>{formatBRL(grupo.comissao)}</strong></p>
+                            <Badge className="text-xs" variant="secondary">Saldo quitado</Badge>
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
-                        <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status comissão</p>
-                        <Select
-                          value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"}
-                          onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}
-                        >
-                          <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pendente">Pendente</SelectItem>
-                            <SelectItem value="paga">Paga</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="mb-1 mt-3 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Status da venda</p>
-                        <Badge
-                          className="text-xs"
-                          variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}
-                        >
-                          {statusVenda === "paga" ? "pago" : statusVenda}
-                        </Badge>
+                        <div className="grid grid-cols-2 items-end gap-1.5">
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Comissão</p>
+                            <Select value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}>
+                              <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 px-2 text-[10px]"><SelectValue /></SelectTrigger>
+                              <SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Venda</p>
+                            <div className="flex h-7 items-center"><Badge className="text-[10px]" variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}>{statusVenda === "paga" ? "pago" : statusVenda}</Badge></div>
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell className="px-2 py-3 align-top">
                         <div className="flex flex-col items-center gap-1">
