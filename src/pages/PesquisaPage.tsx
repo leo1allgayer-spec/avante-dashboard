@@ -178,7 +178,6 @@ const PesquisaPage = () => {
   const [loadingCep, setLoadingCep] = useState(false);
   const [loadingCpf, setLoadingCpf] = useState(false);
   const [cpfLookupMessage, setCpfLookupMessage] = useState("");
-  const [whatsappLast4, setWhatsappLast4] = useState("");
   const { toast } = useToast();
 
   const set = (key: keyof FormData, val: string | number) => setForm((p) => ({ ...p, [key]: val }));
@@ -191,42 +190,30 @@ const PesquisaPage = () => {
       .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
     set("cpf", formatted);
     setCpfLookupMessage("");
-    if (digits.length === 11 && whatsappLast4.length === 4) void lookupStudentByCpf(formatted, whatsappLast4);
+    if (digits.length === 11) void lookupStudentByCpf(formatted);
   };
 
-  const handleWhatsappLast4Change = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 4);
-    setWhatsappLast4(digits);
-    setCpfLookupMessage("");
-    if (form.cpf.replace(/\D/g, "").length === 11 && digits.length === 4) {
-      void lookupStudentByCpf(form.cpf, digits);
-    }
-  };
-
-  const lookupStudentByCpf = async (cpf: string, last4: string) => {
+  const lookupStudentByCpf = async (cpf: string) => {
     setLoadingCpf(true);
     try {
-      const { data, error } = await supabase.rpc("lookup_student_registration_by_cpf" as any, {
-        p_cpf: cpf,
-        p_whatsapp_last4: last4,
-      } as any);
+      const { data, error } = await supabase.functions.invoke("future-student-lookup", { body: { cpf } });
       if (error) throw error;
       const registration = data as any;
-      if (!registration) {
-        setCpfLookupMessage("CPF ou final do WhatsApp não conferem. Verifique os dados ou preencha o cadastro manualmente.");
+      if (!registration?.found) {
+        setCpfLookupMessage("CPF não encontrado. Confira o número ou preencha o cadastro manualmente.");
         return;
       }
       setForm((current) => ({
         ...current,
         cpf,
-        nome: registration.nome || current.nome,
-        whatsapp: registration.whatsapp || current.whatsapp,
+        nome: registration.name || current.nome,
+        whatsapp: registration.phone || current.whatsapp,
         cep: registration.cep || current.cep,
         cidade: registration.cidade || current.cidade,
         email: registration.email || current.email,
         instagram: registration.instagram || current.instagram,
         endereco: registration.endereco || current.endereco,
-        curso_realizado: registration.curso_realizado || current.curso_realizado,
+        curso_realizado: registration.cursoRealizado || registration.course || current.curso_realizado,
         data_curso: formatLocalDate(new Date()),
       }));
       setCpfLookupMessage("Cadastro encontrado. Conferimos e preenchemos seus dados automaticamente.");
@@ -417,15 +404,7 @@ const PesquisaPage = () => {
                   {loadingCpf && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />}
                 </div>
               </div>
-              <div>
-                <Label className="text-sm font-semibold text-foreground mb-1.5 block">4 últimos números do WhatsApp *</Label>
-                <div className="relative">
-                  <Input value={whatsappLast4} onChange={(e) => handleWhatsappLast4Change(e.target.value)} inputMode="numeric" maxLength={4} placeholder="0000" className="bg-secondary/30 border-border/40 pr-9" />
-                  {loadingCpf && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">Usado somente para confirmar seu cadastro e preencher os demais campos.</p>
-                {cpfLookupMessage && <p className="mt-1 text-xs text-muted-foreground">{cpfLookupMessage}</p>}
-              </div>
+              {cpfLookupMessage && <p className="-mt-3 text-xs text-muted-foreground">{cpfLookupMessage}</p>}
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">Nome completo *</Label>
                 <Input value={form.nome} onChange={(e) => set("nome", e.target.value)} className="bg-secondary/30 border-border/40" />
