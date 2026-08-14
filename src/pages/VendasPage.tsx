@@ -1901,12 +1901,12 @@ const VendasPage = () => {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/30" style={{ background: "hsl(260, 22%, 9%)" }}>
-                  <TableHead className="w-[20%] px-3 text-xs font-semibold text-muted-foreground">Cliente / venda</TableHead>
-                  <TableHead className="w-[22%] px-3 text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
-                  <TableHead className="w-[22%] px-3 text-xs font-semibold text-muted-foreground">Valores</TableHead>
-                  <TableHead className="w-[16%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
-                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Status / comissão</TableHead>
-                  <TableHead className="w-[6%] px-2 text-xs font-semibold text-muted-foreground"></TableHead>
+                  <TableHead className="w-[16%] px-3 text-xs font-semibold text-muted-foreground">Cliente / venda</TableHead>
+                  <TableHead className="w-[17%] px-3 text-xs font-semibold text-muted-foreground">Produtos / serviços</TableHead>
+                  <TableHead className="w-[14%] px-3 text-xs font-semibold text-muted-foreground">Valores</TableHead>
+                  <TableHead className="w-[39%] px-3 text-xs font-semibold text-muted-foreground">Pagamento / comissão</TableHead>
+                  <TableHead className="w-[11%] px-3 text-xs font-semibold text-muted-foreground">Status / comissão</TableHead>
+                  <TableHead className="w-[3%] px-2 text-xs font-semibold text-muted-foreground"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1976,20 +1976,24 @@ const VendasPage = () => {
                         {grupo.saldo > 0 && v.pagamento_saldo && <p className="mt-1 text-xs text-muted-foreground">Saldo: {v.pagamento_saldo}</p>}
                         <p className="mt-2 text-xs"><span className="text-muted-foreground">Comissão: </span><strong>{formatBRL(grupo.comissao)}</strong></p>
                         {grupo.saldo > 0 ? (
-                          <div className="mt-3 space-y-1.5 border-t border-border/20 pt-2">
-                            <p className="text-[11px] font-medium text-amber-500">Quitar {formatBRL(grupo.saldo)}</p>
-                            <Input
-                              type="number"
-                              min="0.01"
-                              max={grupo.saldo}
-                              step="0.01"
-                              value={quickPaymentAmounts[grupo.chave] || ""}
-                              onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))}
-                              placeholder={`Valor recebido (até ${formatBRL(grupo.saldo)})`}
-                              className="h-7 border-border/30 bg-secondary/30 text-xs"
-                            />
-                            <div className="space-y-1">
-                              <Label className="text-[10px] font-medium text-muted-foreground">Data do recebimento</Label>
+                          <div className="mt-2 border-t border-border/20 pt-2">
+                            <p className="mb-1.5 text-[11px] font-medium text-amber-500">Quitar {formatBRL(grupo.saldo)}</p>
+                            <div className="grid grid-cols-[minmax(110px,1fr)_118px_90px_130px] items-end gap-1.5">
+                              <div className="space-y-1">
+                                <Label className="text-[9px] font-medium text-muted-foreground">Valor recebido</Label>
+                                <Input
+                                  type="number"
+                                  min="0.01"
+                                  max={grupo.saldo}
+                                  step="0.01"
+                                  value={quickPaymentAmounts[grupo.chave] || ""}
+                                  onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))}
+                                  placeholder={`Até ${formatBRL(grupo.saldo)}`}
+                                  className="h-7 border-border/30 bg-secondary/30 text-xs"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                              <Label className="text-[9px] font-medium text-muted-foreground">Data</Label>
                               <Input
                                 type="date"
                                 value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]}
@@ -1997,24 +2001,37 @@ const VendasPage = () => {
                                 className="h-7 border-border/30 bg-secondary/30 text-xs"
                               />
                             </div>
-                            <Select
-                              value={quickPayments[grupo.chave] || "PIX"}
-                              onValueChange={(value) => setQuickPayments((current) => ({ ...current, [grupo.chave]: value }))}
-                            >
-                              <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="PIX">PIX</SelectItem>
-                                <SelectItem value="Dinheiro">Dinheiro</SelectItem>
-                                <SelectItem value="Débito">Débito</SelectItem>
-                                <SelectItem value="Crédito">Crédito</SelectItem>
-                              </SelectContent>
-                            </Select>
+                              <div className="space-y-1">
+                                <Label className="text-[9px] font-medium text-muted-foreground">Forma</Label>
+                                <Select
+                                  value={quickPayments[grupo.chave] || "PIX"}
+                                  onValueChange={(value) => setQuickPayments((current) => ({ ...current, [grupo.chave]: value }))}
+                                >
+                                  <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 text-xs"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="PIX">PIX</SelectItem>
+                                    <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                                    <SelectItem value="Débito">Débito</SelectItem>
+                                    <SelectItem value="Crédito">Crédito</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-7 w-full px-2 text-xs"
+                                disabled={settlingSaleKey === grupo.chave}
+                                onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}
+                              >
+                                {settlingSaleKey === grupo.chave ? "Salvando..." : "Registrar"}
+                              </Button>
+                            </div>
                             {(quickPayments[grupo.chave] || "PIX") === "Crédito" && (
                               <Select
                                 value={quickCardInstallments[grupo.chave] || "1"}
                                 onValueChange={(value) => setQuickCardInstallments((current) => ({ ...current, [grupo.chave]: value }))}
                               >
-                                <SelectTrigger className="h-7 w-full border-border/30 bg-secondary/30 text-xs"><SelectValue placeholder="Parcelas" /></SelectTrigger>
+                                <SelectTrigger className="mt-1.5 h-7 w-[130px] border-border/30 bg-secondary/30 text-xs"><SelectValue placeholder="Parcelas" /></SelectTrigger>
                                 <SelectContent>
                                   {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((installment) => (
                                     <SelectItem key={installment} value={installment}>{installment}x</SelectItem>
@@ -2022,15 +2039,6 @@ const VendasPage = () => {
                                 </SelectContent>
                               </Select>
                             )}
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-7 w-full px-2 text-xs"
-                              disabled={settlingSaleKey === grupo.chave}
-                              onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}
-                            >
-                              {settlingSaleKey === grupo.chave ? "Salvando..." : "Registrar pagamento"}
-                            </Button>
                           </div>
                         ) : (
                           <Badge className="mt-3 text-xs" variant="secondary">Saldo quitado</Badge>
