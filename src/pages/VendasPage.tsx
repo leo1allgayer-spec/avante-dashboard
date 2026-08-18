@@ -106,6 +106,16 @@ const normalizeText = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
+const getUniqueSaleNames = (products: string[], services: string[]) => {
+  const unique = new Map<string, string>();
+  [...products, ...services].filter(Boolean).forEach((name) => {
+    const canonical = canonicalizeSaleCategory(name);
+    const key = normalizeText(canonical);
+    if (key && !unique.has(key)) unique.set(key, canonical);
+  });
+  return [...unique.values()];
+};
+
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 const MonthYearPicker = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
@@ -1884,7 +1894,7 @@ const VendasPage = () => {
             <div className="rounded-lg border border-border/30 p-8 text-center text-muted-foreground">Nenhuma venda encontrada</div>
           ) : vendasAgrupadas.map((grupo) => {
             const v = grupo.principal;
-            const nomes = [...grupo.produtos, ...grupo.servicos];
+            const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
             return (
               <div key={grupo.chave} className="rounded-xl border border-border/30 bg-[hsl(260,22%,7%)] p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -1957,7 +1967,7 @@ const VendasPage = () => {
                 <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
               ) : vendasAgrupadas.map((grupo, index) => {
                 const v = grupo.principal;
-                const nomes = [...grupo.produtos, ...grupo.servicos];
+                const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
                 const nomesTexto = nomes.join(" · ") || "Sem produto ou serviço";
                 const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
                 return (
@@ -2087,7 +2097,7 @@ const VendasPage = () => {
                 ) : (
                   vendasAgrupadas.map((grupo, index) => {
                     const v = grupo.principal;
-                    const nomes = [...grupo.produtos, ...grupo.servicos];
+                    const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
                     const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
                     return (
                     <TableRow
