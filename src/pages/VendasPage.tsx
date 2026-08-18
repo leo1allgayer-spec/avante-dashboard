@@ -1601,6 +1601,7 @@ const VendasPage = () => {
       <DashboardLayout
         title="Vendas"
         subtitle="Registro e acompanhamento de vendas"
+        contentClassName="!max-w-none"
         actions={
           <div className="flex items-center gap-2">
             <AlertDialog>
@@ -1941,7 +1942,7 @@ const VendasPage = () => {
 
         {/* Flat spreadsheet-style sales table: one piece of information per column. */}
         <div className="overflow-hidden rounded-lg border border-border/30">
-          <Table className="table-fixed text-[13px]">
+          <Table className="table-fixed text-sm">
             <TableHeader>
               <TableRow className="border-border/30 bg-secondary/30">
                 <TableHead className="w-[10%] px-2 text-xs">Cliente</TableHead>
@@ -1988,16 +1989,16 @@ const VendasPage = () => {
                       <p className="truncate font-semibold">{v.cliente}</p><p className="truncate text-[11px] text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
                     </TableCell>
                     <TableCell className="px-2 py-3" title={nomesTexto}>
-                      <p className="truncate font-medium">{nomesTexto}</p>
+                      <p className="truncate font-semibold">{nomesTexto}</p>
                       <p className="truncate text-[11px] text-muted-foreground">
                         {grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}
                         {grupo.datasPrevistasCurso.length > 0 ? ` · Curso: ${grupo.datasPrevistasCurso.map(formatDate).join(", ")}` : ""}
                       </p>
                     </TableCell>
-                    <TableCell className="px-2 py-3 text-right font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
-                    <TableCell className="px-2 py-3 text-right font-semibold text-success" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>{formatBRL(grupo.sinal)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-[15px] font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-[15px] font-semibold text-success" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>{formatBRL(grupo.sinal)}</TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">
-                      <span className="block">{formatBRL(grupo.saldo)}</span>
+                      <span className="block text-[15px]">{formatBRL(grupo.saldo)}</span>
                       {grupo.saldo > 0 && (
                         <span className="block truncate text-[9px] font-normal text-muted-foreground">
                           {grupo.previsoesRecebimento.length > 0
@@ -2007,7 +2008,7 @@ const VendasPage = () => {
                       )}
                     </TableCell>
                     <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{getSalePaymentLabel(v)}</Badge></TableCell>
-                    <TableCell className="px-2 py-3 text-right font-semibold">{formatBRL(grupo.comissao)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-[15px] font-semibold">{formatBRL(grupo.comissao)}</TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-8 px-2 text-xs" /> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="date" value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]} onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))} className="h-8 px-1.5 text-[11px]" /> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">
