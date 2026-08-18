@@ -79,6 +79,16 @@ function buildMessage(recipientName: string, targetDate: string, bookings: Booki
   ].join("\n");
 }
 
+function buildNoCoursesMessage(recipientName: string, targetDate: string): string {
+  return [
+    `Olá ${recipientName}! 👋`,
+    "",
+    `Amanhã (${formatDateBR(targetDate)}) não há cursos de Meta Ads agendados.`,
+    "",
+    "Bom descanso! 😉",
+  ].join("\n");
+}
+
 let resolvedInstance: string | null = null;
 
 async function resolveInstanceName(baseUrl: string, configuredName: string, token: string): Promise<string> {
@@ -207,13 +217,9 @@ Deno.serve(async (req) => {
 
     const bookings = ((data || []) as Booking[]).filter((booking) => isMetaCourse(booking) && isActiveBooking(booking));
 
-    if (bookings.length === 0) {
-      return new Response(JSON.stringify({ success: true, sent: false, count: 0, date: targetDate }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const messageText = buildMessage(recipientName, targetDate, bookings);
+    const messageText = bookings.length > 0
+      ? buildMessage(recipientName, targetDate, bookings)
+      : buildNoCoursesMessage(recipientName, targetDate);
     const result = await sendText(recipientPhone, messageText);
     const formattedPhone = formatPhone(recipientPhone);
 
