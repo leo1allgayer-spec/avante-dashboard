@@ -303,7 +303,7 @@ export default function BookingPublic() {
   };
 
   const saveStudentRegistration = async (prazo: "agendar_agora" | "15_dias" | "30_dias") => {
-    const { error } = await supabase.rpc("register_future_student_from_booking" as any, {
+    const { data: studentId, error } = await supabase.rpc("register_future_student_from_booking" as any, {
       p_nome: form.name.trim(),
       p_telefone: form.phone.trim(),
       p_cpf: form.cpf.trim(),
@@ -317,6 +317,13 @@ export default function BookingPublic() {
       ].filter(Boolean).join("\n"),
     } as any);
     if (error) throw error;
+
+    const { error: notificationError } = await supabase.functions.invoke("notify-new-student", {
+      body: { studentId, course: selectedCourse },
+    });
+    if (notificationError) {
+      console.error("Cadastro salvo, mas a notificação interna não foi enviada:", notificationError);
+    }
   };
 
   const finishRegistration = async (scheduleNow: boolean) => {
