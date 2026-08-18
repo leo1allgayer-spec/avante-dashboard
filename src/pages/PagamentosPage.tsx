@@ -8,6 +8,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import { useVendas } from "@/hooks/useVendas";
 import { useCursosDados } from "@/hooks/useCursosDados";
+import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { usePagamentosVariaveis } from "@/hooks/usePagamentosVariaveis";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -72,6 +73,7 @@ const filterByDateRange = (dataStr: string, dateFrom?: Date, dateTo?: Date) => {
 const PagamentosPage = () => {
   const { data: vendas = [], isLoading } = useVendas();
   const { data: cursosDados = [] } = useCursosDados();
+  const { data: fechamentos = [] } = useFechamentosDiarios();
   const { data: pagVariaveis = [] } = usePagamentosVariaveis();
   const queryClient = useQueryClient();
 
@@ -125,6 +127,38 @@ const PagamentosPage = () => {
     s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ");
   const nameKey = (s: string) => normalizeName(s).split(" ").slice(0, 2).join(" ");
 
+  const collectedBySaleId = useMemo(() => {
+    const result = new Map<string, number>();
+    const groups = new Map<string, typeof vendas>();
+
+    vendas.forEach((sale) => {
+      const key = [sale.data, normalizeName(sale.cliente), normalizeName(sale.vendedor)].join("|");
+      groups.set(key, [...(groups.get(key) || []), sale]);
+    });
+
+    groups.forEach((sales) => {
+      const reference = sales[0];
+      const totalSold = sales.reduce((sum, sale) => sum + Math.max(Number(sale.valor || 0), 0), 0);
+      const totalCollected = Math.min(
+        totalSold,
+        fechamentos
+          .filter((item) =>
+            normalizeName(item.status || "") !== "cancelado" &&
+            normalizeName(item.cliente) === normalizeName(reference.cliente) &&
+            normalizeName(item.vendedor) === normalizeName(reference.vendedor)
+          )
+          .reduce((sum, item) => sum + Math.max(Number(item.valor_sinal || 0), 0), 0)
+      );
+
+      sales.forEach((sale) => {
+        const share = totalSold > 0 ? Math.max(Number(sale.valor || 0), 0) / totalSold : 0;
+        result.set(sale.id, Math.min(Number(sale.valor || 0), totalCollected * share));
+      });
+    });
+
+    return result;
+  }, [vendas, fechamentos]);
+
   const vendasCursos = useMemo<LinhaCurso[]>(() => {
     if (!showCursosTable) return [];
     const instrutoresValidos = ["lucas", "nicolas", "leonardo", "leo", "léo"];
@@ -143,14 +177,14 @@ const PagamentosPage = () => {
         return true;
       })
       .map((v) => {
-        const liquido = v.valor_com_juros ?? v.valor;
+        const coletado = collectedBySaleId.get(v.id) || 0;
         return {
           id: v.id,
           data: v.data,
           cliente: v.cliente,
           produto: [v.produto, v.servico].filter(Boolean).join(" / ") || "—",
-          valor_liquido: liquido,
-          comissao: +((liquido * PERCENTUAL_COMISSAO_CURSOS_VENDIDOS) / DIVISOR_COMISSAO_CURSOS_VENDIDOS).toFixed(2),
+          valor_liquido: coletado,
+          comissao: +((coletado * PERCENTUAL_COMISSAO_CURSOS_VENDIDOS) / DIVISOR_COMISSAO_CURSOS_VENDIDOS).toFixed(2),
         };
       });
 
@@ -173,7 +207,7 @@ const PagamentosPage = () => {
       }));
 
     return [...linhasVendas, ...linhasSemVenda].sort((a, b) => a.data.localeCompare(b.data));
-  }, [vendas, cursosDados, showCursosTable, mesFilter, dateFrom, dateTo]);
+  }, [vendas, cursosDados, showCursosTable, mesFilter, dateFrom, dateTo, collectedBySaleId]);
 
   const totalComissaoCursos = useMemo(
     () => vendasCursos.reduce((s, v) => s + v.comissao, 0),
