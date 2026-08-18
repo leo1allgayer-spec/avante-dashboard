@@ -58,13 +58,13 @@ const TAXAS_MAQUININHA_VISA_NOVAS: Record<number, number> = {
 
 type TaxProfile = "opcao1" | "opcao2";
 
-const PAGAMENTOS_COM_PARCELA = ["Infinity (Visa/Master)", "Elo/Amex", "Link Gateway"];
+const PAGAMENTOS_COM_PARCELA = ["Infinity (Visa/Master)", "Infinity Elo/Amex", "Elo/Amex", "Link Gateway"];
 
 const getTaxas = (pagamento: string, profile: TaxProfile): Record<number, number> => {
   if (profile === "opcao2" && pagamento === "Link Gateway") return TAXAS_LINK_NOVAS;
   if (profile === "opcao2" && pagamento === "Infinity (Visa/Master)") return TAXAS_MAQUININHA_VISA_NOVAS;
   if (pagamento === "Infinity (Visa/Master)") return TAXAS_INFINITY_VISA_MASTER;
-  if (pagamento === "Elo/Amex") return TAXAS_ELO_AMEX;
+  if (pagamento === "Infinity Elo/Amex" || pagamento === "Elo/Amex") return TAXAS_ELO_AMEX;
   return TAXAS_CARTAO_GATEWAY; // Cartão and Link Gateway use same rates
 };
 
@@ -1159,7 +1159,7 @@ const VendasPage = () => {
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Serviço</Label><Select value={saleItem.servico || "__none__"} onValueChange={(servico) => updateRow({ servico: servico === "__none__" ? "" : servico })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">Nenhum serviço</SelectItem>{SERVICOS.map((servico) => <SelectItem key={servico} value={servico}>{servico}</SelectItem>)}</SelectContent></Select></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Origem</Label><Select value={saleItem.origem} onValueChange={(origem) => updateRow({ origem })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{ORIGENS.map((origem) => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Valor (R$)</Label><Input className="h-9 w-full" type="number" min="0" step="0.01" value={saleItem.valor || ""} onChange={(event) => updateRow({ valor: Number(event.target.value) })} /></div>
-                    <div className={fieldClass}><Label className="text-xs text-muted-foreground">Pagamento</Label><Select value={saleItem.pagamento} onValueChange={(pagamento) => updateRow({ pagamento, parcelas: PAGAMENTOS_COM_PARCELA.includes(pagamento) ? saleItem.parcelas : 1 })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Infinity (Visa/Master)", "Elo/Amex", "Link Gateway", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></div>
+                    <div className={fieldClass}><Label className="text-xs text-muted-foreground">Pagamento</Label><Select value={saleItem.pagamento} onValueChange={(pagamento) => updateRow({ pagamento, parcelas: PAGAMENTOS_COM_PARCELA.includes(pagamento) ? saleItem.parcelas : 1 })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Infinity (Visa/Master)", "Infinity Elo/Amex", "Link Gateway", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Situação financeira</Label><Select value={saleItem.condicao_pagamento} onValueChange={(condicao_pagamento) => updateRow({ condicao_pagamento, valor_sinal: condicao_pagamento === "pago" ? saleItem.valor : condicao_pagamento === "a_receber" ? 0 : saleItem.valor_sinal })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pago">Pago integralmente</SelectItem><SelectItem value="sinal">Sinal + saldo</SelectItem><SelectItem value="a_receber">Total a receber</SelectItem><SelectItem value="boleto">Boleto parcelado</SelectItem></SelectContent></Select></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Coletado (R$)</Label><Input className="h-9 w-full" type="number" min="0" max={saleItem.valor} step="0.01" disabled={saleItem.condicao_pagamento === "pago"} value={saleItem.condicao_pagamento === "pago" ? saleItem.valor : saleItem.valor_sinal || ""} onChange={(event) => updateRow({ valor_sinal: Number(event.target.value) })} /></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Status</Label><Select value={saleItem.status} onValueChange={(status) => updateRow({ status })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="aprovada">Aprovada</SelectItem><SelectItem value="cancelada">Cancelada</SelectItem></SelectContent></Select></div>
@@ -1169,7 +1169,7 @@ const VendasPage = () => {
                     {itemTemParcela && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Valor líquido</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.valorLiquido)}</div></div>}
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Comissão sobre recebido (15%)</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.comissao)}</div></div>
                     {saleItem.condicao_pagamento !== "pago" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Saldo restante</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-amber-400">{formatBRL(Math.max(0, Number(saleItem.valor || 0) - Number(saleItem.valor_sinal || 0)))}</div></div>}
-                    {saleItem.condicao_pagamento !== "pago" && saleItem.condicao_pagamento !== "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Pagamento do saldo</Label><Select value={saleItem.pagamento_saldo} onValueChange={(pagamento_saldo) => updateRow({ pagamento_saldo })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Infinity (Visa/Master)", "Elo/Amex", "Link Gateway", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></div>}
+                    {saleItem.condicao_pagamento !== "pago" && saleItem.condicao_pagamento !== "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Pagamento do saldo</Label><Select value={saleItem.pagamento_saldo} onValueChange={(pagamento_saldo) => updateRow({ pagamento_saldo })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Infinity (Visa/Master)", "Infinity Elo/Amex", "Link Gateway", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></div>}
                     {saleItem.condicao_pagamento !== "pago" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">{saleItem.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Previsão do saldo"}</Label>{saleItem.condicao_pagamento === "boleto" ? <Input className="h-9" type="date" value={saleItem.previsao_entrada} onChange={(event) => updateRow({ previsao_entrada: event.target.value, parcelas_datas: buildParcelDates(saleItem.parcelas_total, event.target.value, saleItem.parcelas_datas) })} /> : <MonthYearPicker value={saleItem.previsao_entrada} onChange={(previsao_entrada) => updateRow({ previsao_entrada })} />}</div>}
                     {saleItem.condicao_pagamento === "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Quantidade de boletos</Label><Input className="h-9" type="number" min="1" max="48" value={saleItem.parcelas_total} onChange={(event) => { const parcelas_total = event.target.value; updateRow({ parcelas_total, parcelas_datas: buildParcelDates(parcelas_total, saleItem.previsao_entrada, saleItem.parcelas_datas), valor_parcela: Number(parcelas_total) ? +(Math.max(0, saleItem.valor - saleItem.valor_sinal) / Number(parcelas_total)).toFixed(2) : 0 }); }} /></div>}
                     {saleItem.condicao_pagamento === "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Valor por boleto</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold">{formatBRL(Number(saleItem.parcelas_total) ? Math.max(0, saleItem.valor - saleItem.valor_sinal) / Number(saleItem.parcelas_total) : 0)}</div></div>}
@@ -1202,7 +1202,7 @@ const VendasPage = () => {
                   <SelectItem value="Débito">💳 Débito</SelectItem>
                   
                   <SelectItem value="Infinity (Visa/Master)">💳 Infinity (Visa/Master)</SelectItem>
-                  <SelectItem value="Elo/Amex">💳 Elo/Amex</SelectItem>
+                  <SelectItem value="Infinity Elo/Amex">💳 Infinity Elo/Amex</SelectItem>
                   <SelectItem value="Link Gateway">🔗 Link Gateway</SelectItem>
                   <SelectItem value="PIX">⚡ PIX</SelectItem>
                   <SelectItem value="Boleto">📄 Boleto</SelectItem>
@@ -1281,7 +1281,7 @@ const VendasPage = () => {
                           <SelectItem value="PIX">PIX</SelectItem>
                           <SelectItem value="Débito">Débito</SelectItem>
                           <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem>
-                          <SelectItem value="Elo/Amex">Elo/Amex</SelectItem>
+                          <SelectItem value="Infinity Elo/Amex">Infinity Elo/Amex</SelectItem>
                           <SelectItem value="Link Gateway">Link Gateway</SelectItem>
                           <SelectItem value="Boleto">Boleto</SelectItem>
                         </SelectContent>
@@ -1452,7 +1452,7 @@ const VendasPage = () => {
                               <SelectItem value="PIX">PIX</SelectItem>
                               <SelectItem value="Débito">Debito</SelectItem>
                               <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem>
-                              <SelectItem value="Elo/Amex">Elo/Amex</SelectItem>
+                              <SelectItem value="Infinity Elo/Amex">Infinity Elo/Amex</SelectItem>
                               <SelectItem value="Link Gateway">Link Gateway</SelectItem>
                               <SelectItem value="Boleto">Boleto</SelectItem>
                             </SelectContent>
@@ -1547,7 +1547,7 @@ const VendasPage = () => {
                                   <SelectTrigger><SelectValue /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="Dinheiro">Dinheiro</SelectItem><SelectItem value="PIX">PIX</SelectItem><SelectItem value="Débito">Débito</SelectItem>
-                                    <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem><SelectItem value="Elo/Amex">Elo/Amex</SelectItem>
+                                    <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem><SelectItem value="Infinity Elo/Amex">Infinity Elo/Amex</SelectItem>
                                     <SelectItem value="Link Gateway">Link Gateway</SelectItem><SelectItem value="Boleto">Boleto</SelectItem>
                                   </SelectContent>
                                 </Select>
