@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useMonthMetrics } from "@/hooks/useMetrics";
 import { useCursosDados } from "@/hooks/useCursosDados";
 import { useClients } from "@/hooks/clients/useGestaoClients";
+import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
 import { getMonthlyContractValue } from "@/types/clients/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -126,6 +127,12 @@ const MonthYearPicker = ({ value, onChange }: { value: string; onChange: (value:
   );
 };
 
+const formatMonthYear = (date?: string | null) => {
+  if (!date) return "Sem previsão";
+  const [year, month] = date.split("-");
+  return `${MONTHS[Number(month) - 1]?.slice(0, 3) || month}/${year?.slice(-2)}`;
+};
+
 type PaymentHistoryEntry = { id: string; date: string; amount: number; method: string };
 const PAYMENT_HISTORY_PREFIX = "[PAGAMENTO_VENDA]";
 
@@ -223,6 +230,7 @@ const VendasPage = () => {
   const { data: metaAdCreatives = [], isLoading: isLoadingMetaAds, isError: isMetaAdsError } = useMetaAdCreatives();
   const { data: cursosDados = [] } = useCursosDados();
   const { clients: gestaoClients = [] } = useClients();
+  const { bookings: courseBookings = [] } = useCourseBookings();
   const dateFilter = useLocalDateFilter();
   const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
   const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
@@ -383,7 +391,10 @@ const VendasPage = () => {
       const valorTotal = valoresPositivos.reduce((total, valor) => total + valor, 0);
       const liquidosPositivos = itens.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
       const valorLiquido = liquidosPositivos.reduce((total, valor) => total + valor, 0);
-      const fechamentosRelacionados = fechamentosFiltrados.filter((item) =>
+      // O fechamento precisa permanecer ligado à venda mesmo quando a previsão
+      // de recebimento está em outro mês. O período só é aplicado ao somar
+      // os indicadores, não ao localizar o registro financeiro da venda.
+      const fechamentosRelacionados = fechamentos.filter((item) =>
         item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase(),
       );
@@ -402,6 +413,25 @@ const VendasPage = () => {
         paymentHistory.push({ id: `legacy-${chave}`, date: principal.data, amount: sinal - historyTotal, method: getSalePaymentLabel(principal) });
       }
 
+      const coletadoPeriodo = paymentHistory
+        .filter((entry) => dateInRange(entry.date))
+        .reduce((total, entry) => total + entry.amount, 0);
+      const aReceberPeriodo = fechamentosRelacionados.reduce((total, item) => total + getAReceberNoPeriodo(item), 0);
+      const previsoesRecebimento = [...new Set(fechamentosRelacionados
+        .flatMap((item) => getStoredParcelDates(item).length ? getStoredParcelDates(item) : [item.previsao_entrada])
+        .filter((date): date is string => Boolean(date)))]
+        .sort();
+
+      const saleCategories = new Set(itens.map(getVendaCategoria).map(normalizeText));
+      const datasPrevistasCurso = [...new Set(courseBookings
+        .filter((booking) =>
+          booking.status !== "cancelled" &&
+          normalizeText(booking.studentName) === normalizeText(principal.cliente) &&
+          saleCategories.has(normalizeText(canonicalizeSaleCategory(booking.courseName))),
+        )
+        .map((booking) => booking.date))]
+        .sort();
+
       return {
         chave,
         principal,
@@ -415,6 +445,10 @@ const VendasPage = () => {
         saldo: Math.max(0, valorTotal - sinal),
         comissao: +(sinal * 0.15).toFixed(2),
         paymentHistory,
+        coletadoPeriodo,
+        aReceberPeriodo,
+        previsoesRecebimento,
+        datasPrevistasCurso,
       };
     }).filter((grupo) => {
       if (statusFilter === "paga") return grupo.saldo <= 0;
@@ -425,12 +459,12 @@ const VendasPage = () => {
       const ultimoLancamentoB = Math.max(...b.itens.map((item) => new Date(item.created_at).getTime()));
       return ultimoLancamentoB - ultimoLancamentoA;
     });
-  }, [filtered, fechamentosFiltrados, taxProfile, statusFilter]);
+  }, [filtered, fechamentos, courseBookings, taxProfile, statusFilter, dateFilter.range.start, dateFilter.range.end]);
 
   const visibleSalesTotals = useMemo(() => vendasAgrupadas.reduce(
     (totals, grupo) => ({
-      coletado: totals.coletado + grupo.sinal,
-      aReceber: totals.aReceber + grupo.saldo,
+      coletado: totals.coletado + grupo.coletadoPeriodo,
+      aReceber: totals.aReceber + grupo.aReceberPeriodo,
     }),
     { coletado: 0, aReceber: 0 },
   ), [vendasAgrupadas]);
@@ -1943,10 +1977,25 @@ const VendasPage = () => {
                     <TableCell className="px-2 py-3" title={`${v.cliente} · ${formatDate(v.data)} · ${v.origem || "Sem origem"}`}>
                       <p className="truncate font-semibold">{v.cliente}</p><p className="truncate text-[10px] text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
                     </TableCell>
-                    <TableCell className="px-2 py-3" title={nomesTexto}><p className="truncate font-medium">{nomesTexto}</p><p className="text-[10px] text-muted-foreground">{grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}</p></TableCell>
+                    <TableCell className="px-2 py-3" title={nomesTexto}>
+                      <p className="truncate font-medium">{nomesTexto}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}
+                        {grupo.datasPrevistasCurso.length > 0 ? ` · Curso: ${grupo.datasPrevistasCurso.map(formatDate).join(", ")}` : ""}
+                      </p>
+                    </TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold text-success" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>{formatBRL(grupo.sinal)}</TableCell>
-                    <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">{formatBRL(grupo.saldo)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">
+                      <span className="block">{formatBRL(grupo.saldo)}</span>
+                      {grupo.saldo > 0 && (
+                        <span className="block truncate text-[9px] font-normal text-muted-foreground">
+                          {grupo.previsoesRecebimento.length > 0
+                            ? `Prev. ${grupo.previsoesRecebimento.map(formatMonthYear).join(", ")}`
+                            : "Sem previsão"}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{getSalePaymentLabel(v)}</Badge></TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold">{formatBRL(grupo.comissao)}</TableCell>
                     <TableCell className="px-2 py-3">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-7 px-1.5 text-[10px]" /> : <span className="text-muted-foreground">—</span>}</TableCell>
