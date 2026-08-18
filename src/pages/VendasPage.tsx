@@ -174,6 +174,14 @@ const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =
 const appendPaymentHistory = (observation: string | null | undefined, entry: PaymentHistoryEntry) =>
   [observation?.trim(), `${PAYMENT_HISTORY_PREFIX}${JSON.stringify(entry)}`].filter(Boolean).join("\n");
 
+const getManualObservation = (observation?: string | null) =>
+  (observation || "").split("\n").filter((line) => !line.startsWith(PAYMENT_HISTORY_PREFIX)).join("\n").trim();
+
+const mergeObservationWithPaymentHistory = (manualObservation: string, previousObservation?: string | null) => {
+  const historyLines = (previousObservation || "").split("\n").filter((line) => line.startsWith(PAYMENT_HISTORY_PREFIX));
+  return [manualObservation.trim(), ...historyLines].filter(Boolean).join("\n") || null;
+};
+
 const getSalePaymentLabel = (sale: Venda) => {
   const installments = Number.parseInt(String(sale.parcelas || ""), 10);
   return PAGAMENTOS_COM_PARCELA.includes(sale.pagamento) && installments > 1
@@ -996,7 +1004,7 @@ const VendasPage = () => {
         valor_parcela: Number(fechamento?.valor_parcela || 0),
         previsao_entrada: fechamento?.previsao_entrada || "",
         parcelas_datas: fechamento ? getStoredParcelDates(fechamento) : [],
-        observacao: fechamento?.observacao || "",
+        observacao: getManualObservation(fechamento?.observacao),
         condicao_pagamento: condicaoPagamento,
       };
     };
@@ -1044,7 +1052,7 @@ const VendasPage = () => {
     };
     };
 
-    const buildFechamentoPayload = (item: VendaItemForm) => {
+    const buildFechamentoPayload = (item: VendaItemForm, previousObservation?: string | null) => {
       const valorTotal = Number(item.valor || 0);
       const pagoIntegralmente = item.condicao_pagamento === "pago";
       const valorSinal = pagoIntegralmente ? valorTotal : Math.min(Number(item.valor_sinal || 0), valorTotal);
@@ -1073,7 +1081,7 @@ const VendasPage = () => {
         previsao_entrada: pagoIntegralmente ? null : (item.previsao_entrada || parcelasDatas[0] || null),
         parcelas_datas: parcelasDatas,
         status: item.status === "cancelada" ? "cancelado" : pagoIntegralmente ? "recebido" : "a receber",
-        observacao: item.observacao || null,
+        observacao: mergeObservationWithPaymentHistory(item.observacao, previousObservation),
         pagamento_sinal: item.condicao_pagamento === "sinal" || item.condicao_pagamento === "boleto" ? item.pagamento : null,
         pagamento_saldo: pagoIntegralmente ? null : pagamentoSaldo,
       };
@@ -1104,7 +1112,7 @@ const VendasPage = () => {
         if (record) {
           updates.push(updateVenda.mutateAsync({ id: record.venda.id, ...buildPayload(item) }));
           updates.push(record.fechamento
-            ? updateFechamento.mutateAsync({ id: record.fechamento.id, ...buildFechamentoPayload(item) })
+            ? updateFechamento.mutateAsync({ id: record.fechamento.id, ...buildFechamentoPayload(item, record.fechamento.observacao) })
             : createFechamento.mutateAsync(buildFechamentoPayload(item)));
           if (item.criativo.trim()) {
             updates.push(record.criativo
@@ -1240,7 +1248,7 @@ const VendasPage = () => {
                     {saleItem.condicao_pagamento === "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Quantidade de boletos</Label><Input className="h-9" type="number" min="1" max="48" value={saleItem.parcelas_total} onChange={(event) => { const parcelas_total = event.target.value; updateRow({ parcelas_total, parcelas_datas: buildParcelDates(parcelas_total, saleItem.previsao_entrada, saleItem.parcelas_datas), valor_parcela: Number(parcelas_total) ? +(Math.max(0, saleItem.valor - saleItem.valor_sinal) / Number(parcelas_total)).toFixed(2) : 0 }); }} /></div>}
                     {saleItem.condicao_pagamento === "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Valor por boleto</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold">{formatBRL(Number(saleItem.parcelas_total) ? Math.max(0, saleItem.valor - saleItem.valor_sinal) / Number(saleItem.parcelas_total) : 0)}</div></div>}
                     <div className="min-w-0 space-y-1.5 md:col-span-2"><Label className="text-xs text-muted-foreground">Criativo de origem</Label><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><Select value={metaAdsWithEmoji.some((ad) => ad.name === saleItem.criativo) ? saleItem.criativo : undefined} onValueChange={(criativo) => updateRow({ criativo })}><SelectTrigger className="h-9 w-full"><SelectValue placeholder={isLoadingMetaAds ? "Carregando anúncios..." : "Selecionar anúncio da Meta"} /></SelectTrigger><SelectContent className="max-h-72">{metaAdsWithEmoji.map((ad) => <SelectItem key={ad.id} value={ad.name}>{ad.name} · {ad.campaignName}</SelectItem>)}</SelectContent></Select><Input className="h-9" list="meta-ad-names" value={saleItem.criativo} onChange={(event) => updateRow({ criativo: event.target.value })} placeholder="Emoji ou nome do anúncio" /></div></div>
-                    <div className="min-w-0 space-y-1.5 md:col-span-2"><Label className="text-xs text-muted-foreground">Observação financeira</Label><Input className="h-9" value={saleItem.observacao} onChange={(event) => updateRow({ observacao: event.target.value })} placeholder="Ex.: entrada via PIX; boletos enviados por e-mail" /></div>
+                    <div className="min-w-0 space-y-1.5 md:col-span-2"><div className="flex items-center justify-between gap-2"><Label className="text-xs text-muted-foreground">Observação financeira</Label>{editingRecords[rowIndex]?.fechamento && getPaymentHistory(editingRecords[rowIndex].fechamento?.observacao).length > 0 && <span className="text-[11px] font-medium text-primary">{getPaymentHistory(editingRecords[rowIndex].fechamento?.observacao).length} pagamento(s) registrado(s)</span>}</div><Input className="h-9" value={saleItem.observacao} onChange={(event) => updateRow({ observacao: event.target.value })} placeholder="Ex.: entrada via PIX; boletos enviados por e-mail" /></div>
                     {saleItem.condicao_pagamento === "boleto" && saleItem.parcelas_datas.map((date, dateIndex) => <div key={dateIndex} className={fieldClass}><Label className="text-xs text-muted-foreground">Vencimento {dateIndex + 1}</Label><Input className="h-9" type="date" value={date} onChange={(event) => updateRow({ parcelas_datas: saleItem.parcelas_datas.map((item, itemIndex) => itemIndex === dateIndex ? event.target.value : item) })} /></div>)}
                   </div>
                 </div>;
