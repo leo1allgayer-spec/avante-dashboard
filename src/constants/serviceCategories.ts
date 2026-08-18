@@ -42,7 +42,7 @@ const CATEGORY_ALIASES: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "Curso de Social Midia", aliases: ["curso de social midia", "curso de social media", "social media", "social midia"] },
   { canonical: "Curso de IA", aliases: ["curso de ia", "ia"] },
   { canonical: "Curso Canva para Empreendedores", aliases: ["curso canva para empreendedores", "canva"] },
-  { canonical: "Curso Captacao/Edicao", aliases: ["curso captacao/edicao", "curso captacao/edicao de conteudo", "captacao/edicao", "captacao/edicao de conteudo"] },
+  { canonical: "Curso Captacao/Edicao", aliases: ["curso captacao/edicao", "curso captacao/edicao de conteudo", "captacao/edicao"] },
   { canonical: "Suporte Extra", aliases: ["suporte extra", "suporte"] },
   { canonical: "Mentoria Meta Ads", aliases: ["mentoria meta ads"] },
   { canonical: "Assessoria 360", aliases: ["assessoria 360"] },
