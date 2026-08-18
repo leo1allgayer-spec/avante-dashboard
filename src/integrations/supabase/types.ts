@@ -678,6 +678,7 @@ export type Database = {
           valor_parcela: number
           valor_recorrente: number
           valor_sinal: number
+          valor_sinal_liquido: number | null
           vendedor: string
         }
         Insert: {
@@ -701,6 +702,7 @@ export type Database = {
           valor_parcela?: number
           valor_recorrente?: number
           valor_sinal?: number
+          valor_sinal_liquido?: number | null
           vendedor?: string
         }
         Update: {
@@ -724,6 +726,7 @@ export type Database = {
           valor_parcela?: number
           valor_recorrente?: number
           valor_sinal?: number
+          valor_sinal_liquido?: number | null
           vendedor?: string
         }
         Relationships: []

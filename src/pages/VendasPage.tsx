@@ -116,6 +116,20 @@ const getUniqueSaleNames = (products: string[], services: string[]) => {
   return [...unique.values()];
 };
 
+const getPaymentInstallments = (payment: string, fallback = 1) => {
+  const match = String(payment || "").match(/(\d+)x/i);
+  return match ? Number(match[1]) : fallback;
+};
+
+const getPaymentMethod = (payment: string) => String(payment || "").split("—")[0].trim();
+
+const getNetPaymentValue = (amount: number, payment: string, installments: number, profile: TaxProfile) => {
+  const method = getPaymentMethod(payment);
+  if (!PAGAMENTOS_COM_PARCELA.includes(method)) return +Number(amount || 0).toFixed(2);
+  const fee = getTaxas(method, profile)[Math.max(1, installments)] || 0;
+  return +(Number(amount || 0) * (1 - fee / 100)).toFixed(2);
+};
+
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 const MonthYearPicker = ({ value, onChange }: { value: string; onChange: (value: string) => void }) => {
@@ -143,7 +157,7 @@ const formatMonthYear = (date?: string | null) => {
   return `${MONTHS[Number(month) - 1]?.slice(0, 3) || month}/${year?.slice(-2)}`;
 };
 
-type PaymentHistoryEntry = { id: string; date: string; amount: number; method: string };
+type PaymentHistoryEntry = { id: string; date: string; amount: number; method: string; netAmount?: number };
 const PAYMENT_HISTORY_PREFIX = "[PAGAMENTO_VENDA]";
 
 const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =>
@@ -151,7 +165,7 @@ const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =
     if (!line.startsWith(PAYMENT_HISTORY_PREFIX)) return [];
     try {
       const entry = JSON.parse(line.slice(PAYMENT_HISTORY_PREFIX.length));
-      return entry?.id && entry?.date && Number(entry?.amount) > 0 ? [{ ...entry, amount: Number(entry.amount) }] : [];
+      return entry?.id && entry?.date && Number(entry?.amount) > 0 ? [{ ...entry, amount: Number(entry.amount), netAmount: entry.netAmount == null ? undefined : Number(entry.netAmount) }] : [];
     } catch {
       return [];
     }
@@ -176,6 +190,7 @@ const defaultForm = {
   pagamento: "Dinheiro",
   pagamento_saldo: "PIX",
   parcelas: 1,
+  parcelas_saldo: 1,
   status: "pendente",
   servico: "",
   origem: "",
@@ -200,6 +215,7 @@ type VendaItemForm = {
   pagamento: string;
   pagamento_saldo: string;
   parcelas: number;
+  parcelas_saldo: number;
   status: string;
   valor_sinal: number;
   valor_a_entrar: number;
@@ -221,6 +237,7 @@ const defaultVendaItem: VendaItemForm = {
   pagamento: "Dinheiro",
   pagamento_saldo: "PIX",
   parcelas: 1,
+  parcelas_saldo: 1,
   status: "pendente",
   valor_sinal: 0,
   valor_a_entrar: 0,
@@ -385,6 +402,27 @@ const VendasPage = () => {
     };
   };
 
+  const getFechamentoCollectedNet = (fechamento: FechamentoDiario) => {
+    const storedNet = fechamento.valor_sinal_liquido == null ? null : Number(fechamento.valor_sinal_liquido || 0);
+    const storedGross = Number(fechamento.valor_sinal || 0);
+    // A primeira implantação preencheu registros antigos com líquido = bruto.
+    // Quando forem iguais, reconstruímos pelas formas registradas; valores
+    // realmente calculados e diferentes do bruto continuam sendo respeitados.
+    if (storedNet != null && Math.abs(storedNet - storedGross) > 0.009) return storedNet;
+    const relatedSale = vendas.find((venda) =>
+      venda.cliente.trim().toLowerCase() === fechamento.cliente.trim().toLowerCase() &&
+      venda.vendedor.trim().toLowerCase() === fechamento.vendedor.trim().toLowerCase() &&
+      (venda.servico || venda.produto || "Sem categoria") === getFechamentoCategoria(fechamento),
+    );
+    const history = getPaymentHistory(fechamento.observacao);
+    const historyGross = history.reduce((total, entry) => total + Number(entry.amount || 0), 0);
+    const historyNet = history.reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0);
+    const initialGross = Math.max(0, Number(fechamento.valor_sinal || 0) - historyGross);
+    const initialMethod = fechamento.pagamento_sinal || relatedSale?.pagamento || "PIX";
+    const initialInstallments = getPaymentInstallments(initialMethod, Number(relatedSale?.parcelas || 1));
+    return +(historyNet + getNetPaymentValue(initialGross, initialMethod, initialInstallments, taxProfile)).toFixed(2);
+  };
+
   const vendasAgrupadas = useMemo(() => {
     const grupos = new Map<string, Venda[]>();
     filtered.forEach((venda) => {
@@ -408,9 +446,13 @@ const VendasPage = () => {
         item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase(),
       );
-      const sinal = Math.min(
+      const sinalBruto = Math.min(
         valorTotal,
         fechamentosRelacionados.reduce((total, item) => total + Number(item.valor_sinal || 0), 0),
+      );
+      const sinalLiquido = Math.min(
+        sinalBruto,
+        fechamentosRelacionados.reduce((total, item) => total + getFechamentoCollectedNet(item), 0),
       );
       const historyById = new Map<string, PaymentHistoryEntry>();
       fechamentosRelacionados.flatMap((item) => getPaymentHistory(item.observacao)).forEach((entry) => {
@@ -419,13 +461,13 @@ const VendasPage = () => {
       });
       const paymentHistory = [...historyById.values()].sort((a, b) => b.date.localeCompare(a.date));
       const historyTotal = paymentHistory.reduce((total, entry) => total + entry.amount, 0);
-      if (sinal > historyTotal + 0.01) {
-        paymentHistory.push({ id: `legacy-${chave}`, date: principal.data, amount: sinal - historyTotal, method: getSalePaymentLabel(principal) });
+      if (sinalBruto > historyTotal + 0.01) {
+        paymentHistory.push({ id: `legacy-${chave}`, date: principal.data, amount: sinalBruto - historyTotal, netAmount: Math.max(0, sinalLiquido - paymentHistory.reduce((total, entry) => total + Number(entry.netAmount ?? entry.amount), 0)), method: getSalePaymentLabel(principal) });
       }
 
       const coletadoPeriodo = paymentHistory
         .filter((entry) => dateInRange(entry.date))
-        .reduce((total, entry) => total + entry.amount, 0);
+        .reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0);
       const aReceberPeriodo = fechamentosRelacionados.reduce((total, item) => total + getAReceberNoPeriodo(item), 0);
       const previsoesRecebimento = [...new Set(fechamentosRelacionados
         .flatMap((item) => getStoredParcelDates(item).length ? getStoredParcelDates(item) : [item.previsao_entrada])
@@ -451,9 +493,10 @@ const VendasPage = () => {
         quantidade: itens.length,
         valorTotal,
         valorLiquido,
-        sinal,
-        saldo: Math.max(0, valorTotal - sinal),
-        comissao: +(sinal * 0.15).toFixed(2),
+        sinal: sinalLiquido,
+        sinalBruto,
+        saldo: Math.max(0, valorTotal - sinalBruto),
+        comissao: +(sinalLiquido * 0.15).toFixed(2),
         paymentHistory,
         coletadoPeriodo,
         aReceberPeriodo,
@@ -496,7 +539,13 @@ const VendasPage = () => {
     return {
       taxa: itemTemParcela ? itemTaxa : null,
       valorLiquido,
-      comissao: +((item.condicao_pagamento === "pago" ? valorLiquido : Number(item.valor_sinal || 0)) * 0.15).toFixed(2),
+      valorRecebidoLiquido: getNetPaymentValue(
+        item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0),
+        item.pagamento,
+        item.parcelas,
+        taxProfile,
+      ),
+      comissao: +(getNetPaymentValue(item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0), item.pagamento, item.parcelas, taxProfile) * 0.15).toFixed(2),
       parcelas: itemTemParcela ? `${item.parcelas}x (${itemTaxa}%)` : null,
     };
   };
@@ -514,7 +563,8 @@ const VendasPage = () => {
     const paymentMethod = quickPayments[saleKey] || "PIX";
     const paymentDate = quickPaymentDates[saleKey] || new Date().toISOString().split("T")[0];
     const installments = Math.max(1, Number(quickCardInstallments[saleKey] || 1));
-    const paymentLabel = paymentMethod === "Crédito" ? `Crédito (${installments}x)` : paymentMethod;
+    const paymentLabel = PAGAMENTOS_COM_PARCELA.includes(paymentMethod) ? `${paymentMethod} — ${installments}x` : paymentMethod;
+    const netPaymentAmount = getNetPaymentValue(paymentAmount, paymentMethod, installments, taxProfile);
     const paymentId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${saleKey}`;
     const usedFechamentos = new Set<string>();
     const usedCriativos = new Set<string>();
@@ -580,17 +630,21 @@ const VendasPage = () => {
         const valorJaColetado = Math.min(valorTotal, Number(fechamento?.valor_sinal || 0));
         const baixaItem = allocations.get(venda.id) || 0;
         const novoColetado = valorJaColetado + baixaItem;
+        const valorLiquidoJaColetado = Number(fechamento?.valor_sinal_liquido ?? fechamento?.valor_sinal ?? 0);
+        const baixaLiquidaItem = paymentAmount > 0 ? +(netPaymentAmount * (baixaItem / paymentAmount)).toFixed(2) : 0;
+        const novoColetadoLiquido = valorLiquidoJaColetado + baixaLiquidaItem;
         const novoSaldo = Math.max(0, valorTotal - novoColetado);
         updates.push(updateVenda.mutateAsync({
           id: venda.id,
           pagamento_saldo: paymentLabel,
-          comissao: +(novoColetado * 0.15).toFixed(2),
+          comissao: +(novoColetadoLiquido * 0.15).toFixed(2),
           status: novoSaldo <= 0 ? "pago" : "pendente",
         }));
 
         const fechamentoPayload = {
           data: paymentDate,
           valor_sinal: novoColetado,
+          valor_sinal_liquido: novoColetadoLiquido,
           valor_a_entrar: novoSaldo,
           valor_recorrente: 0,
           parcelas_total: null,
@@ -600,7 +654,7 @@ const VendasPage = () => {
           status: novoSaldo <= 0 ? "recebido" : "a receber",
           pagamento_saldo: paymentLabel,
           observacao: baixaItem > 0
-            ? appendPaymentHistory(fechamento?.observacao, { id: paymentId, date: paymentDate, amount: baixaItem, method: paymentLabel })
+            ? appendPaymentHistory(fechamento?.observacao, { id: paymentId, date: paymentDate, amount: baixaItem, netAmount: baixaLiquidaItem, method: paymentLabel })
             : (fechamento?.observacao || null),
         };
         if (fechamento) {
@@ -643,6 +697,7 @@ const VendasPage = () => {
     pagamento: form.pagamento,
     pagamento_saldo: form.pagamento_saldo,
     parcelas: form.parcelas,
+    parcelas_saldo: form.parcelas_saldo,
     status: form.status,
     valor_sinal: form.valor_sinal,
     valor_a_entrar: form.valor_a_entrar,
@@ -690,7 +745,7 @@ const VendasPage = () => {
 
   const fechamentoTotals = useMemo(() => {
     const ativos = fechamentosFiltrados.filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado");
-    const coletado = ativos.reduce((sum, item) => sum + (dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0), 0);
+    const coletado = ativos.reduce((sum, item) => sum + (dateInRange(item.data) ? getFechamentoCollectedNet(item) : 0), 0);
     const aReceber = ativos.reduce((sum, item) => sum + getAReceberNoPeriodo(item), 0);
     const recorrente = ativos.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
     return {
@@ -736,7 +791,7 @@ const VendasPage = () => {
       .filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado")
       .forEach((item) => {
         const row = getRow(getFechamentoCategoria(item));
-        row.coletado += dateInRange(item.data) ? Number(item.valor_sinal || 0) : 0;
+        row.coletado += dateInRange(item.data) ? getFechamentoCollectedNet(item) : 0;
         row.aReceber += getAReceberNoPeriodo(item);
         row.recorrente += Number(item.valor_recorrente || 0);
         row.fechamentos.push(item);
@@ -919,6 +974,7 @@ const VendasPage = () => {
     });
     const toItemForm = ({ venda, fechamento, criativo }: typeof records[number]): VendaItemForm => {
       const parcelasNum = venda.parcelas ? parseInt(venda.parcelas) : 1;
+      const pagamentoSaldoRegistrado = venda.pagamento_saldo || fechamento?.pagamento_saldo || "PIX";
       const valorSinal = Number(fechamento?.valor_sinal || 0);
       const valorAEntrar = Number(fechamento?.valor_a_entrar || 0);
       const condicaoPagamento = fechamento?.parcelas_total ? "boleto" : valorAEntrar > 0 && valorSinal > 0 ? "sinal" : valorAEntrar > 0 ? "a_receber" : "pago";
@@ -929,8 +985,9 @@ const VendasPage = () => {
         criativo: criativo?.criativo || "",
         valor: Number(venda.valor || 0),
         pagamento: venda.pagamento,
-        pagamento_saldo: venda.pagamento_saldo || fechamento?.pagamento_saldo || "PIX",
+        pagamento_saldo: getPaymentMethod(pagamentoSaldoRegistrado),
         parcelas: isNaN(parcelasNum) ? 1 : parcelasNum,
+        parcelas_saldo: getPaymentInstallments(pagamentoSaldoRegistrado),
         status: venda.status,
         valor_sinal: valorSinal,
         valor_a_entrar: valorAEntrar,
@@ -966,6 +1023,9 @@ const VendasPage = () => {
 
     const buildPayload = (item: VendaItemForm) => {
       const itemValores = getItemValores(item);
+      const pagamentoSaldo = PAGAMENTOS_COM_PARCELA.includes(item.pagamento_saldo)
+        ? `${item.pagamento_saldo} — ${item.parcelas_saldo}x`
+        : item.pagamento_saldo;
       return {
       user_id: session.user.id,
       data: form.data,
@@ -974,7 +1034,7 @@ const VendasPage = () => {
       produto: item.produto,
       valor: Number(item.valor || 0),
       pagamento: item.pagamento,
-      pagamento_saldo: item.pagamento_saldo,
+      pagamento_saldo: pagamentoSaldo,
       parcelas: itemValores.parcelas,
       valor_com_juros: itemValores.parcelas ? itemValores.valorLiquido : null,
       comissao: itemValores.comissao,
@@ -988,9 +1048,13 @@ const VendasPage = () => {
       const valorTotal = Number(item.valor || 0);
       const pagoIntegralmente = item.condicao_pagamento === "pago";
       const valorSinal = pagoIntegralmente ? valorTotal : Math.min(Number(item.valor_sinal || 0), valorTotal);
+      const valorSinalLiquido = getNetPaymentValue(valorSinal, item.pagamento, item.parcelas, taxProfile);
       const valorAEntrar = pagoIntegralmente ? 0 : Math.max(0, valorTotal - valorSinal);
       const parcelasTotal = item.condicao_pagamento === "boleto" ? Math.max(1, Number(item.parcelas_total || 1)) : null;
       const parcelasDatas = parcelasTotal ? buildParcelDates(parcelasTotal, item.previsao_entrada || form.data, item.parcelas_datas) : [];
+      const pagamentoSaldo = PAGAMENTOS_COM_PARCELA.includes(item.pagamento_saldo)
+        ? `${item.pagamento_saldo} — ${item.parcelas_saldo}x`
+        : item.pagamento_saldo;
 
       return {
         user_id: session.user.id,
@@ -1001,6 +1065,7 @@ const VendasPage = () => {
         categoria: item.servico || item.produto || null,
         origem: item.origem || null,
         valor_sinal: valorSinal,
+        valor_sinal_liquido: valorSinalLiquido,
         valor_a_entrar: valorAEntrar,
         valor_recorrente: 0,
         parcelas_total: parcelasTotal,
@@ -1010,7 +1075,7 @@ const VendasPage = () => {
         status: item.status === "cancelada" ? "cancelado" : pagoIntegralmente ? "recebido" : "a receber",
         observacao: item.observacao || null,
         pagamento_sinal: item.condicao_pagamento === "sinal" || item.condicao_pagamento === "boleto" ? item.pagamento : null,
-        pagamento_saldo: pagoIntegralmente ? null : item.pagamento_saldo,
+        pagamento_saldo: pagoIntegralmente ? null : pagamentoSaldo,
       };
     };
 
@@ -1166,10 +1231,11 @@ const VendasPage = () => {
                   </div>
                   <div className="mt-3 grid grid-cols-1 gap-3 border-t border-border/30 pt-3 sm:grid-cols-2 md:grid-cols-4">
                     {itemTemParcela && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Parcelas</Label><Select value={String(saleItem.parcelas)} onValueChange={(parcelas) => updateRow({ parcelas: Number(parcelas) })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{[1,2,3,4,5,6,7,8,9,10,11,12].map((parcela) => <SelectItem key={parcela} value={String(parcela)}>{parcela}x</SelectItem>)}</SelectContent></Select></div>}
-                    {itemTemParcela && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Valor líquido</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.valorLiquido)}</div></div>}
+                    {itemTemParcela && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Líquido coletado</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.valorRecebidoLiquido)}</div></div>}
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Comissão sobre recebido (15%)</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.comissao)}</div></div>
                     {saleItem.condicao_pagamento !== "pago" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Saldo restante</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-amber-400">{formatBRL(Math.max(0, Number(saleItem.valor || 0) - Number(saleItem.valor_sinal || 0)))}</div></div>}
                     {saleItem.condicao_pagamento !== "pago" && saleItem.condicao_pagamento !== "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Pagamento do saldo</Label><Select value={saleItem.pagamento_saldo} onValueChange={(pagamento_saldo) => updateRow({ pagamento_saldo })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Infinity (Visa/Master)", "Infinity Elo/Amex", "Link Gateway", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></div>}
+                    {saleItem.condicao_pagamento !== "pago" && saleItem.condicao_pagamento !== "boleto" && PAGAMENTOS_COM_PARCELA.includes(saleItem.pagamento_saldo) && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Parcelas do saldo</Label><Select value={String(saleItem.parcelas_saldo)} onValueChange={(parcelas_saldo) => updateRow({ parcelas_saldo: Number(parcelas_saldo) })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{[1,2,3,4,5,6,7,8,9,10,11,12].map((parcela) => <SelectItem key={parcela} value={String(parcela)}>{parcela}x</SelectItem>)}</SelectContent></Select></div>}
                     {saleItem.condicao_pagamento !== "pago" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">{saleItem.condicao_pagamento === "boleto" ? "Primeiro vencimento" : "Previsão do saldo"}</Label>{saleItem.condicao_pagamento === "boleto" ? <Input className="h-9" type="date" value={saleItem.previsao_entrada} onChange={(event) => updateRow({ previsao_entrada: event.target.value, parcelas_datas: buildParcelDates(saleItem.parcelas_total, event.target.value, saleItem.parcelas_datas) })} /> : <MonthYearPicker value={saleItem.previsao_entrada} onChange={(previsao_entrada) => updateRow({ previsao_entrada })} />}</div>}
                     {saleItem.condicao_pagamento === "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Quantidade de boletos</Label><Input className="h-9" type="number" min="1" max="48" value={saleItem.parcelas_total} onChange={(event) => { const parcelas_total = event.target.value; updateRow({ parcelas_total, parcelas_datas: buildParcelDates(parcelas_total, saleItem.previsao_entrada, saleItem.parcelas_datas), valor_parcela: Number(parcelas_total) ? +(Math.max(0, saleItem.valor - saleItem.valor_sinal) / Number(parcelas_total)).toFixed(2) : 0 }); }} /></div>}
                     {saleItem.condicao_pagamento === "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Valor por boleto</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold">{formatBRL(Number(saleItem.parcelas_total) ? Math.max(0, saleItem.valor - saleItem.valor_sinal) / Number(saleItem.parcelas_total) : 0)}</div></div>}
@@ -2016,9 +2082,9 @@ const VendasPage = () => {
                         <div className="flex items-center gap-1">
                           <Select value={quickPayments[grupo.chave] || "PIX"} onValueChange={(value) => setQuickPayments((current) => ({ ...current, [grupo.chave]: value }))}>
                             <SelectTrigger className="h-8 min-w-0 flex-1 px-2 text-xs"><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="PIX">PIX</SelectItem><SelectItem value="Dinheiro">Dinheiro</SelectItem><SelectItem value="Débito">Débito</SelectItem><SelectItem value="Crédito">Crédito</SelectItem></SelectContent>
+                            <SelectContent><SelectItem value="PIX">PIX</SelectItem><SelectItem value="Dinheiro">Dinheiro</SelectItem><SelectItem value="Débito">Débito</SelectItem><SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem><SelectItem value="Infinity Elo/Amex">Infinity Elo/Amex</SelectItem><SelectItem value="Link Gateway">Link Gateway</SelectItem></SelectContent>
                           </Select>
-                          {(quickPayments[grupo.chave] || "PIX") === "Crédito" && (
+                          {PAGAMENTOS_COM_PARCELA.includes(quickPayments[grupo.chave] || "PIX") && (
                             <Select value={quickCardInstallments[grupo.chave] || "1"} onValueChange={(value) => setQuickCardInstallments((current) => ({ ...current, [grupo.chave]: value }))}>
                               <SelectTrigger className="h-8 w-[58px] shrink-0 px-2 text-xs" title="Quantidade de parcelas"><SelectValue /></SelectTrigger>
                               <SelectContent>{Array.from({ length: 12 }, (_, installment) => <SelectItem key={installment + 1} value={String(installment + 1)}>{installment + 1}x</SelectItem>)}</SelectContent>
@@ -2195,7 +2261,9 @@ const VendasPage = () => {
                                     <SelectItem value="PIX">PIX</SelectItem>
                                     <SelectItem value="Dinheiro">Dinheiro</SelectItem>
                                     <SelectItem value="Débito">Débito</SelectItem>
-                                    <SelectItem value="Crédito">Crédito</SelectItem>
+                                    <SelectItem value="Infinity (Visa/Master)">Infinity (Visa/Master)</SelectItem>
+                                    <SelectItem value="Infinity Elo/Amex">Infinity Elo/Amex</SelectItem>
+                                    <SelectItem value="Link Gateway">Link Gateway</SelectItem>
                                   </SelectContent>
                                 </Select>
                               </div>
@@ -2209,7 +2277,7 @@ const VendasPage = () => {
                                 {settlingSaleKey === grupo.chave ? "Salvando..." : "Registrar"}
                               </Button>
                             </div>
-                            {(quickPayments[grupo.chave] || "PIX") === "Crédito" && (
+                            {PAGAMENTOS_COM_PARCELA.includes(quickPayments[grupo.chave] || "PIX") && (
                               <Select
                                 value={quickCardInstallments[grupo.chave] || "1"}
                                 onValueChange={(value) => setQuickCardInstallments((current) => ({ ...current, [grupo.chave]: value }))}

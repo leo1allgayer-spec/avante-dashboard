@@ -11,6 +11,7 @@ export interface FechamentoDiario {
   categoria: string | null;
   origem: string | null;
   valor_sinal: number;
+  valor_sinal_liquido: number | null;
   valor_a_entrar: number;
   valor_recorrente: number;
   parcelas_total: number | null;
