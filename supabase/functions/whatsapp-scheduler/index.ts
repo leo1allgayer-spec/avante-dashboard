@@ -45,6 +45,25 @@ function shouldCancelExpiredReminder(msg: any, booking: any, now: Date): boolean
   return now.getTime() - scheduledFor.getTime() > windowMs;
 }
 
+function isReminderForCurrentBooking(msg: any, booking: any): boolean {
+  const courseDateTime = getCourseDateTime(booking);
+  if (!courseDateTime) return false;
+
+  const offsets: Record<string, number> = {
+    reminder_24h: 24 * 60 * 60 * 1000,
+    reminder_1h: 60 * 60 * 1000,
+  };
+  const offset = offsets[msg.message_type];
+  if (!offset) return true;
+
+  const scheduledFor = new Date(msg.scheduled_for);
+  if (Number.isNaN(scheduledFor.getTime())) return false;
+
+  const expected = courseDateTime.getTime() - offset;
+  // Small tolerance for rows created with seconds/milliseconds differences.
+  return Math.abs(scheduledFor.getTime() - expected) <= 2 * 60 * 1000;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -112,6 +131,17 @@ Deno.serve(async (req) => {
 
       // Skip if booking is cancelled
       if (booking.course_status === "cancelado" || booking.status !== "confirmed") {
+        await supabase
+          .from("whatsapp_scheduled_messages")
+          .update({ status: "cancelled", updated_at: now })
+          .eq("id", msg.id);
+        continue;
+      }
+
+      // A rescheduled booking may still have a reminder from the previous date
+      // in the queue. Never send a reminder unless it matches the booking's
+      // current date and time.
+      if (!isReminderForCurrentBooking(msg, booking)) {
         await supabase
           .from("whatsapp_scheduled_messages")
           .update({ status: "cancelled", updated_at: now })
