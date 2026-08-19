@@ -572,7 +572,6 @@ const VendasPage = () => {
     const paymentDate = quickPaymentDates[saleKey] || new Date().toISOString().split("T")[0];
     const installments = Math.max(1, Number(quickCardInstallments[saleKey] || 1));
     const paymentLabel = PAGAMENTOS_COM_PARCELA.includes(paymentMethod) ? `${paymentMethod} — ${installments}x` : paymentMethod;
-    const netPaymentAmount = getNetPaymentValue(paymentAmount, paymentMethod, installments, taxProfile);
     const paymentId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${saleKey}`;
     const usedFechamentos = new Set<string>();
     const usedCriativos = new Set<string>();
@@ -599,6 +598,7 @@ const VendasPage = () => {
       toast({ title: "Valor inválido", description: `Informe um valor entre R$ 0,01 e ${formatBRL(groupBalance)}.`, variant: "destructive" });
       return;
     }
+    const netPaymentAmount = getNetPaymentValue(paymentAmount, paymentMethod, installments, taxProfile);
 
     const allocations = new Map<string, number>();
     const balances = linkedItems.map(({ venda, fechamento }) => ({
