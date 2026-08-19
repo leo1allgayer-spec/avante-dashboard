@@ -828,6 +828,22 @@ const VendasPage = () => {
     return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
   }, [fechamentosFiltrados, vendasAprovadas, dateFilter.range.start, dateFilter.range.end]);
 
+  const salesTotalsBreakdown = useMemo(() => integratedCategoryRows.reduce((totals, row) => {
+    const isCourse = COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(row.categoria));
+    const target = isCourse ? totals.cursos : totals.servicos;
+    target.coletado += row.coletado;
+    target.aReceber += row.aReceber;
+    target.vendas += row.vendas;
+    totals.total.coletado += row.coletado;
+    totals.total.aReceber += row.aReceber;
+    totals.total.vendas += row.vendas;
+    return totals;
+  }, {
+    total: { coletado: 0, aReceber: 0, vendas: 0 },
+    cursos: { coletado: 0, aReceber: 0, vendas: 0 },
+    servicos: { coletado: 0, aReceber: 0, vendas: 0 },
+  }), [integratedCategoryRows]);
+
   const metasPrincipais = useMemo(() => {
     const rows = monthMetrics || [];
     const lastWithTarget = (keys: Array<"meta_cursos" | "super_meta_cursos" | "meta_servicos" | "super_meta_servicos" | "meta_suporte_extra" | "super_meta_suporte_extra" | "meta_site" | "super_meta_site" | "meta_negocio_local" | "super_meta_negocio_local" | "meta_crm" | "super_meta_crm" | "meta_upsell" | "super_meta_upsell">) => {
@@ -1734,7 +1750,10 @@ const VendasPage = () => {
                 <Wallet className="h-4 w-4 text-success" /> Coletado
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(visibleSalesTotals.coletado)}</CardContent>
+            <CardContent>
+              <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.coletado)}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.coletado)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.coletado)}</p>
+            </CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
@@ -1742,7 +1761,10 @@ const VendasPage = () => {
                 <Clock3 className="h-4 w-4 text-amber-500" /> A receber
               </CardTitle>
             </CardHeader>
-            <CardContent className="font-display text-2xl font-bold">{formatBRL(visibleSalesTotals.aReceber)}</CardContent>
+            <CardContent>
+              <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.aReceber)}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.aReceber)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.aReceber)}</p>
+            </CardContent>
           </Card>
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
@@ -1824,15 +1846,18 @@ const VendasPage = () => {
               <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
                   <span className="text-muted-foreground">Coletado</span>
-                  <strong className="block text-success">{formatBRL(visibleSalesTotals.coletado)}</strong>
+                  <strong className="block text-success">{formatBRL(salesTotalsBreakdown.total.coletado)}</strong>
+                  <small className="mt-1 block text-[10px] text-muted-foreground">Cursos {formatBRL(salesTotalsBreakdown.cursos.coletado)} · Serviços {formatBRL(salesTotalsBreakdown.servicos.coletado)}</small>
                 </div>
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2">
                   <span className="text-muted-foreground">A receber</span>
-                  <strong className="block text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</strong>
+                  <strong className="block text-amber-500">{formatBRL(salesTotalsBreakdown.total.aReceber)}</strong>
+                  <small className="mt-1 block text-[10px] text-muted-foreground">Cursos {formatBRL(salesTotalsBreakdown.cursos.aReceber)} · Serviços {formatBRL(salesTotalsBreakdown.servicos.aReceber)}</small>
                 </div>
                 <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2">
                   <span className="text-muted-foreground">Vendas</span>
-                  <strong className="block text-accent">{vendaTotals.quantidade}</strong>
+                  <strong className="block text-accent">{salesTotalsBreakdown.total.vendas}</strong>
+                  <small className="mt-1 block text-[10px] text-muted-foreground">Cursos {salesTotalsBreakdown.cursos.vendas} · Serviços {salesTotalsBreakdown.servicos.vendas}</small>
                 </div>
                 <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2">
                   <span className="text-muted-foreground">Comissão paga</span>
