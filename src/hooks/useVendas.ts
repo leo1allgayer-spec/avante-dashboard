@@ -14,6 +14,8 @@ export interface Venda {
   parcelas: string | null;
   valor_com_juros: number | null;
   comissao: number;
+  comissao_paga_valor?: number;
+  data_ultimo_pagamento_comissao?: string | null;
   status_comissao?: string;
   status: string;
   servico: string;

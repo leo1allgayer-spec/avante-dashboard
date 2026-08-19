@@ -735,6 +735,8 @@ export type Database = {
         Row: {
           cliente: string
           comissao: number
+          comissao_paga_valor: number
+          data_ultimo_pagamento_comissao: string | null
           status_comissao: string
           created_at: string
           data: string
@@ -755,6 +757,8 @@ export type Database = {
         Insert: {
           cliente: string
           comissao?: number
+          comissao_paga_valor?: number
+          data_ultimo_pagamento_comissao?: string | null
           status_comissao?: string
           created_at?: string
           data?: string
@@ -775,6 +779,8 @@ export type Database = {
         Update: {
           cliente?: string
           comissao?: number
+          comissao_paga_valor?: number
+          data_ultimo_pagamento_comissao?: string | null
           status_comissao?: string
           created_at?: string
           data?: string

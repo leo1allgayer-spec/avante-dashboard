@@ -503,6 +503,11 @@ const VendasPage = () => {
         )
         .map((booking) => booking.date))]
         .sort();
+      const comissaoTotal = itens.reduce((total, item) => total + Number(item.comissao || 0), 0);
+      const comissaoPaga = itens.reduce((total, item) => total + Math.min(
+        Number(item.comissao || 0),
+        Number(item.comissao_paga_valor ?? (item.status_comissao === "paga" ? item.comissao : 0)),
+      ), 0);
 
       return {
         chave,
@@ -516,7 +521,9 @@ const VendasPage = () => {
         sinal: sinalLiquido,
         sinalBruto,
         saldo: Math.max(0, valorTotal - sinalBruto),
-        comissao: +(sinalLiquido * 0.15).toFixed(2),
+        comissao: +comissaoTotal.toFixed(2),
+        comissaoPaga: +comissaoPaga.toFixed(2),
+        comissaoPendente: +Math.max(0, comissaoTotal - comissaoPaga).toFixed(2),
         paymentHistory,
         coletadoPeriodo,
         aReceberPeriodo,
@@ -572,7 +579,15 @@ const VendasPage = () => {
 
   const updateCommissionStatus = async (items: Venda[], status_comissao: string) => {
     try {
-      await Promise.all(items.map((item) => updateVenda.mutateAsync({ id: item.id, status_comissao })));
+      const paidAt = new Date().toISOString().split("T")[0];
+      await Promise.all(items.map((item) => updateVenda.mutateAsync({
+        id: item.id,
+        status_comissao,
+        ...(status_comissao === "paga" ? {
+          comissao_paga_valor: Number(item.comissao || 0),
+          data_ultimo_pagamento_comissao: paidAt,
+        } : {}),
+      })));
       toast({ title: status_comissao === "paga" ? "Comissão marcada como paga" : "Comissão marcada como pendente" });
     } catch (error) {
       toast({ title: "Erro ao atualizar comissão", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
@@ -650,14 +665,17 @@ const VendasPage = () => {
         const valorJaColetado = Math.min(valorTotal, Number(fechamento?.valor_sinal || 0));
         const baixaItem = allocations.get(venda.id) || 0;
         const novoColetado = valorJaColetado + baixaItem;
-        const valorLiquidoJaColetado = Number(fechamento?.valor_sinal_liquido ?? fechamento?.valor_sinal ?? 0);
+        const valorLiquidoJaColetado = fechamento ? getFechamentoCollectedNet(fechamento) : 0;
         const baixaLiquidaItem = paymentAmount > 0 ? +(netPaymentAmount * (baixaItem / paymentAmount)).toFixed(2) : 0;
         const novoColetadoLiquido = valorLiquidoJaColetado + baixaLiquidaItem;
         const novoSaldo = Math.max(0, valorTotal - novoColetado);
+        const novaComissao = +(novoColetadoLiquido * 0.15).toFixed(2);
+        const comissaoJaPaga = Number(venda.comissao_paga_valor ?? (venda.status_comissao === "paga" ? venda.comissao : 0));
         updates.push(updateVenda.mutateAsync({
           id: venda.id,
           pagamento_saldo: paymentLabel,
-          comissao: +(novoColetadoLiquido * 0.15).toFixed(2),
+          comissao: novaComissao,
+          status_comissao: baixaItem > 0 && novaComissao > comissaoJaPaga + 0.009 ? "pendente" : venda.status_comissao,
           status: novoSaldo <= 0 ? "pago" : "pendente",
         }));
 
@@ -822,7 +840,10 @@ const VendasPage = () => {
       const row = getRow(getVendaCategoria(venda));
       row.feito += Number(venda.valor || 0);
       row.vendas += 1;
-      if (venda.status_comissao === "paga") row.comissaoPaga += Number(venda.comissao || 0);
+      row.comissaoPaga += Math.min(
+        Number(venda.comissao || 0),
+        Number(venda.comissao_paga_valor ?? (venda.status_comissao === "paga" ? venda.comissao : 0)),
+      );
     });
 
     return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
@@ -2091,7 +2112,7 @@ const VendasPage = () => {
                 <TableHead className="w-[6%] px-2 text-right text-xs">Coletado</TableHead>
                 <TableHead className="w-[6%] px-2 text-right">A receber</TableHead>
                 <TableHead className="w-[5%] px-2">Pagamento</TableHead>
-                <TableHead className="w-[6%] px-2 text-right">Comissão</TableHead>
+                <TableHead className="w-[6%] px-2 text-right">Comissão pendente</TableHead>
                 <TableHead className="w-[8%] px-2">Valor recebido</TableHead>
                 <TableHead className="w-[8%] px-2">Data</TableHead>
                 <TableHead className="w-[11%] px-2">Forma / parcelas</TableHead>
@@ -2148,7 +2169,7 @@ const VendasPage = () => {
                       )}
                     </TableCell>
                     <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{getSalePaymentLabel(v)}</Badge></TableCell>
-                    <TableCell className="px-2 py-3 text-right text-[15px] font-semibold">{formatBRL(grupo.comissao)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right text-[15px] font-semibold" title={`Gerada: ${formatBRL(grupo.comissao)} · Já paga: ${formatBRL(grupo.comissaoPaga)}`}>{formatBRL(grupo.comissaoPendente)}</TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-8 px-2 text-xs" /> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="date" value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]} onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))} className="h-8 px-1.5 text-[11px]" /> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">
@@ -2179,12 +2200,7 @@ const VendasPage = () => {
           {vendasAgrupadas.length > 0 && (() => {
             const totalVendido = vendasAgrupadas.reduce((total, grupo) => total + grupo.valorTotal, 0);
             const totalItens = vendasAgrupadas.reduce((total, grupo) => total + grupo.quantidade, 0);
-            const totalComissaoPendente = vendasAgrupadas.reduce(
-              (total, grupo) => total + grupo.itens
-                .filter((item) => item.status_comissao !== "paga")
-                .reduce((subtotal, item) => subtotal + Number(item.comissao || 0), 0),
-              0,
-            );
+            const totalComissaoPendente = vendasAgrupadas.reduce((total, grupo) => total + grupo.comissaoPendente, 0);
             return (
               <div className="grid grid-cols-5 gap-6 border-t-2 border-accent/40 bg-secondary/50 px-5 py-4 text-xs">
                 <div className="min-w-0">
@@ -2421,9 +2437,7 @@ const VendasPage = () => {
                   const totalValor = vendasAgrupadas.reduce((s, grupo) => s + grupo.valorTotal, 0);
                   const totalSinal = vendasAgrupadas.reduce((s, grupo) => s + grupo.sinal, 0);
                   const totalSaldo = vendasAgrupadas.reduce((s, grupo) => s + grupo.saldo, 0);
-                  const totalComissao = vendasAgrupadas.reduce((total, grupo) => total + grupo.itens
-                    .filter((item) => item.status_comissao !== "paga")
-                    .reduce((subtotal, item) => subtotal + Number(item.comissao || 0), 0), 0);
+                  const totalComissao = vendasAgrupadas.reduce((total, grupo) => total + grupo.comissaoPendente, 0);
                   const totalServicos = vendasAgrupadas.reduce((s, grupo) => s + grupo.quantidade, 0);
                   return (
                     <TableRow className="border-t-2 border-accent/30" style={{ background: "hsl(260, 22%, 11%)" }}>
