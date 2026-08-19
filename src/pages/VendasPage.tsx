@@ -302,6 +302,7 @@ const VendasPage = () => {
   const [vendedorFilter, setVendedorFilter] = useState("todos");
   const [pagamentoFilter, setPagamentoFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
+  const [salesTableSection, setSalesTableSection] = useState<"cursos" | "servicos">("cursos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVenda, setEditingVenda] = useState<Venda | null>(null);
   const [editingFechamento, setEditingFechamento] = useState<FechamentoDiario | null>(null);
@@ -410,6 +411,15 @@ const VendasPage = () => {
     };
   };
 
+  const isCourseSale = (venda: Venda) => COURSE_PRODUCTS.some(
+    (produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)),
+  );
+
+  const tableFilteredSales = useMemo(
+    () => filtered.filter((venda) => salesTableSection === "cursos" ? isCourseSale(venda) : !isCourseSale(venda)),
+    [filtered, salesTableSection],
+  );
+
   const getFechamentoCollectedNet = (fechamento: FechamentoDiario) => {
     const storedNet = fechamento.valor_sinal_liquido == null ? null : Number(fechamento.valor_sinal_liquido || 0);
     const storedGross = Number(fechamento.valor_sinal || 0);
@@ -433,7 +443,7 @@ const VendasPage = () => {
 
   const vendasAgrupadas = useMemo(() => {
     const grupos = new Map<string, Venda[]>();
-    filtered.forEach((venda) => {
+    tableFilteredSales.forEach((venda) => {
       const chave = [venda.data, venda.cliente.trim().toLowerCase(), venda.vendedor.trim().toLowerCase()].join("|");
       grupos.set(chave, [...(grupos.get(chave) || []), venda]);
     });
@@ -443,6 +453,7 @@ const VendasPage = () => {
       const principal = itensPorLancamento[0];
       const produtos = [...new Set(itens.map((item) => item.produto).filter(Boolean))];
       const servicos = [...new Set(itens.map((item) => item.servico).filter(Boolean))];
+      const categoriasGrupo = new Set(itens.map((item) => normalizeText(getVendaCategoria(item))));
       const valoresPositivos = itens.map((item) => Number(item.valor || 0)).filter((valor) => valor > 0);
       const valorTotal = valoresPositivos.reduce((total, valor) => total + valor, 0);
       const liquidosPositivos = itens.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
@@ -452,7 +463,8 @@ const VendasPage = () => {
       // os indicadores, não ao localizar o registro financeiro da venda.
       const fechamentosRelacionados = fechamentos.filter((item) =>
         item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
-        item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase(),
+        item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase() &&
+        categoriasGrupo.has(normalizeText(getFechamentoCategoria(item))),
       );
       const sinalBruto = Math.min(
         valorTotal,
@@ -520,7 +532,7 @@ const VendasPage = () => {
       const ultimoLancamentoB = Math.max(...b.itens.map((item) => new Date(item.created_at).getTime()));
       return ultimoLancamentoB - ultimoLancamentoA;
     });
-  }, [filtered, fechamentos, courseBookings, taxProfile, statusFilter, dateFilter.range.start, dateFilter.range.end]);
+  }, [tableFilteredSales, fechamentos, courseBookings, taxProfile, statusFilter, dateFilter.range.start, dateFilter.range.end]);
 
   const visibleSalesTotals = useMemo(() => vendasAgrupadas.reduce(
     (totals, grupo) => ({
@@ -1913,6 +1925,23 @@ const VendasPage = () => {
           </div>
         </div>
 
+        <div className="mb-4 rounded-xl border border-border/40 bg-card/60 p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold">Planilhas de vendas</p>
+              <p className="text-xs text-muted-foreground">Cursos e serviços ficam separados somente na visualização, sem alterar os registros salvos.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" size="sm" variant={salesTableSection === "cursos" ? "default" : "outline"} onClick={() => setSalesTableSection("cursos")}>
+                Cursos ({filtered.filter(isCourseSale).length})
+              </Button>
+              <Button type="button" size="sm" variant={salesTableSection === "servicos" ? "default" : "outline"} onClick={() => setSalesTableSection("servicos")}>
+                Serviços ({filtered.filter((venda) => !isCourseSale(venda)).length})
+              </Button>
+            </div>
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="relative">
@@ -2032,7 +2061,7 @@ const VendasPage = () => {
             <TableHeader>
               <TableRow className="border-border/30 bg-secondary/30">
                 <TableHead className="w-[10%] px-2 text-xs">Cliente</TableHead>
-                <TableHead className="w-[12%] px-2 text-xs">Produtos / serviços</TableHead>
+                <TableHead className="w-[12%] px-2 text-xs">{salesTableSection === "cursos" ? "Curso" : "Serviço"}</TableHead>
                 <TableHead className="w-[6%] px-2 text-right text-xs">Total</TableHead>
                 <TableHead className="w-[6%] px-2 text-right text-xs">Coletado</TableHead>
                 <TableHead className="w-[6%] px-2 text-right">A receber</TableHead>
@@ -2135,7 +2164,7 @@ const VendasPage = () => {
               <div className="grid grid-cols-5 gap-6 border-t-2 border-accent/40 bg-secondary/50 px-5 py-4 text-xs">
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Registros</p>
-                  <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} itens</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} {salesTableSection === "cursos" ? "cursos" : "serviços"}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Total vendido</p>
