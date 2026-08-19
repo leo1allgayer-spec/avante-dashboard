@@ -785,12 +785,13 @@ const VendasPage = () => {
       recorrente: number;
       feito: number;
       vendas: number;
+      comissaoPaga: number;
       fechamentos: FechamentoDiario[];
     }>();
 
     const getRow = (categoria: string) => {
       if (!map.has(categoria)) {
-        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0, fechamentos: [] });
+        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0, comissaoPaga: 0, fechamentos: [] });
       }
       return map.get(categoria)!;
     };
@@ -809,6 +810,7 @@ const VendasPage = () => {
       const row = getRow(getVendaCategoria(venda));
       row.feito += Number(venda.valor || 0);
       row.vendas += 1;
+      if (venda.status_comissao === "paga") row.comissaoPaga += Number(venda.comissao || 0);
     });
 
     return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
@@ -1807,7 +1809,7 @@ const VendasPage = () => {
                   Conferencia por categoria: valores coletados, a receber e recorrentes.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                 <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
                   <span className="text-muted-foreground">Coletado</span>
                   <strong className="block text-success">{formatBRL(visibleSalesTotals.coletado)}</strong>
@@ -1819,6 +1821,10 @@ const VendasPage = () => {
                 <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2">
                   <span className="text-muted-foreground">Vendas</span>
                   <strong className="block text-accent">{vendaTotals.quantidade}</strong>
+                </div>
+                <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2">
+                  <span className="text-muted-foreground">Comissão paga</span>
+                  <strong className="block text-sky-400">{formatBRL(integratedCategoryRows.reduce((total, row) => total + row.comissaoPaga, 0))}</strong>
                 </div>
               </div>
             </div>
@@ -1835,6 +1841,7 @@ const VendasPage = () => {
                       <TableHead className="text-right">Marcado / coletado</TableHead>
                       <TableHead className="text-right">A receber</TableHead>
                       <TableHead className="text-right">Recorrente</TableHead>
+                      <TableHead className="text-right">Comissão paga</TableHead>
                       <TableHead className="text-center">Vendas feitas</TableHead>
                       <TableHead className="w-20 text-right">Acoes</TableHead>
                     </TableRow>
@@ -1846,6 +1853,7 @@ const VendasPage = () => {
                         <TableCell className="text-right font-semibold text-success">{formatBRL(row.coletado)}</TableCell>
                         <TableCell className="text-right font-semibold text-amber-500">{formatBRL(row.aReceber)}</TableCell>
                         <TableCell className="text-right font-semibold text-primary">{formatBRL(row.recorrente)}</TableCell>
+                        <TableCell className="text-right font-semibold text-sky-400">{formatBRL(row.comissaoPaga)}</TableCell>
                         <TableCell className="text-center">{row.vendas}</TableCell>
                         <TableCell>
                           <div className="flex justify-end gap-1">
