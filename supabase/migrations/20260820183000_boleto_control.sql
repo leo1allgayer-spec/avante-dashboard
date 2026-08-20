@@ -17,8 +17,20 @@ alter table public.boletos_recebimentos enable row level security;
 drop policy if exists "authenticated manage boletos" on public.boletos_recebimentos;
 create policy "authenticated manage boletos" on public.boletos_recebimentos
 for all to authenticated
-using (user_id = auth.uid())
-with check (user_id = auth.uid());
+using (
+  auth.uid() in (
+    '7aefc8ff-cc00-4704-9a07-be45791fb539'::uuid,
+    '4b2d0f41-d422-4b69-8a7b-419890dbcfe7'::uuid,
+    'a4178654-ba1c-4ab9-aae6-efcd7444114d'::uuid
+  )
+)
+with check (
+  auth.uid() in (
+    '7aefc8ff-cc00-4704-9a07-be45791fb539'::uuid,
+    '4b2d0f41-d422-4b69-8a7b-419890dbcfe7'::uuid,
+    'a4178654-ba1c-4ab9-aae6-efcd7444114d'::uuid
+  )
+);
 
 create or replace function public.sync_boletos_from_fechamento()
 returns trigger
@@ -101,7 +113,13 @@ begin
 
   select * into v_boleto from public.boletos_recebimentos where id = p_boleto_id for update;
   if v_boleto.id is null then raise exception 'Boleto não encontrado'; end if;
-  if v_boleto.user_id <> auth.uid() then raise exception 'Sem permissão para confirmar este boleto'; end if;
+  if auth.uid() not in (
+    '7aefc8ff-cc00-4704-9a07-be45791fb539'::uuid,
+    '4b2d0f41-d422-4b69-8a7b-419890dbcfe7'::uuid,
+    'a4178654-ba1c-4ab9-aae6-efcd7444114d'::uuid
+  ) then
+    raise exception 'Conta sem permissão financeira';
+  end if;
   if v_boleto.status = 'pago' then return v_boleto; end if;
   if v_boleto.status <> 'pendente' then raise exception 'Boleto não está pendente'; end if;
 
