@@ -462,6 +462,7 @@ const VendasPage = () => {
       // de recebimento está em outro mês. O período só é aplicado ao somar
       // os indicadores, não ao localizar o registro financeiro da venda.
       const fechamentosRelacionados = fechamentos.filter((item) =>
+        normalizeFechamentoStatus(item.status) !== "cancelado" &&
         item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
         item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase() &&
         categoriasGrupo.has(normalizeText(getFechamentoCategoria(item))),
