@@ -29,6 +29,7 @@ import CursosDadosPage from "./pages/CursosDadosPage";
 import CriativosPage from "./pages/CriativosPage";
 import PlanilhaInstaPage from "./pages/PlanilhaInstaPage";
 import PagamentosPage from "./pages/PagamentosPage";
+import BoletosPage from "./pages/BoletosPage";
 import FutureStudentSignupPage from "./pages/FutureStudentSignupPage";
 import FutureStudentsPage from "./pages/FutureStudentsPage";
 import NotFound from "./pages/NotFound";
@@ -146,6 +147,7 @@ const AnimatedRoutes = () => {
         <Route path="/criativos" element={<ProtectedRoute><CriativosPage /></ProtectedRoute>} />
         <Route path="/planilha-insta" element={<ProtectedRoute><PlanilhaInstaPage /></ProtectedRoute>} />
         <Route path="/pagamentos" element={<ProtectedRoute><PagamentosPage /></ProtectedRoute>} />
+        <Route path="/boletos" element={<ProtectedRoute><BoletosPage /></ProtectedRoute>} />
         <Route path="/alunos-futuros" element={<ProtectedRoute><FutureStudentsPage /></ProtectedRoute>} />
         <Route path="/aluno-futuro" element={<FutureStudentSignupPage />} />
         
