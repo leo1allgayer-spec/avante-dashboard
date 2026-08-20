@@ -106,6 +106,12 @@ const normalizeText = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
+const getSalesCommissionRate = (origin?: string | null) =>
+  normalizeText(origin) === "social seller" ? 0.10 : 0.15;
+
+const getSalesCommissionPercent = (origin?: string | null) =>
+  Math.round(getSalesCommissionRate(origin) * 100);
+
 const getUniqueSaleNames = (products: string[], services: string[]) => {
   const unique = new Map<string, string>();
   [...products, ...services].filter(Boolean).forEach((name) => {
@@ -330,7 +336,7 @@ const VendasPage = () => {
     : null;
   const valorBase = valorComJuros ?? form.valor;
   const valorRecebido = form.condicao_pagamento === "pago" ? valorBase : Number(form.valor_sinal || 0);
-  const comissao = +(valorRecebido * 0.15).toFixed(2);
+  const comissao = +(valorRecebido * getSalesCommissionRate(form.origem)).toFixed(2);
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
 
@@ -406,7 +412,7 @@ const VendasPage = () => {
     const valorLiquido = +(Number(v.valor) * (1 - taxaVenda / 100)).toFixed(2);
     return {
       valorLiquido,
-      comissao: +(valorLiquido * 0.15).toFixed(2),
+      comissao: +(valorLiquido * getSalesCommissionRate(v.origem)).toFixed(2),
       taxa: taxaVenda,
     };
   };
@@ -573,7 +579,7 @@ const VendasPage = () => {
         item.parcelas,
         taxProfile,
       ),
-      comissao: +(getNetPaymentValue(item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0), item.pagamento, item.parcelas, taxProfile) * 0.15).toFixed(2),
+      comissao: +(getNetPaymentValue(item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0), item.pagamento, item.parcelas, taxProfile) * getSalesCommissionRate(item.origem)).toFixed(2),
       parcelas: itemTemParcela ? `${item.parcelas}x (${itemTaxa}%)` : null,
     };
   };
@@ -673,7 +679,7 @@ const VendasPage = () => {
         const baixaLiquidaItem = paymentAmount > 0 ? +(netPaymentAmount * (baixaItem / paymentAmount)).toFixed(2) : 0;
         const novoColetadoLiquido = valorLiquidoJaColetado + baixaLiquidaItem;
         const novoSaldo = Math.max(0, valorTotal - novoColetado);
-        const novaComissao = +(novoColetadoLiquido * 0.15).toFixed(2);
+        const novaComissao = +(novoColetadoLiquido * getSalesCommissionRate(venda.origem)).toFixed(2);
         const comissaoJaPaga = Number(venda.comissao_paga_valor ?? (venda.status_comissao === "paga" ? venda.comissao : 0));
         updates.push(updateVenda.mutateAsync({
           id: venda.id,
@@ -1311,7 +1317,7 @@ const VendasPage = () => {
                   <div className="mt-3 grid grid-cols-1 gap-3 border-t border-border/30 pt-3 sm:grid-cols-2 md:grid-cols-4">
                     {itemTemParcela && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Parcelas</Label><Select value={String(saleItem.parcelas)} onValueChange={(parcelas) => updateRow({ parcelas: Number(parcelas) })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{[1,2,3,4,5,6,7,8,9,10,11,12].map((parcela) => <SelectItem key={parcela} value={String(parcela)}>{parcela}x</SelectItem>)}</SelectContent></Select></div>}
                     {itemTemParcela && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Líquido coletado</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.valorRecebidoLiquido)}</div></div>}
-                    <div className={fieldClass}><Label className="text-xs text-muted-foreground">Comissão sobre recebido (15%)</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.comissao)}</div></div>
+                    <div className={fieldClass}><Label className="text-xs text-muted-foreground">Comissão sobre recebido ({getSalesCommissionPercent(saleItem.origem)}%)</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-emerald-400">{formatBRL(itemValores.comissao)}</div></div>
                     {saleItem.condicao_pagamento !== "pago" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Saldo restante</Label><div className="flex h-9 items-center rounded-md border border-border/30 bg-secondary/30 px-3 text-sm font-semibold text-amber-400">{formatBRL(Math.max(0, Number(saleItem.valor || 0) - Number(saleItem.valor_sinal || 0)))}</div></div>}
                     {saleItem.condicao_pagamento !== "pago" && saleItem.condicao_pagamento !== "boleto" && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Pagamento do saldo</Label><Select value={saleItem.pagamento_saldo} onValueChange={(pagamento_saldo) => updateRow({ pagamento_saldo })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{["Dinheiro", "PIX", "Débito", "Conta de anúncio", "Infinity (Visa/Master)", "Infinity Elo/Amex", "Link Infinity", "Boleto"].map((pagamento) => <SelectItem key={pagamento} value={pagamento}>{pagamento}</SelectItem>)}</SelectContent></Select></div>}
                     {saleItem.condicao_pagamento !== "pago" && saleItem.condicao_pagamento !== "boleto" && PAGAMENTOS_COM_PARCELA.includes(saleItem.pagamento_saldo) && <div className={fieldClass}><Label className="text-xs text-muted-foreground">Parcelas do saldo</Label><Select value={String(saleItem.parcelas_saldo)} onValueChange={(parcelas_saldo) => updateRow({ parcelas_saldo: Number(parcelas_saldo) })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{[1,2,3,4,5,6,7,8,9,10,11,12].map((parcela) => <SelectItem key={parcela} value={String(parcela)}>{parcela}x</SelectItem>)}</SelectContent></Select></div>}
@@ -1482,7 +1488,7 @@ const VendasPage = () => {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Comissão & Status</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Comissão sobre recebido (15%)</Label>
+              <Label className="text-xs text-muted-foreground">Comissão sobre recebido ({getSalesCommissionPercent(form.origem)}%)</Label>
               <div className="h-10 flex items-center px-3 rounded-md bg-secondary/30 border border-border/30 text-sm font-semibold text-emerald-400">
                 {formatBRL(comissao)}
               </div>
@@ -2112,7 +2118,7 @@ const VendasPage = () => {
 
                 <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
                   <div><span className="text-muted-foreground">Pagamento</span><p className="mt-1 font-medium">{v.pagamento}{v.pagamento_saldo ? ` / saldo: ${v.pagamento_saldo}` : ""}</p></div>
-                  <div><span className="text-muted-foreground">Comissão (15%)</span><p className="mt-1 font-medium">{formatBRL(grupo.comissao)}</p></div>
+                  <div><span className="text-muted-foreground">Comissão ({getSalesCommissionPercent(v.origem)}%)</span><p className="mt-1 font-medium">{formatBRL(grupo.comissao)}</p></div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
@@ -2190,7 +2196,7 @@ const VendasPage = () => {
                     </TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">
                       <span className="block text-[15px]">{formatBRL(grupo.saldo)}</span>
-                      <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão prevista {formatBRL(grupo.saldo * 0.15)}</span>
+                      <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão prevista {formatBRL(grupo.saldo * getSalesCommissionRate(v.origem))}</span>
                       {grupo.saldo > 0 && (
                         <span className="block truncate text-[9px] font-normal text-muted-foreground">
                           {grupo.previsoesRecebimento.length > 0

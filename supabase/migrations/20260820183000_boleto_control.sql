@@ -108,6 +108,7 @@ declare
   v_valor numeric;
   v_novo_saldo numeric;
   v_venda_id uuid;
+  v_taxa_comissao numeric := 0.15;
 begin
   if auth.uid() is null then raise exception 'Usuário não autenticado'; end if;
 
@@ -147,7 +148,9 @@ begin
     updated_at = now()
   where id = v_fechamento.id;
 
-  select venda.id into v_venda_id
+  select venda.id,
+    case when lower(trim(coalesce(venda.origem, ''))) = 'social seller' then 0.10 else 0.15 end
+  into v_venda_id, v_taxa_comissao
   from public.vendas venda
   where lower(trim(venda.cliente)) = lower(trim(v_fechamento.cliente))
     and lower(coalesce(venda.status, '')) <> 'cancelada'
@@ -158,7 +161,7 @@ begin
 
   if v_venda_id is not null then
     update public.vendas set
-      comissao = round(coalesce(comissao, 0) + (v_valor * 0.15), 2),
+      comissao = round(coalesce(comissao, 0) + (v_valor * v_taxa_comissao), 2),
       status_comissao = 'pendente',
       status = case when v_novo_saldo <= 0 then 'pago' else status end,
       pagamento_saldo = p_forma_pagamento,
