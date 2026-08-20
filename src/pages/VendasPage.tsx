@@ -586,7 +586,10 @@ const VendasPage = () => {
         ...(status_comissao === "paga" ? {
           comissao_paga_valor: Number(item.comissao || 0),
           data_ultimo_pagamento_comissao: paidAt,
-        } : {}),
+        } : {
+          comissao_paga_valor: 0,
+          data_ultimo_pagamento_comissao: null,
+        }),
       })));
       toast({ title: status_comissao === "paga" ? "Comissão marcada como paga" : "Comissão marcada como pendente" });
     } catch (error) {
@@ -2109,24 +2112,22 @@ const VendasPage = () => {
                 <TableHead className="w-[10%] px-2 text-xs">Cliente</TableHead>
                 <TableHead className="w-[12%] px-2 text-xs">{salesTableSection === "cursos" ? "Curso" : "Serviço"}</TableHead>
                 <TableHead className="w-[6%] px-2 text-right text-xs">Total</TableHead>
-                <TableHead className="w-[6%] px-2 text-right text-xs">Coletado</TableHead>
-                <TableHead className="w-[6%] px-2 text-right">A receber</TableHead>
+                <TableHead className="w-[11%] px-2 text-right text-xs">Coletado / comissão</TableHead>
+                <TableHead className="w-[9%] px-2 text-right">A receber / comissão</TableHead>
                 <TableHead className="w-[5%] px-2">Pagamento</TableHead>
-                <TableHead className="w-[6%] px-2 text-right">Comissão pendente</TableHead>
                 <TableHead className="w-[8%] px-2">Valor recebido</TableHead>
                 <TableHead className="w-[8%] px-2">Data</TableHead>
                 <TableHead className="w-[11%] px-2">Forma / parcelas</TableHead>
                 <TableHead className="w-[7%] px-2"></TableHead>
-                <TableHead className="w-[7%] px-2">Comissão</TableHead>
                 <TableHead className="w-[5%] px-2">Venda</TableHead>
                 <TableHead className="w-[4%] px-2"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="py-8 text-center text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : vendasAgrupadas.length === 0 ? (
-                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={12} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
               ) : vendasAgrupadas.map((grupo, index) => {
                 const v = grupo.principal;
                 const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
@@ -2157,9 +2158,16 @@ const VendasPage = () => {
                       </p>
                     </TableCell>
                     <TableCell className="px-2 py-3 text-right text-[15px] font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
-                    <TableCell className="px-2 py-3 text-right text-[15px] font-semibold text-success" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>{formatBRL(grupo.sinal)}</TableCell>
+                    <TableCell className="px-2 py-3 text-right" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>
+                      <span className="block text-[15px] font-semibold text-success">{formatBRL(grupo.sinal)}</span>
+                      <div className="mt-1 flex items-center justify-end gap-1">
+                        <span className="whitespace-nowrap text-[9px] text-muted-foreground">Comissão {formatBRL(grupo.comissaoPendente)}</span>
+                        {grupo.comissao > 0 && <Select value={grupo.comissaoPendente <= 0.009 ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}><SelectTrigger className="h-6 w-[76px] px-1.5 text-[9px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent></Select>}
+                      </div>
+                    </TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">
                       <span className="block text-[15px]">{formatBRL(grupo.saldo)}</span>
+                      <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão prevista {formatBRL(grupo.saldo * 0.15)}</span>
                       {grupo.saldo > 0 && (
                         <span className="block truncate text-[9px] font-normal text-muted-foreground">
                           {grupo.previsoesRecebimento.length > 0
@@ -2169,7 +2177,6 @@ const VendasPage = () => {
                       )}
                     </TableCell>
                     <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{getSalePaymentLabel(v)}</Badge></TableCell>
-                    <TableCell className="px-2 py-3 text-right text-[15px] font-semibold" title={`Gerada: ${formatBRL(grupo.comissao)} · Já paga: ${formatBRL(grupo.comissaoPaga)}`}>{formatBRL(grupo.comissaoPendente)}</TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-8 px-2 text-xs" /> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="date" value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]} onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))} className="h-8 px-1.5 text-[11px]" /> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">
@@ -2189,7 +2196,6 @@ const VendasPage = () => {
                       ) : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Button type="button" size="sm" className="h-8 w-full px-2 text-xs" disabled={settlingSaleKey === grupo.chave} onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}>{settlingSaleKey === grupo.chave ? "..." : "Registrar"}</Button> : <Badge variant="secondary" className="px-2 text-[10px]">Quitado</Badge>}</TableCell>
-                    <TableCell className="px-2 py-4"><Select value={grupo.itens.every((item) => item.status_comissao === "paga") ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}><SelectTrigger className="h-8 px-2 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent></Select></TableCell>
                     <TableCell className="px-2 py-3"><Badge className="max-w-full truncate px-1.5 text-[9px]" variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}>{statusVenda === "paga" ? "pago" : statusVenda}</Badge></TableCell>
                     <TableCell className="px-1 py-3"><div className="flex items-center justify-end gap-0.5"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(grupo.itens)} title="Editar venda"><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => Promise.all(grupo.itens.map((item) => deleteVenda.mutateAsync(item.id))).then(() => toast({ title: "Venda removida" })).catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }))} title="Remover venda"><Trash2 className="h-3.5 w-3.5" /></Button></div></TableCell>
                   </TableRow>
