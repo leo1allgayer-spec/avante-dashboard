@@ -1024,7 +1024,7 @@ const VendasPage = () => {
     const usedFechamentos = new Set<string>();
     const usedCriativos = new Set<string>();
     const records = groupItems.map((venda) => {
-      const categoria = venda.servico || venda.produto || "Sem categoria";
+      const categoria = getVendaCategoria(venda);
       const fechamento = fechamentos
         .filter((item) =>
           !usedFechamentos.has(item.id) &&
@@ -1034,11 +1034,13 @@ const VendasPage = () => {
           getFechamentoCategoria(item) === categoria,
         )
         .sort((a, b) => {
+          const updatedDiff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          if (updatedDiff !== 0) return updatedDiff;
           const score = (item: FechamentoDiario) =>
             (normalizeFechamentoStatus(item.status) === "recebido" ? 1_000_000 : 0) +
             (getPaymentHistory(item.observacao).length > 0 ? 100_000 : 0) +
             Number(item.valor_sinal || 0);
-          return score(b) - score(a) || new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+          return score(b) - score(a);
         })[0] || null;
       if (fechamento) usedFechamentos.add(fechamento.id);
       const criativo = criativosVendas.find((item) =>
