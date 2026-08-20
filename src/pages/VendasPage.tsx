@@ -820,12 +820,13 @@ const VendasPage = () => {
       feito: number;
       vendas: number;
       comissaoPaga: number;
+      taxasMaquininha: number;
       fechamentos: FechamentoDiario[];
     }>();
 
     const getRow = (categoria: string) => {
       if (!map.has(categoria)) {
-        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0, comissaoPaga: 0, fechamentos: [] });
+        map.set(categoria, { categoria, coletado: 0, aReceber: 0, recorrente: 0, feito: 0, vendas: 0, comissaoPaga: 0, taxasMaquininha: 0, fechamentos: [] });
       }
       return map.get(categoria)!;
     };
@@ -834,7 +835,12 @@ const VendasPage = () => {
       .filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado")
       .forEach((item) => {
         const row = getRow(getFechamentoCategoria(item));
-        row.coletado += dateInRange(item.data) ? getFechamentoCollectedNet(item) : 0;
+        if (dateInRange(item.data)) {
+          const coletadoBruto = Number(item.valor_sinal || 0);
+          const coletadoLiquido = getFechamentoCollectedNet(item);
+          row.coletado += coletadoLiquido;
+          row.taxasMaquininha += Math.max(0, coletadoBruto - coletadoLiquido);
+        }
         row.aReceber += getAReceberNoPeriodo(item);
         row.recorrente += Number(item.valor_recorrente || 0);
         row.fechamentos.push(item);
@@ -851,7 +857,7 @@ const VendasPage = () => {
     });
 
     return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
-  }, [fechamentosFiltrados, vendasAprovadas, dateFilter.range.start, dateFilter.range.end]);
+  }, [fechamentosFiltrados, vendasAprovadas, dateFilter.range.start, dateFilter.range.end, taxProfile]);
 
   const salesTotalsBreakdown = useMemo(() => integratedCategoryRows.reduce((totals, row) => {
     const isCourse = COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(row.categoria));
@@ -1868,7 +1874,7 @@ const VendasPage = () => {
                   Conferencia por categoria: valores coletados, a receber e recorrentes.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
                 <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
                   <span className="text-muted-foreground">Coletado</span>
                   <strong className="block text-success">{formatBRL(salesTotalsBreakdown.total.coletado)}</strong>
@@ -1888,6 +1894,10 @@ const VendasPage = () => {
                   <span className="text-muted-foreground">Comissão paga</span>
                   <strong className="block text-sky-400">{formatBRL(integratedCategoryRows.reduce((total, row) => total + row.comissaoPaga, 0))}</strong>
                 </div>
+                <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2">
+                  <span className="text-muted-foreground">Taxas descontadas</span>
+                  <strong className="block text-rose-400">{formatBRL(integratedCategoryRows.reduce((total, row) => total + row.taxasMaquininha, 0))}</strong>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -1903,6 +1913,7 @@ const VendasPage = () => {
                       <TableHead className="text-right">Marcado / coletado</TableHead>
                       <TableHead className="text-right">A receber</TableHead>
                       <TableHead className="text-right">Recorrente</TableHead>
+                      <TableHead className="text-right">Taxas descontadas</TableHead>
                       <TableHead className="text-right">Comissão paga</TableHead>
                       <TableHead className="text-center">Vendas feitas</TableHead>
                       <TableHead className="w-20 text-right">Acoes</TableHead>
@@ -1915,6 +1926,7 @@ const VendasPage = () => {
                         <TableCell className="text-right font-semibold text-success">{formatBRL(row.coletado)}</TableCell>
                         <TableCell className="text-right font-semibold text-amber-500">{formatBRL(row.aReceber)}</TableCell>
                         <TableCell className="text-right font-semibold text-primary">{formatBRL(row.recorrente)}</TableCell>
+                        <TableCell className="text-right font-semibold text-rose-400">{formatBRL(row.taxasMaquininha)}</TableCell>
                         <TableCell className="text-right font-semibold text-sky-400">{formatBRL(row.comissaoPaga)}</TableCell>
                         <TableCell className="text-center">{row.vendas}</TableCell>
                         <TableCell>
