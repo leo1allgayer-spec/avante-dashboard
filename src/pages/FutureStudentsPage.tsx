@@ -12,10 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Check, Copy, DollarSign, Link2, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
+import { Check, DollarSign, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const PUBLIC_SIGNUP_PATH = "/aluno-futuro";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
@@ -51,8 +49,6 @@ export default function FutureStudentsPage() {
   const deleteStudent = useDeleteFutureStudent();
   const { toast } = useToast();
 
-  const publicLink = `${window.location.origin}${PUBLIC_SIGNUP_PATH}`;
-
   const surveyCpfSet = useMemo(() => new Set(surveys.map((survey) => cleanCpf(survey.cpf)).filter(Boolean)), [surveys]);
 
   const filteredStudents = useMemo(() => {
@@ -71,11 +67,6 @@ export default function FutureStudentsPage() {
   const totalSignal = students.reduce((sum, student) => sum + Number(student.valor_sinal || 0), 0);
   const totalPending = students.reduce((sum, student) => sum + (student.itens || []).reduce((itemSum, item) => itemSum + Number(item.valor_pendente || 0), 0), 0);
   const linkedCount = students.filter((student) => surveyCpfSet.has(cleanCpf(student.cpf))).length;
-
-  const copyLink = async () => {
-    await navigator.clipboard.writeText(publicLink);
-    toast({ title: "Link copiado", description: publicLink });
-  };
 
   const openEdit = (student: FutureStudent) => {
     const itens = student.itens?.length
@@ -165,11 +156,6 @@ export default function FutureStudentsPage() {
       <DashboardLayout
         title="Alunos Futuros"
         subtitle="Controle de sinais pagos antes do agendamento e formulario"
-        actions={
-          <Button onClick={copyLink} className="gap-2">
-            <Copy className="h-4 w-4" /> Copiar link de cadastro
-          </Button>
-        }
       >
         <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
           <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
@@ -205,18 +191,6 @@ export default function FutureStudentsPage() {
           <MetricCard title="Total a receber" value={totalPending} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Ja preencheram formulario" value={linkedCount} icon={<UserCheck className="h-5 w-5" />} variant="accent" countUp />
           <MetricCard title="Pendentes" value={Math.max(students.length - linkedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
-        </div>
-
-        <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Link para enviar ao aluno</p>
-              <p className="mt-1 break-all text-sm font-medium text-foreground">{publicLink}</p>
-            </div>
-            <Button variant="outline" onClick={copyLink} className="gap-2">
-              <Link2 className="h-4 w-4" /> Copiar
-            </Button>
-          </div>
         </div>
 
         <div className="glass-card rounded-xl border border-border/30">
