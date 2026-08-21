@@ -56,6 +56,9 @@ const getSaleCategory = (sale: { servico?: string | null; produto?: string | nul
   return raw;
 };
 
+const getCollectedNet = (item: { valor_sinal?: number | null; valor_sinal_liquido?: number | null }) =>
+  Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
+
 const getFirstMetaAction = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
   for (const type of types) {
     const action = actions?.find((item) => item.action_type.toLowerCase() === type);
@@ -173,6 +176,54 @@ const Dashboard = () => {
     [registeredVendas],
   );
 
+  const salesFinancialGroups = useMemo(() => {
+    const groups = new Map<string, {
+      total: number;
+      data: string;
+      cliente: string;
+      vendedor: string;
+      categories: Set<string>;
+    }>();
+    for (const venda of registeredVendas) {
+      const key = [venda.data, normalizeText(venda.cliente), normalizeText(venda.vendedor)].join("|");
+      const current = groups.get(key) || {
+        total: 0,
+        data: venda.data,
+        cliente: venda.cliente,
+        vendedor: venda.vendedor,
+        categories: new Set<string>(),
+      };
+      current.total += Number(venda.valor || 0);
+      current.categories.add(normalizeText(canonicalizeSaleCategory(venda.servico || venda.produto)));
+      groups.set(key, current);
+    }
+
+    return Array.from(groups.values()).map((group) => {
+      const related = fechamentosMes.filter((item) =>
+        normalizeText(item.status) !== "cancelado" &&
+        normalizeText(item.cliente) === normalizeText(group.cliente) &&
+        normalizeText(item.vendedor) === normalizeText(group.vendedor) &&
+        group.categories.has(normalizeText(canonicalizeSaleCategory(item.categoria || item.produto_servico)))
+      );
+      const collected = Math.min(group.total, related.reduce((sum, item) => sum + getCollectedNet(item), 0));
+      const receivable = related.reduce((sum, item) => {
+        const parcelDates = Array.isArray(item.parcelas_datas) ? item.parcelas_datas : [];
+        const parcelsInRange = parcelDates.filter((date) => date >= filter.range.start && date <= filter.range.end);
+        if (parcelsInRange.length > 0 && Number(item.valor_parcela || 0) > 0) {
+          return sum + parcelsInRange.length * Number(item.valor_parcela || 0);
+        }
+        if (item.previsao_entrada && item.previsao_entrada >= filter.range.start && item.previsao_entrada <= filter.range.end) {
+          return sum + Number(item.valor_a_entrar || 0);
+        }
+        if (item.data >= filter.range.start && item.data <= filter.range.end && !item.previsao_entrada && parcelDates.length === 0) {
+          return sum + Number(item.valor_a_entrar || 0);
+        }
+        return sum;
+      }, 0);
+      return { ...group, related, collected, receivable };
+    });
+  }, [registeredVendas, fechamentosMes, filter.range.start, filter.range.end]);
+
   const salesCategoryStats = useMemo(() => {
     const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, { count: 0, valor: 0 }]));
     for (const venda of registeredVendas) {
@@ -194,58 +245,33 @@ const Dashboard = () => {
       const fechamento = fechamentosMes.find((item) =>
         !usedFechamentos.has(item.id) &&
         normalizeText(item.status) !== "cancelado" &&
-        item.data === venda.data &&
         normalizeText(item.cliente) === normalizeText(venda.cliente) &&
         normalizeText(item.vendedor) === normalizeText(venda.vendedor) &&
         normalizeText(canonicalizeSaleCategory(item.categoria || item.produto_servico)) === normalizeText(category)
       );
       if (fechamento) {
         usedFechamentos.add(fechamento.id);
-        const collected = Math.min(Number(venda.valor || 0), Number(fechamento.valor_sinal || 0));
+        const collected = Math.min(Number(venda.valor || 0), getCollectedNet(fechamento));
         stats.set(category, (stats.get(category) || 0) + collected);
       }
     }
     return stats;
   }, [fechamentosMes, registeredVendas]);
-  const collectedTotal = useMemo(() => {
-    const groups = new Map<string, { total: number; data: string; cliente: string; vendedor: string }>();
-    for (const venda of registeredVendas) {
-      const key = [venda.data, normalizeText(venda.cliente), normalizeText(venda.vendedor)].join("|");
-      const current = groups.get(key) || { total: 0, data: venda.data, cliente: venda.cliente, vendedor: venda.vendedor };
-      current.total += Number(venda.valor || 0);
-      groups.set(key, current);
-    }
-    return Array.from(groups.values()).reduce((total, group) => {
-      const received = fechamentosMes
-        .filter((item) =>
-          normalizeText(item.status) !== "cancelado" &&
-          item.data === group.data &&
-          normalizeText(item.cliente) === normalizeText(group.cliente) &&
-          normalizeText(item.vendedor) === normalizeText(group.vendedor)
-        )
-        .reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-      return total + Math.min(group.total, received);
-    }, 0);
-  }, [fechamentosMes, registeredVendas]);
-  const receivableTotal = Math.max(registeredVendasTotal - collectedTotal, 0);
+  const collectedTotal = useMemo(
+    () => salesFinancialGroups.reduce((total, group) => total + group.collected, 0),
+    [salesFinancialGroups],
+  );
+  const receivableTotal = useMemo(
+    () => salesFinancialGroups.reduce((total, group) => total + group.receivable, 0),
+    [salesFinancialGroups],
+  );
   const revenueChartData = useMemo(() => {
     const dailyCollected = new Map<string, number>();
-    const groups = new Map<string, { total: number; data: string; cliente: string; vendedor: string }>();
-    registeredVendas.forEach((venda) => {
-      const key = [venda.data, normalizeText(venda.cliente), normalizeText(venda.vendedor)].join("|");
-      const group = groups.get(key) || { total: 0, data: venda.data, cliente: venda.cliente, vendedor: venda.vendedor };
-      group.total += Number(venda.valor || 0);
-      groups.set(key, group);
-    });
-    groups.forEach((group) => {
-      const received = fechamentosMes
-        .filter((item) =>
-          item.data === group.data &&
-          normalizeText(item.cliente) === normalizeText(group.cliente) &&
-          normalizeText(item.vendedor) === normalizeText(group.vendedor)
-        )
-        .reduce((total, item) => total + Number(item.valor_sinal || 0), 0);
-      dailyCollected.set(group.data, (dailyCollected.get(group.data) || 0) + Math.min(group.total, received));
+    salesFinancialGroups.forEach((group) => {
+      group.related.forEach((item) => {
+        if (item.data < filter.range.start || item.data > filter.range.end) return;
+        dailyCollected.set(item.data, (dailyCollected.get(item.data) || 0) + getCollectedNet(item));
+      });
     });
 
     const start = new Date(`${filter.range.start}T12:00:00`);
@@ -270,7 +296,7 @@ const Dashboard = () => {
       });
     }
     return result;
-  }, [registeredVendas, fechamentosMes, filter.range.start, filter.range.end, filter.anchor, metaMensal]);
+  }, [salesFinancialGroups, filter.range.start, filter.range.end, filter.anchor, metaMensal]);
   const acquisitionHistory = useMemo(() => {
     const salesPerDay = registeredVendas.reduce((map, venda) => {
       map.set(venda.data, (map.get(venda.data) || 0) + 1);
