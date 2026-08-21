@@ -59,6 +59,27 @@ const getSaleCategory = (sale: { servico?: string | null; produto?: string | nul
 const getCollectedNet = (item: { valor_sinal?: number | null; valor_sinal_liquido?: number | null }) =>
   Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
 
+const getReceivableInPeriod = (item: {
+  data: string;
+  previsao_entrada?: string | null;
+  parcelas_datas?: string[] | null;
+  valor_parcela?: number | null;
+  valor_a_entrar?: number | null;
+}, start: string, end: string) => {
+  const parcelDates = Array.isArray(item.parcelas_datas) ? item.parcelas_datas : [];
+  const parcelsInRange = parcelDates.filter((date) => date >= start && date <= end);
+  if (parcelsInRange.length > 0 && Number(item.valor_parcela || 0) > 0) {
+    return parcelsInRange.length * Number(item.valor_parcela || 0);
+  }
+  if (item.previsao_entrada && item.previsao_entrada >= start && item.previsao_entrada <= end) {
+    return Number(item.valor_a_entrar || 0);
+  }
+  if (item.data >= start && item.data <= end && !item.previsao_entrada && parcelDates.length === 0) {
+    return Number(item.valor_a_entrar || 0);
+  }
+  return 0;
+};
+
 const getFirstMetaAction = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
   for (const type of types) {
     const action = actions?.find((item) => item.action_type.toLowerCase() === type);
@@ -239,31 +260,28 @@ const Dashboard = () => {
 
   const collectedCategoryStats = useMemo(() => {
     const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, 0]));
-    const usedFechamentos = new Set<string>();
-    for (const venda of registeredVendas) {
-      const category = canonicalizeSaleCategory(venda.servico || venda.produto);
-      const fechamento = fechamentosMes.find((item) =>
-        !usedFechamentos.has(item.id) &&
-        normalizeText(item.status) !== "cancelado" &&
-        normalizeText(item.cliente) === normalizeText(venda.cliente) &&
-        normalizeText(item.vendedor) === normalizeText(venda.vendedor) &&
-        normalizeText(canonicalizeSaleCategory(item.categoria || item.produto_servico)) === normalizeText(category)
-      );
-      if (fechamento) {
-        usedFechamentos.add(fechamento.id);
-        const collected = Math.min(Number(venda.valor || 0), getCollectedNet(fechamento));
-        stats.set(category, (stats.get(category) || 0) + collected);
-      }
+    for (const fechamento of fechamentosMes) {
+      if (normalizeText(fechamento.status) === "cancelado" || fechamento.data < filter.range.start || fechamento.data > filter.range.end) continue;
+      const category = canonicalizeSaleCategory(fechamento.categoria || fechamento.produto_servico);
+      stats.set(category, (stats.get(category) || 0) + getCollectedNet(fechamento));
     }
     return stats;
-  }, [fechamentosMes, registeredVendas]);
+  }, [fechamentosMes, filter.range.start, filter.range.end]);
   const collectedTotal = useMemo(
-    () => salesFinancialGroups.reduce((total, group) => total + group.collected, 0),
-    [salesFinancialGroups],
+    () => fechamentosMes.reduce((total, item) => (
+      normalizeText(item.status) !== "cancelado" && item.data >= filter.range.start && item.data <= filter.range.end
+        ? total + getCollectedNet(item)
+        : total
+    ), 0),
+    [fechamentosMes, filter.range.start, filter.range.end],
   );
   const receivableTotal = useMemo(
-    () => salesFinancialGroups.reduce((total, group) => total + group.receivable, 0),
-    [salesFinancialGroups],
+    () => fechamentosMes.reduce((total, item) => (
+      normalizeText(item.status) !== "cancelado"
+        ? total + getReceivableInPeriod(item, filter.range.start, filter.range.end)
+        : total
+    ), 0),
+    [fechamentosMes, filter.range.start, filter.range.end],
   );
   const revenueChartData = useMemo(() => {
     const dailyCollected = new Map<string, number>();
