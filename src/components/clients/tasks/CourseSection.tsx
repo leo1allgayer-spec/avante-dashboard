@@ -32,7 +32,7 @@ export function CourseSection({ courseType }: Props) {
     useCourseEnrollments(courseType);
 
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { locale: ptBR }));
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CourseEnrollment | null>(null);
   const [form, setForm] = useState(emptyForm);
