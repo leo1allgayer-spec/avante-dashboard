@@ -20,6 +20,7 @@ import {
   Cpu,
   UserRoundPlus,
   ReceiptText,
+  CalendarCheck2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -56,6 +57,7 @@ const metricsItems = [
   { title: "Campanhas", url: "/campanhas", icon: Megaphone },
   { title: "Análise de Alunos", url: "/analise-alunos", icon: Brain },
   { title: "Alunos Futuros", url: "/alunos-futuros", icon: UserRoundPlus },
+  { title: "Agenda de Suporte", url: "/agenda-suporte", icon: CalendarCheck2 },
   { title: "Pagamentos", url: "/pagamentos", icon: Wallet },
   { title: "Pesquisa", url: "/pesquisa", icon: ClipboardList },
   { title: "Dashboard TV", url: "/dashboard-tv", icon: Monitor },

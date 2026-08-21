@@ -32,6 +32,8 @@ import PagamentosPage from "./pages/PagamentosPage";
 import BoletosPage from "./pages/BoletosPage";
 import FutureStudentSignupPage from "./pages/FutureStudentSignupPage";
 import FutureStudentsPage from "./pages/FutureStudentsPage";
+import SupportSchedulePage from "./pages/SupportSchedulePage";
+import SupportBookingPublicPage from "./pages/SupportBookingPublicPage";
 import NotFound from "./pages/NotFound";
 
 // Imports das Novas Páginas e Integrações
@@ -150,6 +152,8 @@ const AnimatedRoutes = () => {
         <Route path="/boletos" element={<ProtectedRoute><BoletosPage /></ProtectedRoute>} />
         <Route path="/alunos-futuros" element={<ProtectedRoute><FutureStudentsPage /></ProtectedRoute>} />
         <Route path="/aluno-futuro" element={<FutureStudentSignupPage />} />
+        <Route path="/agenda-suporte" element={<ProtectedRoute><SupportSchedulePage /></ProtectedRoute>} />
+        <Route path="/agendar-suporte" element={<SupportBookingPublicPage />} />
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
         <Route path="/gestao-clientes" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
