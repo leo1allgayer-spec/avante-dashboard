@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { lookupSupportStudent, useCreateSupportBooking, useSupportSlots, type SupportStudentLookup } from "@/hooks/useSupportSchedule";
 import avanteLogo from "@/assets/logo-full.svg";
+import { supabase } from "@/integrations/supabase/client";
 
 const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const addDays = (date: Date, days: number) => { const next = new Date(date); next.setDate(next.getDate() + days); return next; };
@@ -56,6 +57,10 @@ export default function SupportBookingPublicPage() {
     if (!student || !selected) return;
     try {
       const result = await createBooking.mutateAsync({ cpf, date: selected.date, time: selected.time });
+      const { error: notificationError } = await supabase.functions.invoke("support-booking-notifications", {
+        body: { bookingId: result.id },
+      });
+      if (notificationError) console.error("Erro ao disparar notificações do suporte:", notificationError);
       setCompleted({ name: result.name, date: result.date, time: result.time, remaining: result.remaining });
       setStudent({ ...student, used: result.used, remaining: result.remaining });
     } catch (error) {
