@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Instagram, Plus, Building2, User, Calendar, DollarSign } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClientReports } from "@/components/clients/ClientReports";
 
 interface ClientDetailProps {
   client: Client;
@@ -82,6 +84,37 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
         </span>
         <span className="text-primary font-semibold">{retention} meses</span>
       </div>
+
+      <Tabs defaultValue="cadastro" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="cadastro">Cadastro e contrato</TabsTrigger>
+          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
+        </TabsList>
+        <TabsContent value="cadastro">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <InfoCard title="Informações fornecidas pelo cliente">
+              <Field label="Nome do responsável"><Input value={client.responsibleName || ""} onChange={(e) => updateField("responsibleName", e.target.value)} className="bg-input border-border" /></Field>
+              <Field label="Nome da empresa"><Input value={client.company} onChange={(e) => updateField("company", e.target.value)} className="bg-input border-border" /></Field>
+              <Field label="Dados da empresa para contrato"><Textarea value={client.contractCompanyData || ""} onChange={(e) => updateField("contractCompanyData", e.target.value)} className="bg-input border-border min-h-24" placeholder="Razão social, CNPJ, endereço e demais dados para o contrato" /></Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="E-mail"><Input type="email" value={client.email || ""} onChange={(e) => updateField("email", e.target.value)} className="bg-input border-border" /></Field>
+                <Field label="Telefone"><Input value={client.phone || ""} onChange={(e) => updateField("phone", e.target.value)} className="bg-input border-border" /></Field>
+              </div>
+            </InfoCard>
+            <InfoCard title="Informações preenchidas pela equipe">
+              <Field label="Gestor responsável"><Select value={client.manager} onValueChange={(v) => updateField("manager", v)}><SelectTrigger className="bg-input border-border"><SelectValue /></SelectTrigger><SelectContent>{MANAGERS.map((manager) => <SelectItem key={manager} value={manager}>{manager}</SelectItem>)}</SelectContent></Select></Field>
+              <Field label="Tipos de serviços a serem prestados"><Textarea value={client.servicesDescription || ""} onChange={(e) => updateField("servicesDescription", e.target.value)} className="bg-input border-border min-h-20" placeholder="Descreva todos os serviços contratados" /></Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Tempo de contrato (meses)"><Input type="number" min={1} value={client.contractMonths} onChange={(e) => updateField("contractMonths", Math.max(1, Number(e.target.value)))} className="bg-input border-border" /></Field>
+                {!hideContractValues && <Field label="Valor do contrato"><Input type="number" min={0} step="0.01" value={client.contractValue} onChange={(e) => updateField("contractValue", Number(e.target.value))} className="bg-input border-border" /></Field>}
+                <Field label="Data de vencimento"><Input type="date" value={client.dueDate || ""} onChange={(e) => updateField("dueDate", e.target.value)} className="bg-input border-border" /></Field>
+                <Field label="Forma de pagamento"><Input value={client.paymentMethod || ""} onChange={(e) => updateField("paymentMethod", e.target.value)} className="bg-input border-border" placeholder="PIX, boleto, cartão..." /></Field>
+              </div>
+            </InfoCard>
+          </div>
+        </TabsContent>
+        <TabsContent value="relatorios"><ClientReports clientId={client.id} /></TabsContent>
+      </Tabs>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Info */}

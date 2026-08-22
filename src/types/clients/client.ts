@@ -12,6 +12,13 @@ export interface Client {
   name: string;
   company: string;
   instagram: string;
+  responsibleName?: string;
+  contractCompanyData?: string;
+  email?: string;
+  phone?: string;
+  servicesDescription?: string;
+  paymentMethod?: string;
+  dueDate?: string;
   manager: string;
   status: "Ativo" | "Pausado";
   paymentStatus: PaymentStatus;

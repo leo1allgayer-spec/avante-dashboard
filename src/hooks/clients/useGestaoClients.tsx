@@ -27,6 +27,7 @@ interface DbClient {
 
 const CONTRACT_CONFIG_NOTE_ID = "__contract_config__";
 const CLIENT_AREA_NOTE_ID = "__client_area__";
+const CLIENT_PROFILE_NOTE_ID = "__client_profile__";
 export type ClientArea = "meta_ads" | "google_ads";
 
 function getClientArea(notes: ClientNote[] | null | undefined): ClientArea {
@@ -48,16 +49,33 @@ function getContractConfig(notes: ClientNote[] | null | undefined, contractValue
   }
 }
 
+function getClientProfile(notes: ClientNote[] | null | undefined) {
+  const stored = (notes || []).find((note) => note.id === CLIENT_PROFILE_NOTE_ID);
+  try {
+    return stored ? JSON.parse(stored.text) : {};
+  } catch {
+    return {};
+  }
+}
+
 function dbToClient(row: DbClient): Client {
   const clientName = row.name || "";
   const manager = row.manager || "Leonardo";
   const contractValue = Number((row as any).contract_value || 0) || 0;
   const contractConfig = getContractConfig(row.notes, contractValue);
+  const profile = getClientProfile(row.notes);
   return {
     id: row.id,
     name: clientName,
     company: row.company || "",
     instagram: row.instagram || "",
+    responsibleName: profile.responsibleName || "",
+    contractCompanyData: profile.contractCompanyData || "",
+    email: profile.email || "",
+    phone: profile.phone || "",
+    servicesDescription: profile.servicesDescription || "",
+    paymentMethod: profile.paymentMethod || "",
+    dueDate: profile.dueDate || "",
     manager,
     status: row.status as "Ativo" | "Pausado",
     paymentStatus: ((row as any).payment_status || "a receber") as "pago" | "atrasado" | "a receber" | "permuta",
@@ -75,7 +93,7 @@ function dbToClient(row: DbClient): Client {
     lastAccountUpdate: row.last_account_update || "",
     startDate: row.start_date || "",
     nextChargeDate: (row as any).next_charge_date || "",
-    notes: ((row.notes as ClientNote[]) || []).filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID && note.id !== CLIENT_AREA_NOTE_ID),
+    notes: ((row.notes as ClientNote[]) || []).filter((note) => ![CONTRACT_CONFIG_NOTE_ID, CLIENT_AREA_NOTE_ID, CLIENT_PROFILE_NOTE_ID].includes(note.id)),
   };
 }
 
@@ -101,6 +119,19 @@ function clientToDb(client: Client, userId: string, area: ClientArea) {
     date: "",
     text: JSON.stringify({ type: client.contractType, months: Math.max(client.contractMonths || 1, 1) }),
   };
+  const clientProfileNote: ClientNote = {
+    id: CLIENT_PROFILE_NOTE_ID,
+    date: "",
+    text: JSON.stringify({
+      responsibleName: client.responsibleName || "",
+      contractCompanyData: client.contractCompanyData || "",
+      email: client.email || "",
+      phone: client.phone || "",
+      servicesDescription: client.servicesDescription || "",
+      paymentMethod: client.paymentMethod || "",
+      dueDate: client.dueDate || "",
+    }),
+  };
   return sanitizeClientDates({
     id: client.id,
     user_id: userId,
@@ -122,8 +153,9 @@ function clientToDb(client: Client, userId: string, area: ClientArea) {
     start_date: nullableDate(client.startDate),
     next_charge_date: nullableDate(client.nextChargeDate),
     notes: [
-      ...client.notes.filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID && note.id !== CLIENT_AREA_NOTE_ID),
+      ...client.notes.filter((note) => ![CONTRACT_CONFIG_NOTE_ID, CLIENT_AREA_NOTE_ID, CLIENT_PROFILE_NOTE_ID].includes(note.id)),
       contractConfigNote,
+      clientProfileNote,
       { id: CLIENT_AREA_NOTE_ID, date: "", text: area },
     ] as any,
   });
