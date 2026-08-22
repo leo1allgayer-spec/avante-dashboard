@@ -15,27 +15,59 @@ import { CalendarClock, CheckCircle2, Clock3, ReceiptText, Search } from "lucide
 const formatBRL = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 const formatDate = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR");
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+type BoletoArea = "todos" | "crm" | "sites" | "outros";
+
+const normalize = (value: string) => value
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase();
+
+const getBoletoArea = (category: string): Exclude<BoletoArea, "todos"> => {
+  const normalized = normalize(category);
+  if (normalized.includes("crm") || normalized.includes("treinamento comercial")) return "crm";
+  if (normalized.includes("site")) return "sites";
+  return "outros";
+};
 
 export default function BoletosPage() {
   const { data: boletos = [], isLoading } = useBoletos();
   const confirmar = useConfirmarBoleto();
   const { toast } = useToast();
   const [status, setStatus] = useState("pendente");
+  const [area, setArea] = useState<BoletoArea>("todos");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paidDate, setPaidDate] = useState(today());
 
-  const rows = useMemo(() => boletos.filter((boleto) => {
+  const scopedBoletos = useMemo(() => boletos.filter((boleto) => {
+    if (area === "todos") return true;
+    const category = boleto.fechamento?.categoria || boleto.fechamento?.produto_servico || "";
+    return getBoletoArea(category) === area;
+  }), [area, boletos]);
+
+  const rows = useMemo(() => scopedBoletos.filter((boleto) => {
     if (status !== "todos" && boleto.status !== status) return false;
     const term = search.trim().toLowerCase();
     if (!term) return true;
     return `${boleto.fechamento?.cliente || ""} ${boleto.fechamento?.categoria || boleto.fechamento?.produto_servico || ""}`.toLowerCase().includes(term);
-  }), [boletos, status, search]);
+  }), [scopedBoletos, status, search]);
 
-  const pending = boletos.filter((item) => item.status === "pendente");
+  const pending = scopedBoletos.filter((item) => item.status === "pendente");
   const overdue = pending.filter((item) => item.vencimento < today());
-  const paid = boletos.filter((item) => item.status === "pago");
+  const paid = scopedBoletos.filter((item) => item.status === "pago");
   const selected = boletos.find((item) => item.id === selectedId);
+  const remainingBySale = useMemo(() => boletos.reduce<Record<string, number>>((totals, boleto) => {
+    if (boleto.status === "pendente") {
+      totals[boleto.fechamento_id] = (totals[boleto.fechamento_id] || 0) + Number(boleto.valor);
+    }
+    return totals;
+  }, {}), [boletos]);
+
+  const areaCounts = useMemo(() => boletos.reduce<Record<Exclude<BoletoArea, "todos">, number>>((counts, boleto) => {
+    const category = boleto.fechamento?.categoria || boleto.fechamento?.produto_servico || "";
+    counts[getBoletoArea(category)] += 1;
+    return counts;
+  }, { crm: 0, sites: 0, outros: 0 }), [boletos]);
 
   const confirmPayment = async () => {
     if (!selectedId) return;
@@ -59,15 +91,21 @@ export default function BoletosPage() {
           </div>
 
           <Card><CardContent className="p-4">
+            <div className="mb-4 flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant={area === "todos" ? "default" : "outline"} onClick={() => setArea("todos")}>Todos ({boletos.length})</Button>
+              <Button type="button" size="sm" variant={area === "crm" ? "default" : "outline"} onClick={() => setArea("crm")}>CRM recorrência ({areaCounts.crm})</Button>
+              <Button type="button" size="sm" variant={area === "sites" ? "default" : "outline"} onClick={() => setArea("sites")}>Sites recorrência ({areaCounts.sites})</Button>
+              <Button type="button" size="sm" variant={area === "outros" ? "default" : "outline"} onClick={() => setArea("outros")}>Outros boletos ({areaCounts.outros})</Button>
+            </div>
             <div className="mb-4 flex flex-col gap-2 sm:flex-row">
               <div className="relative flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar cliente ou produto..." className="pl-9" /></div>
               <Select value={status} onValueChange={setStatus}><SelectTrigger className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendentes</SelectItem><SelectItem value="pago">Pagos</SelectItem><SelectItem value="todos">Todos</SelectItem></SelectContent></Select>
             </div>
             <div className="overflow-x-auto rounded-lg border border-border/40">
               <Table>
-                <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Produto/serviço</TableHead><TableHead>Parcela</TableHead><TableHead>Vencimento</TableHead><TableHead className="text-right">Valor</TableHead><TableHead>Status</TableHead><TableHead>Pago em</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Produto/serviço</TableHead><TableHead>Parcela</TableHead><TableHead>Vencimento</TableHead><TableHead className="text-right">Valor</TableHead><TableHead className="text-right">Saldo restante</TableHead><TableHead>Status</TableHead><TableHead>Pago em</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {isLoading ? <TableRow><TableCell colSpan={8}>Carregando boletos...</TableCell></TableRow> : rows.length === 0 ? <TableRow><TableCell colSpan={8} className="py-10 text-center text-muted-foreground">Nenhum boleto encontrado.</TableCell></TableRow> : rows.map((boleto) => {
+                  {isLoading ? <TableRow><TableCell colSpan={9}>Carregando boletos...</TableCell></TableRow> : rows.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center text-muted-foreground">Nenhum boleto encontrado.</TableCell></TableRow> : rows.map((boleto) => {
                     const isOverdue = boleto.status === "pendente" && boleto.vencimento < today();
                     return <TableRow key={boleto.id}>
                       <TableCell className="font-semibold">{boleto.fechamento?.cliente || "—"}</TableCell>
@@ -75,6 +113,7 @@ export default function BoletosPage() {
                       <TableCell>{boleto.parcela_numero}/{boleto.fechamento?.parcelas_total || "—"}</TableCell>
                       <TableCell className={isOverdue ? "font-semibold text-destructive" : ""}>{formatDate(boleto.vencimento)}</TableCell>
                       <TableCell className="text-right font-semibold">{formatBRL(Number(boleto.valor))}</TableCell>
+                      <TableCell className="text-right font-semibold text-amber-400">{formatBRL(remainingBySale[boleto.fechamento_id] || 0)}</TableCell>
                       <TableCell><Badge variant={boleto.status === "pago" ? "default" : isOverdue ? "destructive" : "secondary"}>{boleto.status === "pago" ? "Pago" : isOverdue ? "Atrasado" : "Pendente"}</Badge></TableCell>
                       <TableCell>{boleto.pago_em ? formatDate(boleto.pago_em) : "—"}</TableCell>
                       <TableCell className="text-right">{boleto.status === "pendente" && <Button size="sm" onClick={() => { setPaidDate(today()); setSelectedId(boleto.id); }}><ReceiptText className="mr-1 h-4 w-4" />Confirmar pagamento</Button>}</TableCell>
