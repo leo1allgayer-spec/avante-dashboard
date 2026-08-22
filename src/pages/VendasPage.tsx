@@ -427,24 +427,10 @@ const VendasPage = () => {
   );
 
   const getFechamentoCollectedNet = (fechamento: FechamentoDiario) => {
-    const storedNet = fechamento.valor_sinal_liquido == null ? null : Number(fechamento.valor_sinal_liquido || 0);
-    const storedGross = Number(fechamento.valor_sinal || 0);
-    // A primeira implantação preencheu registros antigos com líquido = bruto.
-    // Quando forem iguais, reconstruímos pelas formas registradas; valores
-    // realmente calculados e diferentes do bruto continuam sendo respeitados.
-    if (storedNet != null && Math.abs(storedNet - storedGross) > 0.009) return storedNet;
-    const relatedSale = vendas.find((venda) =>
-      venda.cliente.trim().toLowerCase() === fechamento.cliente.trim().toLowerCase() &&
-      venda.vendedor.trim().toLowerCase() === fechamento.vendedor.trim().toLowerCase() &&
-      (venda.servico || venda.produto || "Sem categoria") === getFechamentoCategoria(fechamento),
-    );
-    const history = getPaymentHistory(fechamento.observacao);
-    const historyGross = history.reduce((total, entry) => total + Number(entry.amount || 0), 0);
-    const historyNet = history.reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0);
-    const initialGross = Math.max(0, Number(fechamento.valor_sinal || 0) - historyGross);
-    const initialMethod = fechamento.pagamento_sinal || relatedSale?.pagamento || "PIX";
-    const initialInstallments = getPaymentInstallments(initialMethod, Number(relatedSale?.parcelas || 1));
-    return +(historyNet + getNetPaymentValue(initialGross, initialMethod, initialInstallments, taxProfile)).toFixed(2);
+    // Fonte única para todos os painéis: o valor líquido consolidado salvo no
+    // fechamento. O histórico continua disponível para auditoria, mas não é
+    // reprocessado aqui porque edições antigas podem conter eventos repetidos.
+    return Number(fechamento.valor_sinal_liquido ?? fechamento.valor_sinal ?? 0);
   };
 
   const vendasAgrupadas = useMemo(() => {
