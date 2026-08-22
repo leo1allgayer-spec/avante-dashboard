@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { isGoogleTasksOnlyUser } from "@/lib/accessControl";
 
 const metricsItems = [
   { title: "Visão Geral", url: "/", icon: LayoutDashboard },
@@ -79,7 +80,12 @@ const metaItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const { signOut } = useAuth();
+  const { session, signOut } = useAuth();
+  const googleTasksOnly = isGoogleTasksOnlyUser(session?.user?.email);
+
+  const visibleGestaoItems = googleTasksOnly
+    ? [{ title: "Tarefas Google Ads", url: "/tasks", icon: ClipboardList }]
+    : gestaoItems;
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/40">
@@ -94,7 +100,7 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2 pt-0 -mt-1" data-lenis-prevent>
-        <SidebarGroup>
+        {!googleTasksOnly && <SidebarGroup>
           {!collapsed && (
             <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 font-semibold mb-1">
               Métricas de Vendas
@@ -119,9 +125,9 @@ export function AppSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
-        </SidebarGroup>
+        </SidebarGroup>}
 
-        {!collapsed && <Separator className="my-2 bg-border/40" />}
+        {!googleTasksOnly && !collapsed && <Separator className="my-2 bg-border/40" />}
 
         <SidebarGroup>
           {!collapsed && (
@@ -131,7 +137,7 @@ export function AppSidebar() {
           )}
           <SidebarGroupContent>
             <SidebarMenu>
-              {gestaoItems.map((item) => (
+              {visibleGestaoItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -150,9 +156,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {!collapsed && <Separator className="my-2 bg-border/40" />}
+        {!googleTasksOnly && !collapsed && <Separator className="my-2 bg-border/40" />}
 
-        <SidebarGroup>
+        {!googleTasksOnly && <SidebarGroup>
           {!collapsed && (
             <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 font-semibold mb-1">
               Meta Pixel & CAPI
@@ -177,7 +183,7 @@ export function AppSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
-        </SidebarGroup>
+        </SidebarGroup>}
       </SidebarContent>
 
       <SidebarFooter className="p-3">

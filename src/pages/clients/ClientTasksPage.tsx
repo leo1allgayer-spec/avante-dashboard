@@ -24,8 +24,9 @@ import {
 import { Link, Navigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
+import { isGoogleTasksOnlyUser } from "@/lib/accessControl";
 
-const Tasks = () => {
+const FullTasks = () => {
   const { session, signOut } = useAuth();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks();
   const { members, loading: membersLoading, addMember, updateMember, deleteMember } = useTeamMembers();
@@ -268,6 +269,21 @@ const Tasks = () => {
       />
     </DashboardLayout>
   );
+};
+
+const GoogleTasksOnly = () => (
+  <DashboardLayout
+    title="Gestão Google Ads"
+    subtitle="Agenda e organização dos cursos de Google Ads"
+    contentClassName="max-w-[96rem]"
+  >
+    <CourseSection courseType="google" />
+  </DashboardLayout>
+);
+
+const Tasks = () => {
+  const { session } = useMainAuth();
+  return isGoogleTasksOnlyUser(session?.user?.email) ? <GoogleTasksOnly /> : <FullTasks />;
 };
 
 export default Tasks;

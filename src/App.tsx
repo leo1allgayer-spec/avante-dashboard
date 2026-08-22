@@ -47,6 +47,7 @@ import BookingPublicPage from "./pages/clients/BookingPublicPage";
 import ConfirmBookingPage from "./pages/clients/ConfirmBookingPage";
 import ConfirmReschedulePage from "./pages/clients/ConfirmReschedulePage";
 import MetaPixelPage from "./pages/meta/MetaPixelPage";
+import { GOOGLE_TASKS_ONLY_PATH, isGoogleTasksOnlyUser } from "@/lib/accessControl";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +101,7 @@ class AppErrorBoundary extends React.Component<
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -111,13 +113,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
   if (!session) return <Navigate to="/auth" replace />;
+  if (isGoogleTasksOnlyUser(session.user.email) && location.pathname !== GOOGLE_TASKS_ONLY_PATH) {
+    return <Navigate to={GOOGLE_TASKS_ONLY_PATH} replace />;
+  }
   return <>{children}</>;
 };
 
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   if (loading) return null;
-  if (session) return <Navigate to="/" replace />;
+  if (session) {
+    return <Navigate to={isGoogleTasksOnlyUser(session.user.email) ? GOOGLE_TASKS_ONLY_PATH : "/"} replace />;
+  }
   return <>{children}</>;
 };
 
