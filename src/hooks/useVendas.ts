@@ -31,7 +31,8 @@ export function useVendas() {
       const { data, error } = await supabase
         .from("vendas")
         .select("*")
-        .order("data", { ascending: false });
+        .order("data", { ascending: false })
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return (data as Venda[]) || [];
     },

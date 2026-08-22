@@ -528,6 +528,8 @@ const VendasPage = () => {
       if (statusFilter === "pendente") return grupo.saldo > 0;
       return true;
     }).sort((a, b) => {
+      const porDataDoLancamento = b.principal.data.localeCompare(a.principal.data);
+      if (porDataDoLancamento !== 0) return porDataDoLancamento;
       const ultimoLancamentoA = Math.max(...a.itens.map((item) => new Date(item.created_at).getTime()));
       const ultimoLancamentoB = Math.max(...b.itens.map((item) => new Date(item.created_at).getTime()));
       return ultimoLancamentoB - ultimoLancamentoA;
