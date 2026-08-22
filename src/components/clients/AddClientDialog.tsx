@@ -9,9 +9,10 @@ interface AddClientDialogProps {
   open: boolean;
   onClose: () => void;
   onAdd: (client: Client) => void | Promise<void>;
+  hideContractValues?: boolean;
 }
 
-export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) {
+export function AddClientDialog({ open, onClose, onAdd, hideContractValues = false }: AddClientDialogProps) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -93,18 +94,18 @@ export function AddClientDialog({ open, onClose, onAdd }: AddClientDialogProps) 
               ))}
             </SelectContent>
           </Select>
-          <div className="grid grid-cols-2 gap-2">
+          <div className={hideContractValues ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
             <Input type="number" placeholder="Orçamento" value={form.monthlyBudget || ""} onChange={(e) => setForm({ ...form, monthlyBudget: Number(e.target.value) })} className="bg-input border-border" />
-            <Select value={form.contractType} onValueChange={(v: "MRR" | "TCV") => setForm({ ...form, contractType: v })}>
+            {!hideContractValues && <Select value={form.contractType} onValueChange={(v: "MRR" | "TCV") => setForm({ ...form, contractType: v })}>
               <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Tipo do contrato" /></SelectTrigger>
               <SelectContent><SelectItem value="MRR">MRR — valor mensal</SelectItem><SelectItem value="TCV">TCV — valor total</SelectItem></SelectContent>
-            </Select>
-            <Input type="number" min={1} placeholder="Duração (meses)" value={form.contractMonths || ""} onChange={(e) => setForm({ ...form, contractMonths: Math.max(1, Number(e.target.value)) })} className="bg-input border-border" />
-            <Input type="number" placeholder={form.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal"} value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />
+            </Select>}
+            {!hideContractValues && <Input type="number" min={1} placeholder="Duração (meses)" value={form.contractMonths || ""} onChange={(e) => setForm({ ...form, contractMonths: Math.max(1, Number(e.target.value)) })} className="bg-input border-border" />}
+            {!hideContractValues && <Input type="number" placeholder={form.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal"} value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />}
           </div>
-          <p className="text-xs text-muted-foreground">
+          {!hideContractValues && <p className="text-xs text-muted-foreground">
             Mensal: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue / Math.max(1, form.contractMonths) : form.contractValue)} · Total do período: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue : form.contractValue * Math.max(1, form.contractMonths))}
-          </p>
+          </p>}
           <div className="grid grid-cols-3 gap-2">
             <Input type="number" placeholder="Dia pgto" min={1} max={31} value={form.paymentDate || ""} onChange={(e) => setForm({ ...form, paymentDate: Number(e.target.value) })} className="bg-input border-border" />
             <Input type="number" placeholder="Comissão" value={form.commissionValue || ""} onChange={(e) => setForm({ ...form, commissionValue: Number(e.target.value) })} className="bg-input border-border" />

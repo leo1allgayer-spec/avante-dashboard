@@ -26,6 +26,13 @@ interface DbClient {
 }
 
 const CONTRACT_CONFIG_NOTE_ID = "__contract_config__";
+const CLIENT_AREA_NOTE_ID = "__client_area__";
+export type ClientArea = "meta_ads" | "google_ads";
+
+function getClientArea(notes: ClientNote[] | null | undefined): ClientArea {
+  const stored = (notes || []).find((note) => note.id === CLIENT_AREA_NOTE_ID);
+  return stored?.text === "google_ads" ? "google_ads" : "meta_ads";
+}
 
 function getContractConfig(notes: ClientNote[] | null | undefined, contractValue: number) {
   const stored = (notes || []).find((note) => note.id === CONTRACT_CONFIG_NOTE_ID);
@@ -68,7 +75,7 @@ function dbToClient(row: DbClient): Client {
     lastAccountUpdate: row.last_account_update || "",
     startDate: row.start_date || "",
     nextChargeDate: (row as any).next_charge_date || "",
-    notes: ((row.notes as ClientNote[]) || []).filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID),
+    notes: ((row.notes as ClientNote[]) || []).filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID && note.id !== CLIENT_AREA_NOTE_ID),
   };
 }
 
@@ -88,7 +95,7 @@ function sanitizeClientDates<T extends Record<string, any>>(data: T): T {
   return data;
 }
 
-function clientToDb(client: Client, userId: string) {
+function clientToDb(client: Client, userId: string, area: ClientArea) {
   const contractConfigNote: ClientNote = {
     id: CONTRACT_CONFIG_NOTE_ID,
     date: "",
@@ -114,11 +121,15 @@ function clientToDb(client: Client, userId: string) {
     last_account_update: nullableDate(client.lastAccountUpdate),
     start_date: nullableDate(client.startDate),
     next_charge_date: nullableDate(client.nextChargeDate),
-    notes: [...client.notes.filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID), contractConfigNote] as any,
+    notes: [
+      ...client.notes.filter((note) => note.id !== CONTRACT_CONFIG_NOTE_ID && note.id !== CLIENT_AREA_NOTE_ID),
+      contractConfigNote,
+      { id: CLIENT_AREA_NOTE_ID, date: "", text: area },
+    ] as any,
   });
 }
 
-export function useClients() {
+export function useClients(area: ClientArea = "meta_ads") {
   const { session } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,10 +148,10 @@ export function useClients() {
       toast.error("Erro ao carregar clientes");
       console.error(error);
     } else {
-      setClients((data as unknown as DbClient[]).map(dbToClient));
+      setClients((data as unknown as DbClient[]).filter((row) => getClientArea(row.notes) === area).map(dbToClient));
     }
     setLoading(false);
-  }, [session?.user?.id]);
+  }, [session?.user?.id, area]);
 
   useEffect(() => {
     fetchClients();
@@ -149,15 +160,15 @@ export function useClients() {
   useEffect(() => {
     if (!session?.user?.id) return;
     const channel = supabase
-      .channel("gestao-clients-realtime")
+      .channel(`gestao-clients-realtime-${area}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "gestao_clients" }, () => fetchClients())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [session?.user?.id, fetchClients]);
+  }, [session?.user?.id, fetchClients, area]);
 
   const addClient = async (client: Client) => {
     if (!session?.user?.id) return;
-    const dbData = clientToDb(client, session.user.id);
+    const dbData = clientToDb(client, session.user.id, area);
     // Remove the client-generated id, let DB generate UUID
     const { id, ...rest } = sanitizeClientDates(dbData);
     const { data, error } = await supabase
@@ -178,7 +189,7 @@ export function useClients() {
 
   const updateClient = async (client: Client) => {
     if (!session?.user?.id) return;
-    const dbData = clientToDb(client, session.user.id);
+    const dbData = clientToDb(client, session.user.id, area);
     const { id, user_id, ...rest } = sanitizeClientDates(dbData);
     const { error } = await supabase
       .from("gestao_clients" as any)

@@ -30,6 +30,7 @@ import CriativosPage from "./pages/CriativosPage";
 import PlanilhaInstaPage from "./pages/PlanilhaInstaPage";
 import PagamentosPage from "./pages/PagamentosPage";
 import BoletosPage from "./pages/BoletosPage";
+import GoogleAdsClientsPage from "./pages/clients/GoogleAdsClientsPage";
 import FutureStudentSignupPage from "./pages/FutureStudentSignupPage";
 import FutureStudentsPage from "./pages/FutureStudentsPage";
 import SupportSchedulePage from "./pages/SupportSchedulePage";
@@ -157,6 +158,7 @@ const AnimatedRoutes = () => {
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
         <Route path="/gestao-clientes" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
+        <Route path="/clientes-google-ads" element={<ProtectedRoute><GoogleAdsClientsPage /></ProtectedRoute>} />
         <Route path="/tasks" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
         <Route path="/admin-settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/agendamentos" element={<ProtectedRoute><AdminBookingsPage /></ProtectedRoute>} />
