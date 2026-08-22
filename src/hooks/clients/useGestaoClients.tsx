@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 interface DbClient {
   id: string;
+  intake_token?: string;
   user_id: string;
   name?: string;
   company?: string;
@@ -66,6 +67,7 @@ function dbToClient(row: DbClient): Client {
   const profile = getClientProfile(row.notes);
   return {
     id: row.id,
+    intakeToken: row.intake_token || "",
     name: clientName,
     company: row.company || "",
     instagram: row.instagram || "",

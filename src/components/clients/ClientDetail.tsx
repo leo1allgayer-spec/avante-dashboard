@@ -4,7 +4,7 @@ import { StatusIndicator } from "@/components/clients/StatusIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Instagram, Plus, Building2, User, Calendar, DollarSign } from "lucide-react";
+import { ArrowLeft, Instagram, Plus, Building2, User, Calendar, DollarSign, Copy, ExternalLink } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientReports } from "@/components/clients/ClientReports";
@@ -35,6 +35,12 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
   };
 
   const retention = getRetentionMonths(client.startDate);
+  const intakeUrl = client.intakeToken ? `${window.location.origin}/cadastro-cliente/${client.intakeToken}` : "";
+
+  const copyIntakeLink = async () => {
+    if (!intakeUrl) return;
+    await navigator.clipboard.writeText(intakeUrl);
+  };
 
   const InfoCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div className="bg-card rounded-lg border border-border p-4 space-y-3">
@@ -83,6 +89,17 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
           {client.status}
         </span>
         <span className="text-primary font-semibold">{retention} meses</span>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Link para o cliente preencher</p>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{intakeUrl || "Gerando link individual..."}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" disabled={!intakeUrl} onClick={() => void copyIntakeLink()}><Copy className="mr-2 h-4 w-4" />Copiar link</Button>
+          <Button variant="outline" disabled={!intakeUrl} onClick={() => window.open(intakeUrl, "_blank", "noopener,noreferrer")}><ExternalLink className="h-4 w-4" /></Button>
+        </div>
       </div>
 
       <Tabs defaultValue="cadastro" className="space-y-4">

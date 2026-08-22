@@ -1,5 +1,6 @@
 export interface ClientNote {
   id: string;
+  intakeToken?: string;
   date: string;
   text: string;
 }
