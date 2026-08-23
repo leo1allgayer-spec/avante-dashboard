@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    const { bookingId } = body;
+    const { bookingId, rescheduled = false } = body;
 
     if (!bookingId) {
       return new Response(JSON.stringify({ error: "bookingId is required" }), {
@@ -40,6 +40,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (rescheduled) {
+      // Remove every still-pending job from the previous date. The jobs for
+      // the current date are rebuilt below from the booking's saved date/time.
+      await supabase
+        .from("whatsapp_scheduled_messages")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("booking_id", bookingId)
+        .eq("status", "pending")
+        .in("message_type", ["reminder_24h", "reminder_1h", "post_course"]);
+    }
+
     // Check sent messages so retries do not duplicate confirmations or reminders.
     const { data: existingLogs } = await supabase
       .from("whatsapp_message_logs")
@@ -48,7 +59,11 @@ Deno.serve(async (req) => {
       .in("status", ["sent", "pending"]);
 
     const sentMessageTypes = new Set(
-      (existingLogs || []).map((log) => log.message_type)
+      (existingLogs || [])
+        .map((log) => log.message_type)
+        // A reminder already sent belongs to the old date after a reschedule.
+        // It must not prevent the reminders for the new course date.
+        .filter((messageType) => !rescheduled || !["reminder_24h", "reminder_1h", "post_course"].includes(messageType))
     );
 
     // 1. Send immediate confirmation
