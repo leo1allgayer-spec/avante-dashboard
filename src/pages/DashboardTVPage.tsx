@@ -11,7 +11,6 @@ import { useCrmMql } from "@/hooks/useCrmMql";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft } from "lucide-react";
 import CountUp from "react-countup";
-import { canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -42,13 +41,6 @@ const dateInRange = (date: string | null | undefined, start: string, end: string
 const normalizeStatus = (status?: string | null) =>
   String(status || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-const normalizeText = (value?: string | null) =>
-  (value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
 const getActionValue = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
   if (!actions?.length) return 0;
   for (const type of types) {
@@ -74,11 +66,29 @@ const getConversationsFromActions = (actions: Array<{ action_type: string; value
     "onsite_conversion.messaging_first_reply",
   ]);
 
-const getFechamentoTotal = (item: { valor_sinal?: number; valor_a_entrar?: number; valor_recorrente?: number }) =>
-  Number(item.valor_sinal || 0) + Number(item.valor_a_entrar || 0) + Number(item.valor_recorrente || 0);
+const getCollectedNet = (item: { valor_sinal?: number | null; valor_sinal_liquido?: number | null }) =>
+  Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
 
-const getSaleCategory = (sale: { servico?: string | null; produto?: string | null }) =>
-  canonicalizeSaleCategory(sale.servico || sale.produto);
+const getReceivableInPeriod = (item: {
+  data: string;
+  previsao_entrada?: string | null;
+  parcelas_datas?: string[] | null;
+  valor_parcela?: number | null;
+  valor_a_entrar?: number | null;
+}, start: string, end: string) => {
+  const parcelDates = Array.isArray(item.parcelas_datas) ? item.parcelas_datas : [];
+  const parcelsInRange = parcelDates.filter((date) => date >= start && date <= end);
+  if (parcelsInRange.length > 0 && Number(item.valor_parcela || 0) > 0) {
+    return parcelsInRange.length * Number(item.valor_parcela || 0);
+  }
+  if (item.previsao_entrada && dateInRange(item.previsao_entrada, start, end)) {
+    return Number(item.valor_a_entrar || 0);
+  }
+  if (dateInRange(item.data, start, end) && !item.previsao_entrada && parcelDates.length === 0) {
+    return Number(item.valor_a_entrar || 0);
+  }
+  return 0;
+};
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -146,30 +156,32 @@ const DashboardTVPage = () => {
     const vendasHoje = vendasMes.filter((v) => v.data === todayKey);
 
     const fechamentosAtivos = fechamentos.filter((f) => normalizeStatus(f.status) !== "cancelado");
-    const fechamentosMes = fechamentosAtivos.filter((f) => dateInRange(f.data, monthStart, monthEnd));
+    const fechamentosMes = fechamentosAtivos.filter((f) =>
+      dateInRange(f.data, monthStart, monthEnd) ||
+      dateInRange(f.previsao_entrada, monthStart, monthEnd) ||
+      (Array.isArray(f.parcelas_datas) && f.parcelas_datas.some((date) => dateInRange(date, monthStart, monthEnd))) ||
+      (Number(f.valor_recorrente || 0) > 0 && f.data <= monthEnd)
+    );
     const totalVendidoMes = vendasMes.reduce((sum, venda) => sum + Number(venda.valor || 0), 0);
-    const groups = new Map<string, { total: number; data: string; cliente: string; vendedor: string }>();
-    vendasMes.forEach((venda) => {
-      const key = [venda.data, normalizeText(venda.cliente), normalizeText(venda.vendedor)].join("|");
-      const group = groups.get(key) || { total: 0, data: venda.data, cliente: venda.cliente, vendedor: venda.vendedor };
-      group.total += Number(venda.valor || 0);
-      groups.set(key, group);
-    });
     const collectedByDay = new Map<string, number>();
-    groups.forEach((group) => {
-      const received = fechamentosMes.filter((item) => item.data === group.data && normalizeText(item.cliente) === normalizeText(group.cliente) && normalizeText(item.vendedor) === normalizeText(group.vendedor)).reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-      const collected = Math.min(group.total, received);
-      collectedByDay.set(group.data, (collectedByDay.get(group.data) || 0) + collected);
+    fechamentosMes.forEach((item) => {
+      if (!dateInRange(item.data, monthStart, monthEnd)) return;
+      collectedByDay.set(item.data, (collectedByDay.get(item.data) || 0) + getCollectedNet(item));
     });
     const faturamentoMes = Array.from(collectedByDay.values()).reduce((sum, value) => sum + value, 0);
     const faturamentoHoje = collectedByDay.get(todayKey) || 0;
-    const aReceberMes = Math.max(totalVendidoMes - faturamentoMes, 0);
+    const aReceberMes = fechamentosMes.reduce(
+      (sum, item) => sum + getReceivableInPeriod(item, monthStart, monthEnd),
+      0,
+    );
 
     const monthActionRows = (metaMonth?.campaignInsights?.length ? metaMonth.campaignInsights : metaMonth?.dailyInsights) || [];
     const todayActionRows = (metaToday?.campaignInsights?.length ? metaToday.campaignInsights : metaToday?.dailyInsights) || [];
     const sumContacts = (rows: typeof monthActionRows) => rows.reduce((sum, row) => sum + getLeadsFromActions(row.actions) + getConversationsFromActions(row.actions), 0);
+    const sumConversations = (rows: typeof monthActionRows) => rows.reduce((sum, row) => sum + getConversationsFromActions(row.actions), 0);
     const leadsToday = sumContacts(todayActionRows);
     const leadsMonth = sumContacts(monthActionRows);
+    const conversationsToday = sumConversations(todayActionRows);
     const mqlToday = Number(crmMql?.daily?.[todayKey] || 0);
     const mqlMonth = Number(crmMql?.total || 0);
     const eligibleObjectives = new Set(["OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "OUTCOME_LEADS"]);
@@ -180,7 +192,8 @@ const DashboardTVPage = () => {
     const investimentoHoje = eligibleSpend(metaToday) || Number(metaToday?.accountInsights?.spend || 0);
     const investimentoMes = eligibleSpend(metaMonth) || Number(metaMonth?.accountInsights?.spend || 0);
     const roasMes = investimentoMes > 0 ? faturamentoMes / investimentoMes : 0;
-    const cac = vendasMes.length > 0 ? investimentoMes / vendasMes.length : Number(today?.cac || 0);
+    const approvedSales = vendasMes.filter((venda) => ["aprovada", "pago", "paga"].includes(normalizeStatus(venda.status)));
+    const cac = approvedSales.length > 0 ? investimentoMes / approvedSales.length : Number(today?.cac || 0);
     const cpl = leadsMonth > 0 ? investimentoMes / leadsMonth : Number(today?.custo_por_lead || 0);
     const cplMql = mqlMonth > 0 ? investimentoMes / mqlMonth : Number(today?.custo_por_lead_mql || 0);
     const convRate = leadsMonth > 0 ? (mqlMonth / leadsMonth) * 100 : 0;
@@ -194,9 +207,10 @@ const DashboardTVPage = () => {
       .sort((a, b) => b.value - a.value);
 
     const consultorMap: Record<string, number> = {};
-    vendasMes.forEach((venda) => {
-      const vendedor = venda.vendedor || "Nao informado";
-      consultorMap[vendedor] = (consultorMap[vendedor] || 0) + Number(venda.valor || 0);
+    fechamentosMes.forEach((item) => {
+      if (!dateInRange(item.data, monthStart, monthEnd)) return;
+      const vendedor = item.vendedor || "Nao informado";
+      consultorMap[vendedor] = (consultorMap[vendedor] || 0) + getCollectedNet(item);
     });
     const consultorData = Object.entries(consultorMap)
       .map(([name, value]) => ({ name, value }))
@@ -219,6 +233,7 @@ const DashboardTVPage = () => {
       investimentoMes,
       leadsToday,
       leadsMonth,
+      conversationsToday,
       mqlToday,
       mqlMonth,
       roasMes,
@@ -340,7 +355,7 @@ const DashboardTVPage = () => {
             { label: "Meta Diária", value: metaDiaria, prefix: "R$ ", suffix: "", sub: `realizado ${formatCurrency(metaDiariaReal)} · ${metaDiariaPct.toFixed(0)}%` },
             { label: "ROAS", value: roas, prefix: "", suffix: "x", decimals: 1, badge: roas >= 3 ? "Excelente" : roas >= 1 ? "Positivo" : "Baixo", badgeColor: roas >= 3 ? "text-success" : roas >= 1 ? "text-accent" : "text-destructive" },
             { label: "Leads Hoje", value: tvData.leadsToday, prefix: "", suffix: "", sub: `mês: ${totalLeads}` },
-            { label: "Conversas Hoje", value: tvData.mqlToday, prefix: "", suffix: "", accent: true, sub: convRate > 0 ? `conversão: ${convRate.toFixed(1)}%` : undefined },
+            { label: "Conversas Hoje", value: tvData.conversationsToday, prefix: "", suffix: "", accent: true, sub: `MQL hoje: ${tvData.mqlToday}` },
             { label: "CAC", value: tvData.cac, prefix: "R$ ", suffix: "", sub: `CPL: ${formatCurrency(tvData.cpl)}` },
           ].map((card, i) => (
             <motion.div
