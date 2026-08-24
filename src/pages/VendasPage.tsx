@@ -122,6 +122,18 @@ const getUniqueSaleNames = (products: string[], services: string[]) => {
   return [...unique.values()];
 };
 
+const getLocalCreatedDate = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+};
+
 const getPaymentInstallments = (payment: string, fallback = 1) => {
   const match = String(payment || "").match(/(\d+)x/i);
   return match ? Number(match[1]) : fallback;
@@ -275,7 +287,7 @@ const VendasPage = () => {
   const dateFilter = useLocalDateFilter();
   const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
   const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
-  const vendas = dateFilter.filterByDate(allVendas);
+  const vendas = allVendas;
   const monthRange = useMemo(() => {
     const start = `${filterYear}-${String(filterMonth || 1).padStart(2, "0")}-01`;
     const endDate = new Date(filterYear, filterMonth || 1, 0);
@@ -342,7 +354,46 @@ const VendasPage = () => {
 
   const dateInRange = (date?: string | null) => !!date && date >= dateFilter.range.start && date <= dateFilter.range.end;
 
+  const hasPaymentInRange = (item: FechamentoDiario) =>
+    getPaymentHistory(item.observacao).some((entry) => dateInRange(entry.date));
+
+  const getCollectedGrossInPeriod = (item: FechamentoDiario) => {
+    const history = getPaymentHistory(item.observacao);
+    if (history.length > 0) {
+      const historyTotal = history.reduce((sum, entry) => sum + entry.amount, 0);
+      const legacyAmount = Math.max(0, Number(item.valor_sinal || 0) - historyTotal);
+      const legacyDate = getLocalCreatedDate(item.created_at) || item.data;
+      return history.filter((entry) => dateInRange(entry.date)).reduce((sum, entry) => sum + entry.amount, 0) +
+        (dateInRange(legacyDate) ? legacyAmount : 0);
+    }
+    return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
+      ? Number(item.valor_sinal || 0)
+      : 0;
+  };
+
+  const getCollectedNetInPeriod = (item: FechamentoDiario) => {
+    const history = getPaymentHistory(item.observacao);
+    if (history.length > 0) {
+      const historyNetTotal = history.reduce(
+        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)),
+        0,
+      );
+      const legacyNetAmount = Math.max(0, getFechamentoCollectedNet(item) - historyNetTotal);
+      const legacyDate = getLocalCreatedDate(item.created_at) || item.data;
+      return history
+        .filter((entry) => dateInRange(entry.date))
+        .reduce((sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0) +
+        (dateInRange(legacyDate) ? legacyNetAmount : 0);
+    }
+    return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
+      ? getFechamentoCollectedNet(item)
+      : 0;
+  };
+
   const getAReceberNoPeriodo = (item: FechamentoDiario) => {
+    if (dateFilter.mode !== "mes" && (dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at)))) {
+      return Number(item.valor_a_entrar || 0);
+    }
     const parcelasNoPeriodo = getStoredParcelDates(item).filter(dateInRange);
     if (parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
       return parcelasNoPeriodo.length * Number(item.valor_parcela || 0);
@@ -359,6 +410,8 @@ const VendasPage = () => {
       const hasRecurringInPeriod = Number(item.valor_recorrente || 0) > 0 && item.data <= dateFilter.range.end;
       return (
         dateInRange(item.data) ||
+        dateInRange(getLocalCreatedDate(item.created_at)) ||
+        hasPaymentInRange(item) ||
         dateInRange(item.previsao_entrada) ||
         getStoredParcelDates(item).some(dateInRange) ||
         hasRecurringInPeriod
@@ -368,7 +421,15 @@ const VendasPage = () => {
 
   const filtered = useMemo(() => {
     return vendas.filter((v) => {
-      if (!dateInRange(v.data)) return false;
+      const categoria = normalizeText(getVendaCategoria(v));
+      const hasRelatedFinancialActivity = fechamentos.some((item) =>
+        normalizeFechamentoStatus(item.status) !== "cancelado" &&
+        normalizeText(item.cliente) === normalizeText(v.cliente) &&
+        normalizeText(item.vendedor) === normalizeText(v.vendedor) &&
+        normalizeText(getFechamentoCategoria(item)) === categoria &&
+        (dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at)) || hasPaymentInRange(item))
+      );
+      if (!dateInRange(v.data) && !dateInRange(getLocalCreatedDate(v.created_at)) && !hasRelatedFinancialActivity) return false;
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
       if ((statusFilter === "paga" || statusFilter === "pendente") && v.status === "cancelada") return false;
@@ -377,7 +438,7 @@ const VendasPage = () => {
       if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
       return true;
     });
-  }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.range.start, dateFilter.range.end]);
+  }, [vendas, fechamentos, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.range.start, dateFilter.range.end]);
 
   const fechamentosFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -475,7 +536,7 @@ const VendasPage = () => {
       const paymentHistory = [...historyById.values()].sort((a, b) => b.date.localeCompare(a.date));
       const historyTotal = paymentHistory.reduce((total, entry) => total + entry.amount, 0);
       if (sinalBruto > historyTotal + 0.01) {
-        paymentHistory.push({ id: `legacy-${chave}`, date: principal.data, amount: sinalBruto - historyTotal, netAmount: Math.max(0, sinalLiquido - paymentHistory.reduce((total, entry) => total + Number(entry.netAmount ?? entry.amount), 0)), method: getSalePaymentLabel(principal) });
+        paymentHistory.push({ id: `legacy-${chave}`, date: getLocalCreatedDate(principal.created_at) || principal.data, amount: sinalBruto - historyTotal, netAmount: Math.max(0, sinalLiquido - paymentHistory.reduce((total, entry) => total + Number(entry.netAmount ?? entry.amount), 0)), method: getSalePaymentLabel(principal) });
       }
 
       const coletadoPeriodo = paymentHistory
@@ -781,7 +842,7 @@ const VendasPage = () => {
 
   const fechamentoTotals = useMemo(() => {
     const ativos = fechamentosFiltrados.filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado");
-    const coletado = ativos.reduce((sum, item) => sum + (dateInRange(item.data) ? getFechamentoCollectedNet(item) : 0), 0);
+    const coletado = ativos.reduce((sum, item) => sum + getCollectedNetInPeriod(item), 0);
     const aReceber = ativos.reduce((sum, item) => sum + getAReceberNoPeriodo(item), 0);
     const recorrente = ativos.reduce((sum, item) => sum + Number(item.valor_recorrente || 0), 0);
     return {
@@ -829,9 +890,9 @@ const VendasPage = () => {
       .filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado")
       .forEach((item) => {
         const row = getRow(getFechamentoCategoria(item));
-        if (dateInRange(item.data)) {
-          const coletadoBruto = Number(item.valor_sinal || 0);
-          const coletadoLiquido = getFechamentoCollectedNet(item);
+        const coletadoLiquido = getCollectedNetInPeriod(item);
+        if (coletadoLiquido > 0) {
+          const coletadoBruto = getCollectedGrossInPeriod(item);
           row.coletado += coletadoLiquido;
           row.taxasMaquininha += Math.max(0, coletadoBruto - coletadoLiquido);
         }
