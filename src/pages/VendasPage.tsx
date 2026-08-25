@@ -399,10 +399,19 @@ const VendasPage = () => {
       return Number(item.valor_a_entrar || 0);
     }
     const parcelasNoPeriodo = getStoredParcelDates(item).filter(dateInRange);
+    const isBoletoParcelado = Number(item.parcelas_total || 0) > 1;
+    if (isBoletoParcelado && parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
+      return parcelasNoPeriodo.length * Number(item.valor_parcela || 0);
+    }
+    // Em vendas comuns, a previsão atual é a fonte principal. Isso evita que
+    // datas antigas mantidas no registro façam um saldo reagendado entrar no
+    // mês errado (por exemplo, uma previsão alterada de agosto para outubro).
+    if (item.previsao_entrada) {
+      return dateInRange(item.previsao_entrada) ? Number(item.valor_a_entrar || 0) : 0;
+    }
     if (parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
       return parcelasNoPeriodo.length * Number(item.valor_parcela || 0);
     }
-    if (dateInRange(item.previsao_entrada)) return Number(item.valor_a_entrar || 0);
     if (dateInRange(item.data) && !item.previsao_entrada && getStoredParcelDates(item).length === 0) {
       return Number(item.valor_a_entrar || 0);
     }
