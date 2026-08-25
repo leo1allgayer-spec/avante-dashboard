@@ -10,6 +10,7 @@ import { isCourseCategory } from "@/constants/serviceCategories";
 
 type Period = "dia" | "semana" | "mes";
 type TimelineRow = { key: string; label: string; start: string; end: string; faturamento: number; valorVendido: number; aReceber: number; vendas: number; cursosVendidos: number; cursosFeitos: number; leads: number; mql: number; ads: number; metaPrevista: number };
+type PaymentEntry = { id?: string; date?: string; amount?: number; netAmount?: number };
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
@@ -45,6 +46,18 @@ const getMetaConversations = (actions?: Array<{ action_type: string; value: stri
     const type = item.action_type.toLowerCase();
     return type.includes("conversation_started") || type.includes("whatsapp") ? total + Number(item.value || 0) : total;
   }, 0);
+};
+const getPaymentHistory = (observation?: string | null): PaymentEntry[] => {
+  if (!observation) return [];
+  const marker = "__PAYMENT_HISTORY__";
+  const markerIndex = observation.indexOf(marker);
+  if (markerIndex < 0) return [];
+  try {
+    const parsed = JSON.parse(observation.slice(markerIndex + marker.length).trim());
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 };
 
 export default function MonthlyMetricsTimeline() {
@@ -131,15 +144,41 @@ export default function MonthlyMetricsTimeline() {
       group.total += Number(item.valor || 0); saleGroups.set(key, group);
     });
     saleGroups.forEach((group) => {
-      const received = fechamentos.filter((item) => (item.status || "").toLowerCase() !== "cancelado" && item.data === group.data && item.cliente.trim().toLocaleLowerCase("pt-BR") === group.cliente && item.vendedor.trim().toLocaleLowerCase("pt-BR") === group.vendedor).reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
       const row = rows.get(group.period);
-      if (row) {
-        const collected = Math.min(group.total, received);
-        row.valorVendido += group.total;
-        row.faturamento += collected;
-        row.aReceber += Math.max(group.total - collected, 0);
-      }
+      if (row) row.valorVendido += group.total;
     });
+
+    // Mesma fonte financeira usada em Vendas: cada pagamento entra no período
+    // em que foi recebido e cada saldo entra no período previsto para cobrança.
+    fechamentos
+      .filter((item) => (item.status || "").toLowerCase() !== "cancelado")
+      .forEach((item) => {
+        const history = getPaymentHistory(item.observacao);
+        if (history.length > 0) {
+          history.forEach((entry) => {
+            if (!entry.date) return;
+            const row = rows.get(rowKey(entry.date));
+            if (row) row.faturamento += Number(entry.netAmount ?? entry.amount ?? 0);
+          });
+        } else {
+          const row = rows.get(rowKey(item.data));
+          if (row) row.faturamento += Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
+        }
+
+        const parcelDates = Array.isArray(item.parcelas_datas) ? item.parcelas_datas.filter(Boolean) : [];
+        if (parcelDates.length > 0 && Number(item.valor_parcela || 0) > 0) {
+          parcelDates.forEach((date) => {
+            const row = rows.get(rowKey(date));
+            if (row) row.aReceber += Number(item.valor_parcela || 0);
+          });
+        } else if (item.previsao_entrada) {
+          const row = rows.get(rowKey(item.previsao_entrada));
+          if (row) row.aReceber += Number(item.valor_a_entrar || 0);
+        } else {
+          const row = rows.get(rowKey(item.data));
+          if (row) row.aReceber += Number(item.valor_a_entrar || 0);
+        }
+      });
     Object.entries(crmMql?.daily || {}).forEach(([date, total]) => { const row = rows.get(rowKey(date)); if (row) row.mql += Number(total || 0); });
     const monthlyTargets = new Map<string, number>();
     data?.metrics.forEach((item) => {
@@ -183,7 +222,7 @@ export default function MonthlyMetricsTimeline() {
         <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Meta prevista</span><strong className="text-blue-400">{money.format(row.metaPrevista)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Meta realizada</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">% da meta</span><strong className="text-violet-400">{row.metaPrevista > 0 ? `${((row.faturamento / row.metaPrevista) * 100).toFixed(1).replace(".", ",")}%` : "—"}</strong></div>
-        <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Total vendido</span><strong className="text-primary">{money.format(row.faturamento + row.aReceber)}</strong></div>
+        <div className="mt-2 border-t border-border/40 pt-2 flex justify-between gap-3"><span className="text-muted-foreground">Total vendido</span><strong className="text-primary">{money.format(row.valorVendido)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Coletado</span><strong className="text-emerald-400">{money.format(row.faturamento)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">A receber</span><strong className="text-amber-400">{money.format(row.aReceber)}</strong></div>
       </div></div>{index < periods.length - 1 && <ArrowRight className="ml-2 h-4 w-4 shrink-0 text-muted-foreground/40 lg:hidden" />}</div>)}
