@@ -49,7 +49,7 @@ import BookingPublicPage from "./pages/clients/BookingPublicPage";
 import ConfirmBookingPage from "./pages/clients/ConfirmBookingPage";
 import ConfirmReschedulePage from "./pages/clients/ConfirmReschedulePage";
 import MetaPixelPage from "./pages/meta/MetaPixelPage";
-import { GOOGLE_TASKS_ONLY_PATH, isGoogleTasksOnlyUser } from "@/lib/accessControl";
+import { GOOGLE_TASKS_ONLY_PATH, isGoogleManagerPath, isGoogleTasksOnlyUser } from "@/lib/accessControl";
 
 const queryClient = new QueryClient();
 
@@ -115,7 +115,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
   if (!session) return <Navigate to="/auth" replace />;
-  if (isGoogleTasksOnlyUser(session.user.email) && location.pathname !== GOOGLE_TASKS_ONLY_PATH) {
+  if (isGoogleTasksOnlyUser(session.user.email) && !isGoogleManagerPath(location.pathname)) {
     return <Navigate to={GOOGLE_TASKS_ONLY_PATH} replace />;
   }
   return <>{children}</>;

@@ -88,7 +88,10 @@ export function AppSidebar() {
   const googleTasksOnly = isGoogleTasksOnlyUser(session?.user?.email);
 
   const visibleGestaoItems = googleTasksOnly
-    ? [{ title: "Tarefas Google Ads", url: "/tasks", icon: ClipboardList }]
+    ? [
+        { title: "Cursos Google Ads", url: "/tasks", icon: GraduationCap },
+        { title: "Clientes Google Ads", url: "/clientes-google-ads", icon: Users2 },
+      ]
     : gestaoItems;
 
   return (

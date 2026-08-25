@@ -7,3 +7,12 @@ export function isGoogleTasksOnlyUser(email?: string | null) {
 }
 
 export const GOOGLE_TASKS_ONLY_PATH = "/tasks";
+
+export const GOOGLE_MANAGER_PATHS = new Set([
+  "/tasks",
+  "/clientes-google-ads",
+]);
+
+export function isGoogleManagerPath(pathname: string) {
+  return GOOGLE_MANAGER_PATHS.has(pathname);
+}
