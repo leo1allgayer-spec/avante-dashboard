@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarDays, GripVertical, Loader2, Pencil, Plus, Search, Trash2, UserRound } from "lucide-react";
 import {
   SOCIAL_MEDIA_OWNERS,
+  SITES_OWNERS,
+  CRM_OWNERS,
   SOCIAL_MEDIA_PRIORITIES,
   SOCIAL_MEDIA_STATUSES,
   SocialMediaStatus,
@@ -42,10 +44,18 @@ const boardLabels: Record<KanbanBoardType, { title: string; subtitle: string; ne
   crm: { title: "Kanban CRM", subtitle: "Fluxo de implantação e acompanhamento de CRM", newTask: "Nova tarefa de CRM" },
 };
 
+const boardOwners = {
+  social_media: SOCIAL_MEDIA_OWNERS,
+  sites: SITES_OWNERS,
+  crm: CRM_OWNERS,
+} satisfies Record<KanbanBoardType, readonly string[]>;
+
 interface Props { boardType?: KanbanBoardType }
 
 export default function SocialMediaKanbanPage({ boardType = "social_media" }: Props) {
   const labels = boardLabels[boardType];
+  const owners = boardOwners[boardType];
+  const defaultOwner = owners[0] as SocialMediaTaskInput["owner"];
   const { tasks, loading, addTask, updateTask, deleteTask } = useSocialMediaKanban(boardType);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SocialMediaTask | null>(null);
@@ -61,7 +71,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
 
   const showCreate = (status: SocialMediaStatus = "Solicitado") => {
     setEditing(null);
-    setForm({ ...emptyTask, status });
+    setForm({ ...emptyTask, owner: defaultOwner, status });
     setOpen(true);
   };
 
@@ -88,7 +98,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
           </div>
           <Select value={ownerFilter} onValueChange={setOwnerFilter}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="Todos">Todos os responsáveis</SelectItem>{SOCIAL_MEDIA_OWNERS.map((owner) => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="Todos">Todos os responsáveis</SelectItem>{owners.map((owner) => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}</SelectContent>
           </Select>
           <Button onClick={() => showCreate()}><Plus className="mr-2 h-4 w-4" />Nova tarefa</Button>
         </div>
@@ -137,7 +147,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
             <div className="space-y-2"><Label>Tarefa *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex.: Criar carrossel da campanha" autoFocus /></div>
             <div className="space-y-2"><Label>Cliente</Label><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} placeholder="Nome do cliente" /></div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="space-y-2"><Label>Responsável</Label><Select value={form.owner} onValueChange={(owner: any) => setForm({ ...form, owner })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SOCIAL_MEDIA_OWNERS.map((owner) => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Responsável</Label><Select value={form.owner} onValueChange={(owner: any) => setForm({ ...form, owner })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{owners.map((owner) => <SelectItem key={owner} value={owner}>{owner}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label>Prioridade</Label><Select value={form.priority} onValueChange={(priority: any) => setForm({ ...form, priority })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SOCIAL_MEDIA_PRIORITIES.map((priority) => <SelectItem key={priority} value={priority}>{priority}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label>Prazo</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
             </div>

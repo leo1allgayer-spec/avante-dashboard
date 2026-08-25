@@ -4,11 +4,13 @@ import { toast } from "sonner";
 
 export const SOCIAL_MEDIA_STATUSES = ["Solicitado", "Em produção", "Aguardando aprovação", "Concluído"] as const;
 export const SOCIAL_MEDIA_OWNERS = ["Ana", "Luana", "Andrei"] as const;
+export const SITES_OWNERS = ["Leonardo"] as const;
+export const CRM_OWNERS = ["Matheus"] as const;
 export const SOCIAL_MEDIA_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
 export type KanbanBoardType = "social_media" | "sites" | "crm";
 
 export type SocialMediaStatus = (typeof SOCIAL_MEDIA_STATUSES)[number];
-export type SocialMediaOwner = (typeof SOCIAL_MEDIA_OWNERS)[number];
+export type SocialMediaOwner = (typeof SOCIAL_MEDIA_OWNERS)[number] | (typeof SITES_OWNERS)[number] | (typeof CRM_OWNERS)[number];
 export type SocialMediaPriority = (typeof SOCIAL_MEDIA_PRIORITIES)[number];
 
 export interface SocialMediaTask {
