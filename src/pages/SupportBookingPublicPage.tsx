@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarDays, CheckCircle2, Clock3, GraduationCap, Loader2, Search, ShieldCheck } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, GraduationCap, Loader2, MapPin, Monitor, Search, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,8 @@ export default function SupportBookingPublicPage() {
   const [newStudentPhone, setNewStudentPhone] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
   const [selected, setSelected] = useState<{ date: string; time: string } | null>(null);
-  const [completed, setCompleted] = useState<{ name: string; date: string; time: string; remaining: number } | null>(null);
+  const [modality, setModality] = useState<"presencial" | "online">("presencial");
+  const [completed, setCompleted] = useState<{ name: string; date: string; time: string; modality: "presencial" | "online"; remaining: number } | null>(null);
 
   const slotsByDate = useMemo(() => {
     const groups = new Map<string, typeof slots>();
@@ -63,12 +64,12 @@ export default function SupportBookingPublicPage() {
       return;
     }
     try {
-      const result = await createBooking.mutateAsync({ cpf, date: selected.date, time: selected.time, name: newStudentName.trim(), phone: newStudentPhone.trim() });
+      const result = await createBooking.mutateAsync({ cpf, date: selected.date, time: selected.time, modality, name: newStudentName.trim(), phone: newStudentPhone.trim() });
       const { error: notificationError } = await supabase.functions.invoke("support-booking-notifications", {
         body: { bookingId: result.id },
       });
       if (notificationError) console.error("Erro ao disparar notificações do suporte:", notificationError);
-      setCompleted({ name: result.name, date: result.date, time: result.time, remaining: result.remaining });
+      setCompleted({ name: result.name, date: result.date, time: result.time, modality, remaining: result.remaining });
       if (student) setStudent({ ...student, used: result.used, remaining: result.remaining });
     } catch (error) {
       toast({ title: "Não foi possível agendar", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
@@ -81,7 +82,7 @@ export default function SupportBookingPublicPage() {
       <CheckCircle2 className="mx-auto mt-7 h-16 w-16 text-success" />
       <h1 className="mt-5 font-display text-2xl font-bold">Aula de suporte agendada</h1>
       <p className="mt-2 text-muted-foreground">{completed.name}, sua aula ficou marcada para:</p>
-      <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-5"><strong className="block text-lg capitalize">{formatDate(completed.date)}</strong><span className="mt-1 block text-2xl font-bold text-primary">{formatTime(completed.time)}</span></div>
+      <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-5"><strong className="block text-lg capitalize">{formatDate(completed.date)}</strong><span className="mt-1 block text-2xl font-bold text-primary">{formatTime(completed.time)}</span><Badge variant="secondary" className="mt-3 capitalize">{completed.modality}</Badge></div>
       <p className="mt-4 text-sm text-muted-foreground">Você ainda possui <strong className="text-foreground">{completed.remaining}</strong> {completed.remaining === 1 ? "aula disponível" : "aulas disponíveis"}.</p>
       <Button className="mt-6 w-full" variant="outline" onClick={() => { setCompleted(null); setSelected(null); }}>Voltar para a agenda</Button>
     </motion.div></div></div>;
@@ -101,9 +102,13 @@ export default function SupportBookingPublicPage() {
     </div>
 
     {student && student.remaining <= 0 ? <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-amber-500" /><h2 className="mt-3 text-lg font-bold">Limite de aulas atingido</h2><p className="mt-1 text-sm text-muted-foreground">As três aulas de suporte vinculadas a este CPF já foram utilizadas ou estão agendadas.</p></div> : (student || cpfChecked) ? <div className="mt-5 rounded-2xl border border-border/60 bg-card/90 p-5 sm:p-6">
-      <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /><h2 className="font-display text-xl font-bold">Escolha o dia e horário</h2></div>
+      <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /><h2 className="font-display text-xl font-bold">Escolha a modalidade, o dia e o horário</h2></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <button type="button" onClick={() => setModality("presencial")} className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-colors ${modality === "presencial" ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/40"}`}><MapPin className="h-5 w-5 text-primary" /><div><p className="font-semibold">Presencial</p><p className="text-xs text-muted-foreground">Aula realizada presencialmente</p></div></button>
+        <button type="button" onClick={() => setModality("online")} className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-colors ${modality === "online" ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/40"}`}><Monitor className="h-5 w-5 text-primary" /><div><p className="font-semibold">Online</p><p className="text-xs text-muted-foreground">Aula realizada por chamada</p></div></button>
+      </div>
       {loadingSlots ? <div className="flex justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div> : slotsByDate.length === 0 ? <p className="py-10 text-center text-muted-foreground">Nenhum horário disponível no momento.</p> : <div className="mt-5 space-y-4">{slotsByDate.map(([date, dateSlots]) => <div key={date} className="rounded-xl border border-border/40 p-4"><p className="font-semibold capitalize">{formatDate(date)}</p><div className="mt-3 flex flex-wrap gap-2">{dateSlots.map((slot) => { const active = selected?.date === date && selected.time === slot.start_time; return <Button key={`${date}-${slot.start_time}`} type="button" variant={active ? "default" : "outline"} className="gap-2" onClick={() => setSelected({ date, time: slot.start_time })}><Clock3 className="h-4 w-4" />{formatTime(slot.start_time)}<span className="text-[10px] opacity-70">{slot.capacity - slot.booked} vaga(s)</span></Button>; })}</div></div>)}</div>}
-      {selected && <div className="sticky bottom-3 mt-5 rounded-xl border border-primary/30 bg-background/95 p-4 shadow-xl backdrop-blur"><p className="text-sm text-muted-foreground">Confirmar <strong className="capitalize text-foreground">{formatDate(selected.date)}</strong> às <strong className="text-foreground">{formatTime(selected.time)}</strong>?</p><Button className="mt-3 h-11 w-full" onClick={() => void confirmBooking()} disabled={createBooking.isPending}>{createBooking.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar aula de suporte</Button></div>}
+      {selected && <div className="sticky bottom-3 mt-5 rounded-xl border border-primary/30 bg-background/95 p-4 shadow-xl backdrop-blur"><p className="text-sm text-muted-foreground">Confirmar aula <strong className="capitalize text-foreground">{modality}</strong> em <strong className="capitalize text-foreground">{formatDate(selected.date)}</strong> às <strong className="text-foreground">{formatTime(selected.time)}</strong>?</p><Button className="mt-3 h-11 w-full" onClick={() => void confirmBooking()} disabled={createBooking.isPending}>{createBooking.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar aula de suporte</Button></div>}
     </div> : null}
   </div></div></div>;
 }

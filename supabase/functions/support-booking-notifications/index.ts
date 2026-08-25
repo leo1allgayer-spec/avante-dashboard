@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       try {
         const { data: booking, error: bookingError } = await supabase
           .from("support_bookings")
-          .select("id,student_id,student_name,student_phone,booking_date,start_time,status")
+          .select("id,student_id,student_name,student_phone,booking_date,start_time,modality,status")
           .eq("id", job.booking_id)
           .single();
         if (bookingError || !booking) throw new Error("Agendamento não encontrado");
@@ -78,15 +78,16 @@ Deno.serve(async (req) => {
         if (!studentPhone) throw new Error("Telefone do aluno não encontrado");
 
         const when = `${dateLabel(booking.booking_date)} às ${timeLabel(booking.start_time)}`;
+        const modality = booking.modality === "online" ? "Online" : "Presencial";
         let phone = studentPhone;
         let message = "";
         if (job.message_type === "student_confirmation") {
-          message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte foi agendada com sucesso.", `📅 ${when}`, "", "Você receberá outro aviso 1 hora antes."].join("\n");
+          message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte foi agendada com sucesso.", `📅 ${when}`, `📍 Modalidade: ${modality}`, "", "Você receberá outro aviso 1 hora antes."].join("\n");
         } else if (job.message_type === "student_reminder_1h") {
-          message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte começa em 1 hora.", `📅 ${when}`, "", "Até breve!"].join("\n");
+          message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte começa em 1 hora.", `📅 ${when}`, `📍 Modalidade: ${modality}`, "", "Até breve!"].join("\n");
         } else {
           phone = NICOLAS_PHONE;
-          message = ["🔔 Nova aula de suporte agendada", "", `Aluno: ${booking.student_name}`, `Telefone: ${studentPhone}`, `Data: ${when}`].join("\n");
+          message = ["🔔 Nova aula de suporte agendada", "", `Aluno: ${booking.student_name}`, `Telefone: ${studentPhone}`, `Data: ${when}`, `Modalidade: ${modality}`].join("\n");
         }
 
         const response = await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {
