@@ -25,6 +25,31 @@ const normalizeText = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
+type PaymentEntry = { id: string; date: string; amount: number; netAmount?: number };
+const PAYMENT_HISTORY_PREFIX = "[PAGAMENTO_VENDA]";
+
+const getPaymentHistory = (observation?: string | null): PaymentEntry[] =>
+  (observation || "").split("\n").flatMap((line) => {
+    if (!line.startsWith(PAYMENT_HISTORY_PREFIX)) return [];
+    try {
+      const entry = JSON.parse(line.slice(PAYMENT_HISTORY_PREFIX.length));
+      return entry?.id && entry?.date && Number(entry?.amount) > 0
+        ? [{ id: String(entry.id), date: String(entry.date), amount: Number(entry.amount), netAmount: entry.netAmount == null ? undefined : Number(entry.netAmount) }]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+
+const getLocalDate = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date);
+};
+
 /** Count business days Monday through Friday in a given month/year. */
 function countWorkingDays(year: number, month: number) {
   const lastDay = new Date(year, month + 1, 0).getDate();
@@ -120,28 +145,35 @@ const MetasPage = () => {
     () => filter.vendas.filter((v) => normalizeText(v.status) !== "cancelada"),
     [filter.vendas]
   );
-  const getCollectedTotal = (sales: typeof registeredMonthVendas) => {
-    const groups = new Map<string, { data: string; cliente: string; vendedor: string; total: number }>();
-    sales.forEach((sale) => {
-      const key = [sale.data, normalizeText(sale.cliente), normalizeText(sale.vendedor)].join("|");
-      const group = groups.get(key) || { data: sale.data, cliente: sale.cliente, vendedor: sale.vendedor, total: 0 };
-      group.total += Number(sale.valor || 0);
-      groups.set(key, group);
-    });
-    return Array.from(groups.values()).reduce((total, group) => {
-      const received = fechamentos
-        .filter((item) =>
-          normalizeText(item.status) !== "cancelado" &&
-          item.data === group.data &&
-          normalizeText(item.cliente) === normalizeText(group.cliente) &&
-          normalizeText(item.vendedor) === normalizeText(group.vendedor)
-        )
-        .reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0);
-      return total + Math.min(group.total, received);
+  const getCollectedTotal = (start: string, end: string) => fechamentos
+    .filter((item) => normalizeText(item.status) !== "cancelado")
+    .reduce((total, item) => {
+      const consolidatedNet = Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
+      const historyById = new Map<string, PaymentEntry>();
+      getPaymentHistory(item.observacao).forEach((entry) => historyById.set(entry.id, entry));
+      const history = [...historyById.values()];
+      const historyGross = history.reduce((sum, entry) => sum + entry.amount, 0);
+      const receivedInRange = history
+        .filter((entry) => entry.date >= start && entry.date <= end)
+        .reduce((sum, entry) => sum + Number(entry.netAmount ?? entry.amount), 0);
+      const legacyRemainder = Math.max(0, consolidatedNet - history.reduce((sum, entry) => sum + Number(entry.netAmount ?? entry.amount), 0));
+      const legacyDate = getLocalDate(item.created_at) || item.data;
+      const legacyInRange = legacyDate >= start && legacyDate <= end ? legacyRemainder : 0;
+
+      if (history.length > 0 || historyGross > 0) return total + receivedInRange + legacyInRange;
+      return total + (item.data >= start && item.data <= end ? consolidatedNet : 0);
     }, 0);
-  };
-  const periodRealized = useMemo(() => getCollectedTotal(registeredPeriodVendas), [registeredPeriodVendas, fechamentos]);
-  const monthRealized = useMemo(() => getCollectedTotal(registeredMonthVendas), [registeredMonthVendas, fechamentos]);
+
+  const periodRealized = useMemo(
+    () => getCollectedTotal(filter.range.start, filter.range.end),
+    [fechamentos, filter.range.start, filter.range.end],
+  );
+  const monthRealized = useMemo(() => {
+    const year = filter.anchor.getFullYear();
+    const month = String(filter.anchor.getMonth() + 1).padStart(2, "0");
+    const lastDay = String(new Date(year, filter.anchor.getMonth() + 1, 0).getDate()).padStart(2, "0");
+    return getCollectedTotal(`${year}-${month}-01`, `${year}-${month}-${lastDay}`);
+  }, [fechamentos, filter.anchor]);
 
   const dayWithMeta = [...uniqueMonth].reverse().find((d) => Number(d.meta_mensal_prevista) > 0);
   const dayWithSuperMensal = [...uniqueMonth].reverse().find((d) => Number(d.super_meta_mensal) > 0);
@@ -155,8 +187,7 @@ const MetasPage = () => {
     : new Date().toISOString().slice(0, 10) >= filter.range.start && new Date().toISOString().slice(0, 10) <= filter.range.end
       ? new Date().toISOString().slice(0, 10)
       : filter.range.end;
-  const referenceDaySales = registeredMonthVendas.filter((sale) => sale.data === referenceDate);
-  const metaDiariaRealizada = getCollectedTotal(referenceDaySales);
+  const metaDiariaRealizada = getCollectedTotal(referenceDate, referenceDate);
 
   const svcSource = [...uniqueMonth].reverse();
   const svcMetaCursos = svcSource.find((d) => Number(d.meta_cursos) > 0)?.meta_cursos || 0;
