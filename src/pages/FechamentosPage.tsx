@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock, CheckCircle2, Clock3, Layers3, Pencil, Plus, Search, ShoppingCart, Trash2, TrendingUp, Wallet } from "lucide-react";
 
 const STATUS_OPTIONS = ["a receber", "recebido", "cancelado"];
-const ORIGEM_OPTIONS = ["Anuncio", "Upsell", "Indicacao", "Social Seller"];
+const ORIGEM_OPTIONS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Influencers"];
 
 const defaultItem = {
   produto_servico: "",

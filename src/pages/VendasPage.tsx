@@ -30,7 +30,7 @@ import { COURSE_PRODUCTS, GENERAL_SERVICE_OPTIONS, PRODUCT_OPTIONS, SERVICE_OPTI
 
 const PRODUTOS = PRODUCT_OPTIONS;
 const SERVICOS = SERVICE_OPTIONS;
-const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller"];
+const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Influencers"];
 
 const TAXAS_CARTAO_GATEWAY: Record<number, number> = {
   1: 0, 2: 4.78, 3: 5.78, 4: 6.78, 5: 7.78, 6: 8.78,
