@@ -29,6 +29,7 @@ export default function SupportSchedulePage() {
   const [weekday, setWeekday] = useState("1");
   const [startTime, setStartTime] = useState("14:00");
   const [capacity, setCapacity] = useState("1");
+  const [bookingView, setBookingView] = useState<"agendado" | "concluido" | "cancelado">("agendado");
   const publicLink = `${window.location.origin}/agendar-suporte`;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -36,6 +37,14 @@ export default function SupportSchedulePage() {
   const upcoming = useMemo(() => [...activeBookings].filter((booking) => booking.booking_date >= today).sort((a, b) => `${a.booking_date}${a.start_time}`.localeCompare(`${b.booking_date}${b.start_time}`)), [activeBookings, today]);
   const completed = bookings.filter((booking) => booking.status === "concluido").length;
   const uniqueStudents = new Set(bookings.filter((booking) => booking.status !== "cancelado").map((booking) => booking.cpf_limpo)).size;
+  const visibleBookings = useMemo(() => {
+    const filtered = bookings.filter((booking) => booking.status === bookingView);
+    return [...filtered].sort((a, b) => {
+      const left = `${a.booking_date}T${a.start_time}`;
+      const right = `${b.booking_date}T${b.start_time}`;
+      return bookingView === "agendado" ? left.localeCompare(right) : right.localeCompare(left);
+    });
+  }, [bookingView, bookings]);
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(publicLink);
@@ -75,9 +84,18 @@ export default function SupportSchedulePage() {
       <TabsList><TabsTrigger value="agenda" className="gap-2"><CalendarCheck2 className="h-4 w-4" /> Agenda</TabsTrigger><TabsTrigger value="config" className="gap-2"><Settings2 className="h-4 w-4" /> Configurações</TabsTrigger></TabsList>
       <TabsContent value="agenda">
         <div className="overflow-hidden rounded-xl border border-border/40 bg-card/70">
-          <div className="border-b border-border/40 p-4"><h2 className="font-display text-lg font-bold">Agendamentos de suporte</h2><p className="text-xs text-muted-foreground">Aulas futuras primeiro. Use o status para concluir ou cancelar.</p></div>
+          <div className="border-b border-border/40 p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div><h2 className="font-display text-lg font-bold">Agendamentos de suporte</h2><p className="text-xs text-muted-foreground">Os atendimentos ativos aparecem pela data mais próxima.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant={bookingView === "agendado" ? "default" : "outline"} onClick={() => setBookingView("agendado")}>Ativos ({bookings.filter((item) => item.status === "agendado").length})</Button>
+                <Button size="sm" variant={bookingView === "concluido" ? "default" : "outline"} onClick={() => setBookingView("concluido")}>Realizados ({bookings.filter((item) => item.status === "concluido").length})</Button>
+                <Button size="sm" variant={bookingView === "cancelado" ? "destructive" : "outline"} onClick={() => setBookingView("cancelado")}>Cancelados ({bookings.filter((item) => item.status === "cancelado").length})</Button>
+              </div>
+            </div>
+          </div>
           <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Horário</TableHead><TableHead>Modalidade</TableHead><TableHead>Aluno</TableHead><TableHead>CPF</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>
-            {loadingBookings ? <TableRow><TableCell colSpan={7} className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></TableCell></TableRow> : bookings.length === 0 ? <TableRow><TableCell colSpan={7} className="py-10 text-center text-muted-foreground">Nenhuma aula agendada.</TableCell></TableRow> : [...bookings].sort((a, b) => `${b.booking_date}${b.start_time}`.localeCompare(`${a.booking_date}${a.start_time}`)).map((booking) => <TableRow key={booking.id} className={booking.status === "cancelado" ? "opacity-50" : ""}><TableCell className="font-medium capitalize">{formatDate(booking.booking_date)}</TableCell><TableCell>{formatTime(booking.start_time)}</TableCell><TableCell><Badge variant="outline" className="capitalize">{booking.modality || "presencial"}</Badge></TableCell><TableCell className="font-semibold">{booking.student_name}</TableCell><TableCell>{booking.cpf_limpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</TableCell><TableCell><Badge variant={booking.status === "concluido" ? "default" : booking.status === "cancelado" ? "destructive" : "secondary"} className={booking.status === "concluido" ? "bg-success text-success-foreground" : ""}>{booking.status}</Badge></TableCell><TableCell><div className="flex justify-end gap-1">{booking.status !== "concluido" && booking.status !== "cancelado" && <Button size="sm" variant="outline" className="gap-1 text-success" onClick={() => void changeBookingStatus(booking.id, "concluido")}><Check className="h-4 w-4" /> Concluir</Button>}{booking.status !== "cancelado" && <Button size="icon" variant="ghost" className="text-destructive" onClick={() => void changeBookingStatus(booking.id, "cancelado")} title="Cancelar"><X className="h-4 w-4" /></Button>}{booking.status === "cancelado" && <Button size="sm" variant="outline" onClick={() => void changeBookingStatus(booking.id, "agendado")}>Reabrir</Button>}</div></TableCell></TableRow>)}
+            {loadingBookings ? <TableRow><TableCell colSpan={7} className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></TableCell></TableRow> : visibleBookings.length === 0 ? <TableRow><TableCell colSpan={7} className="py-10 text-center text-muted-foreground">Nenhum agendamento nesta categoria.</TableCell></TableRow> : visibleBookings.map((booking) => <TableRow key={booking.id} className={booking.status === "cancelado" ? "opacity-50" : ""}><TableCell className="font-medium capitalize">{formatDate(booking.booking_date)}</TableCell><TableCell>{formatTime(booking.start_time)}</TableCell><TableCell><Badge variant="outline" className="capitalize">{booking.modality || "presencial"}</Badge></TableCell><TableCell className="font-semibold">{booking.student_name}</TableCell><TableCell>{booking.cpf_limpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</TableCell><TableCell><Badge variant={booking.status === "concluido" ? "default" : booking.status === "cancelado" ? "destructive" : "secondary"} className={booking.status === "concluido" ? "bg-success text-success-foreground" : ""}>{booking.status}</Badge></TableCell><TableCell><div className="flex justify-end gap-1">{booking.status !== "concluido" && booking.status !== "cancelado" && <Button size="sm" variant="outline" className="gap-1 text-success" onClick={() => void changeBookingStatus(booking.id, "concluido")}><Check className="h-4 w-4" /> Concluir</Button>}{booking.status !== "cancelado" && <Button size="icon" variant="ghost" className="text-destructive" onClick={() => void changeBookingStatus(booking.id, "cancelado")} title="Cancelar"><X className="h-4 w-4" /></Button>}{booking.status === "cancelado" && <Button size="sm" variant="outline" onClick={() => void changeBookingStatus(booking.id, "agendado")}>Reabrir</Button>}</div></TableCell></TableRow>)}
           </TableBody></Table></div>
         </div>
       </TabsContent>
