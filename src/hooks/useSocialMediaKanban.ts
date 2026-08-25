@@ -5,6 +5,7 @@ import { toast } from "sonner";
 export const SOCIAL_MEDIA_STATUSES = ["Solicitado", "Em produção", "Aguardando aprovação", "Concluído"] as const;
 export const SOCIAL_MEDIA_OWNERS = ["Ana", "Luana", "Andrei"] as const;
 export const SOCIAL_MEDIA_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
+export type KanbanBoardType = "social_media" | "sites" | "crm";
 
 export type SocialMediaStatus = (typeof SOCIAL_MEDIA_STATUSES)[number];
 export type SocialMediaOwner = (typeof SOCIAL_MEDIA_OWNERS)[number];
@@ -36,7 +37,7 @@ const fromRow = (row: any): SocialMediaTask => ({
   createdAt: row.created_at,
 });
 
-export function useSocialMediaKanban() {
+export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media") {
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,26 +45,27 @@ export function useSocialMediaKanban() {
     const { data, error } = await supabase
       .from("social_media_kanban_tasks" as any)
       .select("*")
+      .eq("board_type", boardType)
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error(error);
-      toast.error("Erro ao carregar o Kanban de Social Media");
+      toast.error("Erro ao carregar o Kanban");
     } else {
       setTasks((data || []).map(fromRow));
     }
     setLoading(false);
-  }, []);
+  }, [boardType]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("social-media-kanban-realtime")
+      .channel(`operational-kanban-${boardType}-realtime`)
       .on("postgres_changes", { event: "*", schema: "public", table: "social_media_kanban_tasks" }, fetchTasks)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchTasks]);
+  }, [boardType, fetchTasks]);
 
   const addTask = async (task: SocialMediaTaskInput) => {
     const { error } = await supabase.from("social_media_kanban_tasks" as any).insert({
@@ -74,6 +76,7 @@ export function useSocialMediaKanban() {
       priority: task.priority,
       status: task.status,
       due_date: task.dueDate || null,
+      board_type: boardType,
     } as any);
     if (error) return toast.error("Erro ao criar tarefa");
     toast.success("Tarefa criada");

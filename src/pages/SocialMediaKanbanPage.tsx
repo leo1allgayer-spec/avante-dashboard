@@ -15,6 +15,7 @@ import {
   SocialMediaStatus,
   SocialMediaTask,
   SocialMediaTaskInput,
+  KanbanBoardType,
   useSocialMediaKanban,
 } from "@/hooks/useSocialMediaKanban";
 
@@ -35,8 +36,17 @@ const priorityStyles = {
   Baixa: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
 };
 
-export default function SocialMediaKanbanPage() {
-  const { tasks, loading, addTask, updateTask, deleteTask } = useSocialMediaKanban();
+const boardLabels: Record<KanbanBoardType, { title: string; subtitle: string; newTask: string }> = {
+  social_media: { title: "Kanban Social Media", subtitle: "Fluxo de produção, responsáveis e prioridades", newTask: "Nova tarefa de Social Media" },
+  sites: { title: "Kanban Sites", subtitle: "Fluxo de desenvolvimento e entrega de sites", newTask: "Nova tarefa de Site" },
+  crm: { title: "Kanban CRM", subtitle: "Fluxo de implantação e acompanhamento de CRM", newTask: "Nova tarefa de CRM" },
+};
+
+interface Props { boardType?: KanbanBoardType }
+
+export default function SocialMediaKanbanPage({ boardType = "social_media" }: Props) {
+  const labels = boardLabels[boardType];
+  const { tasks, loading, addTask, updateTask, deleteTask } = useSocialMediaKanban(boardType);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<SocialMediaTask | null>(null);
   const [form, setForm] = useState<SocialMediaTaskInput>(emptyTask);
@@ -69,7 +79,7 @@ export default function SocialMediaKanbanPage() {
   };
 
   return (
-    <DashboardLayout title="Kanban Social Media" subtitle="Fluxo de produção, responsáveis e prioridades" contentClassName="max-w-[110rem]">
+    <DashboardLayout title={labels.title} subtitle={labels.subtitle} contentClassName="max-w-[110rem]">
       <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-[260px] flex-1 max-w-xl">
@@ -122,7 +132,7 @@ export default function SocialMediaKanbanPage() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-xl">
-          <DialogHeader><DialogTitle>{editing ? "Editar tarefa" : "Nova tarefa de Social Media"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Editar tarefa" : labels.newTask}</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="space-y-2"><Label>Tarefa *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex.: Criar carrossel da campanha" autoFocus /></div>
             <div className="space-y-2"><Label>Cliente</Label><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} placeholder="Nome do cliente" /></div>
