@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Trash2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useMetaAds } from "@/hooks/useMetaAds";
+import { useCrmMql } from "@/hooks/useCrmMql";
+import { useVendas } from "@/hooks/useVendas";
+import { useFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
+import { useCursosDados } from "@/hooks/useCursosDados";
+import { isCourseCategory, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,17 +77,70 @@ interface ColDef {
 const COLUMNS: ColDef[] = [
   { key: "ads", label: "ADS", format: "brl" },
   { key: "leads", label: "Leads", format: "int" },
-  { key: "custo_por_lead", label: "CPL", format: "brl" },
+  { key: "custo_por_lead", label: "CPL", format: "brl", computed: true },
   { key: "lead_mql", label: "MQL", format: "int", colorClass: "text-accent" },
-  { key: "custo_por_lead_mql", label: "CPL MQL", format: "brl" },
+  { key: "custo_por_lead_mql", label: "CPL MQL", format: "brl", computed: true },
   { key: "curso_marcado", label: "Curso Marcado", format: "int" },
   { key: "curso_feito", label: "Curso Feito", format: "int" },
   { key: "taxa_conversao", label: "Conversão", format: "pct", computed: true, colorClass: "text-emerald-400" },
   { key: "faturamento_marcado", label: "Fat. Marcado", format: "brl", colorClass: "font-semibold text-foreground" },
   { key: "faturamento_dia", label: "Fat. Feito", format: "brl", colorClass: "font-semibold text-foreground" },
-  { key: "roas", label: "ROAS", format: "dec", decimals: 2 },
-  { key: "cac", label: "CAC", format: "dec", decimals: 2 },
+  { key: "roas", label: "ROAS", format: "dec", decimals: 2, computed: true },
+  { key: "cac", label: "CAC", format: "dec", decimals: 2, computed: true },
 ];
+
+const normalizeText = (value?: string | null) => (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const getFirstAction = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
+  for (const type of types) {
+    const action = actions?.find((item) => item.action_type.toLowerCase() === type);
+    if (action) return Number(action.value || 0);
+  }
+  return 0;
+};
+const getMetaLeads = (actions?: Array<{ action_type: string; value: string }>) => getFirstAction(actions, [
+  "lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead",
+  "offsite_complete_registration_add_meta_leads", "offsite_content_view_add_meta_leads",
+]);
+const getMetaConversations = (actions?: Array<{ action_type: string; value: string }>) => {
+  const preferred = getFirstAction(actions, [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "onsite_conversion.total_messaging_connection",
+    "onsite_conversion.messaging_first_reply",
+  ]);
+  if (preferred > 0) return preferred;
+  return (actions || []).reduce((total, action) => {
+    const type = action.action_type.toLowerCase();
+    return type.includes("conversation_started") || type.includes("whatsapp") ? total + Number(action.value || 0) : total;
+  }, 0);
+};
+
+type PaymentHistoryEntry = { date: string; amount: number; netAmount?: number };
+const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =>
+  (observation || "").split("\n").flatMap((line) => {
+    if (!line.startsWith("[PAGAMENTO_VENDA]")) return [];
+    try {
+      const entry = JSON.parse(line.slice("[PAGAMENTO_VENDA]".length));
+      return entry?.date && Number(entry?.amount) > 0
+        ? [{ date: String(entry.date), amount: Number(entry.amount), netAmount: entry.netAmount == null ? undefined : Number(entry.netAmount) }]
+        : [];
+    } catch { return []; }
+  });
+const getLocalDate = (value?: string | null) => value ? new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+}).format(new Date(value)) : "";
+const addCollectedPayments = (target: Record<string, number>, item: FechamentoDiario) => {
+  const history = getPaymentHistory(item.observacao);
+  if (history.length > 0) {
+    const historyNet = history.reduce((sum, entry) => sum + Number(entry.netAmount ?? entry.amount), 0);
+    history.forEach((entry) => { target[entry.date] = (target[entry.date] || 0) + Number(entry.netAmount ?? entry.amount); });
+    const legacy = Math.max(0, Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0) - historyNet);
+    const legacyDate = getLocalDate(item.created_at) || item.data;
+    if (legacy > 0 && legacyDate) target[legacyDate] = (target[legacyDate] || 0) + legacy;
+    return;
+  }
+  const value = Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
+  if (value > 0) target[item.data] = (target[item.data] || 0) + value;
+};
 
 const TABLE_COLUMN_WIDTHS = [
   "7%", "5%", "8%", "5%", "7%", "4%", "8%",
@@ -231,6 +290,13 @@ const PlanilhaPage = () => {
 
   const activeYear = year ?? new Date().getFullYear();
   const activeMonth = month ?? new Date().getMonth();
+  const monthStart = `${activeYear}-${String(activeMonth + 1).padStart(2, "0")}-01`;
+  const monthEnd = new Date(activeYear, activeMonth + 1, 0).toISOString().split("T")[0];
+  const { data: metaAds } = useMetaAds({ datePreset: "custom", since: monthStart, until: monthEnd });
+  const { data: crmMql } = useCrmMql(monthStart, monthEnd);
+  const { data: vendas = [] } = useVendas();
+  const { data: fechamentos = [] } = useFechamentosDiarios();
+  const { data: cursosDados = [] } = useCursosDados();
 
   const { data: allData } = useQuery({
     queryKey: ["planilha-metrics", activeYear, activeMonth],
@@ -252,7 +318,7 @@ const PlanilhaPage = () => {
     refetchOnWindowFocus: true,
   });
 
-  const dataMap = useMemo(() => {
+  const manualDataMap = useMemo(() => {
     const map: Record<string, MetricRow> = {};
 
     (allData || []).forEach((row) => {
@@ -272,6 +338,53 @@ const PlanilhaPage = () => {
 
     return map;
   }, [allData]);
+
+  // Une as fontes canônicas do dashboard por dia. Os valores manuais permanecem
+  // como fallback quando uma integração ainda não retornou dados para o dia.
+  const dataMap = useMemo(() => {
+    const map: Record<string, MetricRow> = { ...manualDataMap };
+    const ensure = (date: string) => {
+      if (!map[date]) map[date] = { date, leads: 0, lead_mql: 0, custo_por_lead: 0, custo_por_lead_mql: 0, faturamento_marcado: 0, faturamento_dia: 0, roas: 0, cac: 0, curso_marcado: 0, curso_feito: 0 };
+      return map[date];
+    };
+
+    Object.values(map).forEach((row) => {
+      row.faturamento_marcado = 0;
+      row.faturamento_dia = 0;
+      row.curso_marcado = 0;
+      row.curso_feito = 0;
+    });
+
+    (metaAds?.dailyInsights || []).forEach((day) => {
+      const row = ensure(day.date_start);
+      const conversations = getMetaConversations(day.actions);
+      row.ads = Number(day.spend || 0);
+      row.leads = getMetaLeads(day.actions) + conversations;
+    });
+    Object.entries(crmMql?.daily || {}).forEach(([date, value]) => { ensure(date).lead_mql = Number(value || 0); });
+
+    vendas.filter((sale) => sale.data >= monthStart && sale.data <= monthEnd && normalizeText(sale.status) !== "cancelada").forEach((sale) => {
+      const row = ensure(sale.data);
+      row.faturamento_marcado += Number(sale.valor || 0);
+      if (isCourseCategory(canonicalizeSaleCategory(sale.servico || sale.produto))) row.curso_marcado += 1;
+    });
+    cursosDados.filter((course) => course.data >= monthStart && course.data <= monthEnd).forEach((course) => { ensure(course.data).curso_feito += 1; });
+
+    const collectedByDate: Record<string, number> = {};
+    fechamentos.filter((item) => normalizeText(item.status) !== "cancelado").forEach((item) => addCollectedPayments(collectedByDate, item));
+    Object.entries(collectedByDate).forEach(([date, value]) => {
+      if (date >= monthStart && date <= monthEnd) ensure(date).faturamento_dia = value;
+    });
+
+    Object.values(map).forEach((row) => {
+      const ads = Number(row.ads || 0);
+      row.custo_por_lead = row.leads > 0 ? ads / row.leads : 0;
+      row.custo_por_lead_mql = row.lead_mql > 0 ? ads / row.lead_mql : 0;
+      row.roas = ads > 0 ? Number(row.faturamento_dia || 0) / ads : 0;
+      row.cac = row.curso_feito > 0 ? ads / row.curso_feito : 0;
+    });
+    return map;
+  }, [manualDataMap, metaAds, crmMql, vendas, fechamentos, cursosDados, monthStart, monthEnd]);
 
   const daysInMonth = useMemo(() => {
     const days: Date[] = [];
@@ -516,7 +629,7 @@ const PlanilhaPage = () => {
               totals[col.key] = weekRows.reduce((s, r) => s + getCellValue(r, col), 0);
             });
             const totalCpl = totals.leads > 0 ? totals.ads / totals.leads : 0;
-            const totalRoas = totals.ads > 0 ? (Number(totals.faturamento_marcado || 0) + Number(totals.faturamento_dia || 0)) / totals.ads : 0;
+            const totalRoas = totals.ads > 0 ? Number(totals.faturamento_dia || 0) / totals.ads : 0;
             const totalCac = totals.curso_feito > 0 ? totals.ads / totals.curso_feito : 0;
             const totalConversao = totals.leads > 0 ? (totals.curso_feito / totals.leads) * 100 : 0;
 
@@ -582,7 +695,7 @@ const PlanilhaPage = () => {
                                 <TableCell key={col.key} className="py-1.5">
                                   {col.computed ? (
                                     <div className={`px-1 py-0.5 text-right text-xs font-semibold tabular-nums ${extraColor}`}>
-                                      {formatPercent(val) || <span className="text-muted-foreground/20">—</span>}
+                                      {(col.format === "pct" ? formatPercent(val) : col.format === "brl" ? formatBRL(val) : formatNum(val, col.decimals)) || <span className="text-muted-foreground/20">—</span>}
                                     </div>
                                   ) : (
                                     <EditableCell
@@ -632,7 +745,7 @@ const PlanilhaPage = () => {
               t[col.key] = uniqueRows.reduce((s, r) => s + getCellValue(r, col), 0);
             });
             const cpl = t.leads > 0 ? t.ads / t.leads : 0;
-            const roas = t.ads > 0 ? (Number(t.faturamento_marcado || 0) + Number(t.faturamento_dia || 0)) / t.ads : 0;
+            const roas = t.ads > 0 ? Number(t.faturamento_dia || 0) / t.ads : 0;
             const cac = t.curso_feito > 0 ? t.ads / t.curso_feito : 0;
             const conversao = t.leads > 0 ? (t.curso_feito / t.leads) * 100 : 0;
 
