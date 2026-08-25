@@ -32,6 +32,7 @@ export default function SupportBookingPublicPage() {
   const [selected, setSelected] = useState<{ date: string; time: string } | null>(null);
   const [modality, setModality] = useState<"presencial" | "online">("presencial");
   const [completed, setCompleted] = useState<{ name: string; date: string; time: string; modality: "presencial" | "online"; remaining: number } | null>(null);
+  const blockingAction = lookingUp || createBooking.isPending;
 
   const slotsByDate = useMemo(() => {
     const groups = new Map<string, typeof slots>();
@@ -88,7 +89,14 @@ export default function SupportBookingPublicPage() {
     </motion.div></div></div>;
   }
 
-  return <div className="min-h-screen bg-background text-foreground dot-pattern"><div className="min-h-screen bg-background/90 px-4 py-8"><div className="mx-auto max-w-4xl">
+  return <div className="min-h-screen bg-background text-foreground dot-pattern">
+    {blockingAction && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/75 backdrop-blur-sm" role="status" aria-live="polite" aria-label="Carregando">
+      <div className="flex min-w-52 flex-col items-center gap-4 rounded-2xl border border-primary/20 bg-card p-7 shadow-2xl">
+        <Loader2 className="h-11 w-11 animate-spin text-primary" />
+        <div className="text-center"><p className="font-semibold">{createBooking.isPending ? "Confirmando agendamento" : "Consultando cadastro"}</p><p className="mt-1 text-xs text-muted-foreground">Aguarde só um momento...</p></div>
+      </div>
+    </div>}
+    <div className="min-h-screen bg-background/90 px-4 py-8"><div className="mx-auto max-w-4xl">
     <div className="rounded-2xl border border-border/60 bg-card/90 p-6 shadow-xl sm:p-8">
       <img src={avanteLogo} alt="Avante Digital" className="h-16 w-auto" />
       <div className="mt-5 flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-3 text-primary"><GraduationCap className="h-6 w-6" /></div><div><p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Agenda exclusiva</p><h1 className="mt-1 font-display text-3xl font-bold">Aulas de Suporte</h1><p className="mt-2 text-sm text-muted-foreground">Consulte seu cadastro pelo CPF e escolha um horário disponível. Cada aluno possui até três aulas.</p></div></div>
