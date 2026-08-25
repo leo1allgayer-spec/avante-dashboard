@@ -604,14 +604,6 @@ const VendasPage = () => {
     });
   }, [tableFilteredSales, fechamentos, courseBookings, taxProfile, statusFilter, dateFilter.range.start, dateFilter.range.end]);
 
-  const visibleSalesTotals = useMemo(() => vendasAgrupadas.reduce(
-    (totals, grupo) => ({
-      coletado: totals.coletado + grupo.coletadoPeriodo,
-      aReceber: totals.aReceber + grupo.aReceberPeriodo,
-    }),
-    { coletado: 0, aReceber: 0 },
-  ), [vendasAgrupadas]);
-
   const recurringContractsTotal = useMemo(
     () => gestaoClients
       .filter((client) => client.status === "Ativo")
@@ -936,6 +928,30 @@ const VendasPage = () => {
     cursos: { coletado: 0, aReceber: 0, vendas: 0 },
     servicos: { coletado: 0, aReceber: 0, vendas: 0 },
   }), [integratedCategoryRows]);
+
+  const accumulatedTotalsBreakdown = useMemo(() => fechamentos
+    .filter((item) => normalizeFechamentoStatus(item.status) !== "cancelado")
+    .reduce((totals, item) => {
+      const isCourse = COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getFechamentoCategoria(item)));
+      const target = isCourse ? totals.cursos : totals.servicos;
+      const coletado = getFechamentoCollectedNet(item);
+      const aReceber = Number(item.valor_a_entrar || 0);
+      target.coletado += coletado;
+      target.aReceber += aReceber;
+      totals.total.coletado += coletado;
+      totals.total.aReceber += aReceber;
+      return totals;
+    }, {
+      total: { coletado: 0, aReceber: 0 },
+      cursos: { coletado: 0, aReceber: 0 },
+      servicos: { coletado: 0, aReceber: 0 },
+    }), [fechamentos]);
+
+  const visiblePeriodTotals = salesTableSection === "cursos"
+    ? salesTotalsBreakdown.cursos
+    : salesTableSection === "servicos"
+      ? salesTotalsBreakdown.servicos
+      : salesTotalsBreakdown.total;
 
   const metasPrincipais = useMemo(() => {
     const rows = monthMetrics || [];
@@ -1854,7 +1870,11 @@ const VendasPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.coletado)}</div>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.coletado)}</div>
+                <span className="text-xs text-muted-foreground">Total: {formatBRL(accumulatedTotalsBreakdown.total.coletado)}</span>
+              </div>
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.coletado)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.coletado)}</p>
             </CardContent>
           </Card>
@@ -1865,7 +1885,11 @@ const VendasPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.aReceber)}</div>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.aReceber)}</div>
+                <span className="text-xs text-muted-foreground">Total: {formatBRL(accumulatedTotalsBreakdown.total.aReceber)}</span>
+              </div>
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.aReceber)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.aReceber)}</p>
             </CardContent>
           </Card>
@@ -2307,11 +2331,11 @@ const VendasPage = () => {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Coletado</p>
-                  <p className="mt-1 whitespace-nowrap font-bold text-success">{formatBRL(visibleSalesTotals.coletado)}</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-success">{formatBRL(visiblePeriodTotals.coletado)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">A receber</p>
-                  <p className="mt-1 whitespace-nowrap font-bold text-amber-500">{formatBRL(visibleSalesTotals.aReceber)}</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-amber-500">{formatBRL(visiblePeriodTotals.aReceber)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Comissão pendente</p>

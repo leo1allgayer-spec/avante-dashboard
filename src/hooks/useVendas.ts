@@ -27,6 +27,9 @@ export interface Venda {
 export function useVendas() {
   return useQuery({
     queryKey: ["vendas"],
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
+    refetchInterval: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendas")
