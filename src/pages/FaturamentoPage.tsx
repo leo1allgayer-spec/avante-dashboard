@@ -21,6 +21,30 @@ const formatCurrency = (value: number) =>
 const normalizeText = (value?: string | null) =>
   (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
+const getCollectedNet = (item: { valor_sinal?: number | null; valor_sinal_liquido?: number | null }) =>
+  Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
+
+const getReceivableInPeriod = (item: {
+  data: string;
+  previsao_entrada?: string | null;
+  parcelas_datas?: string[] | null;
+  valor_parcela?: number | null;
+  valor_a_entrar?: number | null;
+}, start: string, end: string) => {
+  const parcelDates = Array.isArray(item.parcelas_datas) ? item.parcelas_datas : [];
+  const parcelsInRange = parcelDates.filter((date) => date >= start && date <= end);
+  if (parcelsInRange.length > 0 && Number(item.valor_parcela || 0) > 0) {
+    return parcelsInRange.length * Number(item.valor_parcela || 0);
+  }
+  if (item.previsao_entrada && item.previsao_entrada >= start && item.previsao_entrada <= end) {
+    return Number(item.valor_a_entrar || 0);
+  }
+  if (item.data >= start && item.data <= end && !item.previsao_entrada && parcelDates.length === 0) {
+    return Number(item.valor_a_entrar || 0);
+  }
+  return 0;
+};
+
 const CATEGORY_GROUPS = ["Cursos", "Serviços", "Suporte Extra", "Captação/Edição", "Site", "CRM", "Upsell"] as const;
 
 const getCategoryGroup = (sale: { produto?: string | null; servico?: string | null; origem?: string | null }) => {
@@ -53,28 +77,22 @@ const FaturamentoPage = () => {
   );
   const soldTotal = useMemo(() => sales.reduce((total, sale) => total + Number(sale.valor || 0), 0), [sales]);
 
-  const salesWithCollected = useMemo(() => {
-    const usedClosings = new Set<string>();
-    return sales.map((sale) => {
-      const category = canonicalizeSaleCategory(sale.servico || sale.produto);
-      const closing = fechamentos.find((item) =>
-        !usedClosings.has(item.id) &&
-        normalizeText(item.status) !== "cancelado" &&
-        item.data === sale.data &&
-        normalizeText(item.cliente) === normalizeText(sale.cliente) &&
-        normalizeText(item.vendedor) === normalizeText(sale.vendedor) &&
-        normalizeText(canonicalizeSaleCategory(item.categoria || item.produto_servico)) === normalizeText(category)
-      );
-      if (closing) usedClosings.add(closing.id);
-      return { sale, collected: Math.min(Number(sale.valor || 0), Number(closing?.valor_sinal || 0)) };
-    });
-  }, [sales, fechamentos]);
-
   const collectedTotal = useMemo(
-    () => salesWithCollected.reduce((total, item) => total + item.collected, 0),
-    [salesWithCollected],
+    () => fechamentos.reduce((total, item) => (
+      normalizeText(item.status) !== "cancelado" && item.data >= filter.range.start && item.data <= filter.range.end
+        ? total + getCollectedNet(item)
+        : total
+    ), 0),
+    [fechamentos, filter.range.start, filter.range.end],
   );
-  const receivableTotal = Math.max(soldTotal - collectedTotal, 0);
+  const receivableTotal = useMemo(
+    () => fechamentos.reduce((total, item) => (
+      normalizeText(item.status) !== "cancelado"
+        ? total + getReceivableInPeriod(item, filter.range.start, filter.range.end)
+        : total
+    ), 0),
+    [fechamentos, filter.range.start, filter.range.end],
+  );
   const averageSale = sales.length > 0 ? soldTotal / sales.length : 0;
   const investedAds = useMemo(() => {
     const daily = metaAds?.dailyInsights || [];
@@ -84,15 +102,19 @@ const FaturamentoPage = () => {
 
   const categoryStats = useMemo(() => {
     const stats = new Map(CATEGORY_GROUPS.map((category) => [category, { sold: 0, collected: 0, count: 0 }]));
-    salesWithCollected.forEach(({ sale, collected }) => {
+    sales.forEach((sale) => {
       const group = getCategoryGroup(sale);
       const current = stats.get(group)!;
       current.sold += Number(sale.valor || 0);
-      current.collected += collected;
       current.count += 1;
     });
+    fechamentos.forEach((item) => {
+      if (normalizeText(item.status) === "cancelado" || item.data < filter.range.start || item.data > filter.range.end) return;
+      const group = getCategoryGroup({ produto: item.produto_servico, servico: item.categoria, origem: item.origem });
+      stats.get(group)!.collected += getCollectedNet(item);
+    });
     return stats;
-  }, [salesWithCollected]);
+  }, [sales, fechamentos, filter.range.start, filter.range.end]);
 
   const dailyTarget = useMemo(() => {
     const year = filter.anchor.getFullYear();
@@ -108,8 +130,9 @@ const FaturamentoPage = () => {
 
   const chartData = useMemo(() => {
     const collectedByDate = new Map<string, number>();
-    salesWithCollected.forEach(({ sale, collected }) => {
-      collectedByDate.set(sale.data, (collectedByDate.get(sale.data) || 0) + collected);
+    fechamentos.forEach((item) => {
+      if (normalizeText(item.status) === "cancelado" || item.data < filter.range.start || item.data > filter.range.end) return;
+      collectedByDate.set(item.data, (collectedByDate.get(item.data) || 0) + getCollectedNet(item));
     });
     const start = new Date(`${filter.range.start}T12:00:00`);
     const end = new Date(`${filter.range.end}T12:00:00`);
@@ -123,7 +146,7 @@ const FaturamentoPage = () => {
         meta: date.getDay() >= 1 && date.getDay() <= 5 ? dailyTarget : 0,
       };
     });
-  }, [salesWithCollected, filter.range.start, filter.range.end, dailyTarget]);
+  }, [fechamentos, filter.range.start, filter.range.end, dailyTarget]);
 
   const cumulativeData = useMemo(() => {
     let accumulated = 0;

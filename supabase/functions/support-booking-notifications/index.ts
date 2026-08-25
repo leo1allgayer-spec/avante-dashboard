@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       try {
         const { data: booking, error: bookingError } = await supabase
           .from("support_bookings")
-          .select("id,student_id,student_name,booking_date,start_time,status")
+          .select("id,student_id,student_name,student_phone,booking_date,start_time,status")
           .eq("id", job.booking_id)
           .single();
         if (bookingError || !booking) throw new Error("Agendamento não encontrado");
@@ -66,15 +66,19 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const { data: student, error: studentError } = await supabase
-          .from("alunos_futuros")
-          .select("telefone")
-          .eq("id", booking.student_id)
-          .single();
-        if (studentError || !student?.telefone) throw new Error("Telefone do aluno não encontrado");
+        let studentPhone = booking.student_phone || "";
+        if (!studentPhone && booking.student_id) {
+          const { data: student } = await supabase
+            .from("alunos_futuros")
+            .select("telefone")
+            .eq("id", booking.student_id)
+            .maybeSingle();
+          studentPhone = student?.telefone || "";
+        }
+        if (!studentPhone) throw new Error("Telefone do aluno não encontrado");
 
         const when = `${dateLabel(booking.booking_date)} às ${timeLabel(booking.start_time)}`;
-        let phone = student.telefone;
+        let phone = studentPhone;
         let message = "";
         if (job.message_type === "student_confirmation") {
           message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte foi agendada com sucesso.", `📅 ${when}`, "", "Você receberá outro aviso 1 hora antes."].join("\n");
@@ -82,7 +86,7 @@ Deno.serve(async (req) => {
           message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte começa em 1 hora.", `📅 ${when}`, "", "Até breve!"].join("\n");
         } else {
           phone = NICOLAS_PHONE;
-          message = ["🔔 Nova aula de suporte agendada", "", `Aluno: ${booking.student_name}`, `Telefone: ${student.telefone}`, `Data: ${when}`].join("\n");
+          message = ["🔔 Nova aula de suporte agendada", "", `Aluno: ${booking.student_name}`, `Telefone: ${studentPhone}`, `Data: ${when}`].join("\n");
         }
 
         const response = await fetch(`${supabaseUrl}/functions/v1/whatsapp-send`, {

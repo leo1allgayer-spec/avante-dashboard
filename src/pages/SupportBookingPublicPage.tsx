@@ -25,6 +25,9 @@ export default function SupportBookingPublicPage() {
   const { toast } = useToast();
   const [cpf, setCpf] = useState("");
   const [student, setStudent] = useState<SupportStudentLookup | null>(null);
+  const [cpfChecked, setCpfChecked] = useState(false);
+  const [newStudentName, setNewStudentName] = useState("");
+  const [newStudentPhone, setNewStudentPhone] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
   const [selected, setSelected] = useState<{ date: string; time: string } | null>(null);
   const [completed, setCompleted] = useState<{ name: string; date: string; time: string; remaining: number } | null>(null);
@@ -44,8 +47,9 @@ export default function SupportBookingPublicPage() {
       setLookingUp(true);
       const found = await lookupSupportStudent(cpf);
       setStudent(found);
+      setCpfChecked(true);
       setSelected(null);
-      if (!found) toast({ title: "Cadastro não encontrado", description: "Confirme o CPF ou fale com a equipe da Avante.", variant: "destructive" });
+      if (!found) toast({ title: "Novo aluno", description: "Preencha seu nome e WhatsApp para continuar o agendamento." });
     } catch (error) {
       toast({ title: "Não foi possível consultar", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     } finally {
@@ -54,15 +58,18 @@ export default function SupportBookingPublicPage() {
   };
 
   const confirmBooking = async () => {
-    if (!student || !selected) return;
+    if ((!student && (!newStudentName.trim() || newStudentPhone.replace(/\D/g, "").length < 10)) || !selected) {
+      toast({ title: "Preencha seus dados", description: "Informe nome e WhatsApp para confirmar o suporte.", variant: "destructive" });
+      return;
+    }
     try {
-      const result = await createBooking.mutateAsync({ cpf, date: selected.date, time: selected.time });
+      const result = await createBooking.mutateAsync({ cpf, date: selected.date, time: selected.time, name: newStudentName.trim(), phone: newStudentPhone.trim() });
       const { error: notificationError } = await supabase.functions.invoke("support-booking-notifications", {
         body: { bookingId: result.id },
       });
       if (notificationError) console.error("Erro ao disparar notificações do suporte:", notificationError);
       setCompleted({ name: result.name, date: result.date, time: result.time, remaining: result.remaining });
-      setStudent({ ...student, used: result.used, remaining: result.remaining });
+      if (student) setStudent({ ...student, used: result.used, remaining: result.remaining });
     } catch (error) {
       toast({ title: "Não foi possível agendar", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
@@ -88,11 +95,12 @@ export default function SupportBookingPublicPage() {
 
     <div className="mt-5 rounded-2xl border border-border/60 bg-card/90 p-5 sm:p-6">
       <Label htmlFor="support-cpf">CPF do aluno</Label>
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row"><Input id="support-cpf" value={cpf} onChange={(event) => { setCpf(formatCpf(event.target.value)); setStudent(null); setSelected(null); }} placeholder="000.000.000-00" className="h-11" onKeyDown={(event) => event.key === "Enter" && void searchCpf()} /><Button className="h-11 gap-2 sm:w-44" onClick={() => void searchCpf()} disabled={lookingUp}>{lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Consultar</Button></div>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row"><Input id="support-cpf" value={cpf} onChange={(event) => { setCpf(formatCpf(event.target.value)); setStudent(null); setCpfChecked(false); setSelected(null); }} placeholder="000.000.000-00" className="h-11" onKeyDown={(event) => event.key === "Enter" && void searchCpf()} /><Button className="h-11 gap-2 sm:w-44" onClick={() => void searchCpf()} disabled={lookingUp}>{lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Consultar</Button></div>
       {student && <div className="mt-4 flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">{student.name}</p><p className="text-sm text-muted-foreground">{student.used} de 3 aulas utilizadas ou agendadas</p></div><Badge className="w-fit" variant={student.remaining > 0 ? "default" : "destructive"}>{student.remaining} restantes</Badge></div>}
+      {!student && cpfChecked && <div className="mt-4 grid gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:grid-cols-2"><div><Label htmlFor="support-name">Nome completo</Label><Input id="support-name" className="mt-2 h-11 bg-background" value={newStudentName} onChange={(event) => setNewStudentName(event.target.value)} placeholder="Seu nome completo" /></div><div><Label htmlFor="support-phone">WhatsApp</Label><Input id="support-phone" className="mt-2 h-11 bg-background" value={newStudentPhone} onChange={(event) => setNewStudentPhone(event.target.value)} placeholder="55 + DDD + número" inputMode="tel" /></div><p className="text-xs text-muted-foreground sm:col-span-2">Seu CPF será usado somente para controlar o limite de três aulas de suporte.</p></div>}
     </div>
 
-    {student && student.remaining <= 0 ? <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-amber-500" /><h2 className="mt-3 text-lg font-bold">Limite de aulas atingido</h2><p className="mt-1 text-sm text-muted-foreground">As três aulas de suporte vinculadas a este CPF já foram utilizadas ou estão agendadas.</p></div> : student ? <div className="mt-5 rounded-2xl border border-border/60 bg-card/90 p-5 sm:p-6">
+    {student && student.remaining <= 0 ? <div className="mt-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-center"><ShieldCheck className="mx-auto h-10 w-10 text-amber-500" /><h2 className="mt-3 text-lg font-bold">Limite de aulas atingido</h2><p className="mt-1 text-sm text-muted-foreground">As três aulas de suporte vinculadas a este CPF já foram utilizadas ou estão agendadas.</p></div> : (student || cpfChecked) ? <div className="mt-5 rounded-2xl border border-border/60 bg-card/90 p-5 sm:p-6">
       <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /><h2 className="font-display text-xl font-bold">Escolha o dia e horário</h2></div>
       {loadingSlots ? <div className="flex justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div> : slotsByDate.length === 0 ? <p className="py-10 text-center text-muted-foreground">Nenhum horário disponível no momento.</p> : <div className="mt-5 space-y-4">{slotsByDate.map(([date, dateSlots]) => <div key={date} className="rounded-xl border border-border/40 p-4"><p className="font-semibold capitalize">{formatDate(date)}</p><div className="mt-3 flex flex-wrap gap-2">{dateSlots.map((slot) => { const active = selected?.date === date && selected.time === slot.start_time; return <Button key={`${date}-${slot.start_time}`} type="button" variant={active ? "default" : "outline"} className="gap-2" onClick={() => setSelected({ date, time: slot.start_time })}><Clock3 className="h-4 w-4" />{formatTime(slot.start_time)}<span className="text-[10px] opacity-70">{slot.capacity - slot.booked} vaga(s)</span></Button>; })}</div></div>)}</div>}
       {selected && <div className="sticky bottom-3 mt-5 rounded-xl border border-primary/30 bg-background/95 p-4 shadow-xl backdrop-blur"><p className="text-sm text-muted-foreground">Confirmar <strong className="capitalize text-foreground">{formatDate(selected.date)}</strong> às <strong className="text-foreground">{formatTime(selected.time)}</strong>?</p><Button className="mt-3 h-11 w-full" onClick={() => void confirmBooking()} disabled={createBooking.isPending}>{createBooking.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar aula de suporte</Button></div>}

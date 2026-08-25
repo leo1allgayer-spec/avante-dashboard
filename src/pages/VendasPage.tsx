@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
@@ -277,6 +278,7 @@ const defaultVendaItem: VendaItemForm = {
 };
 
 const VendasPage = () => {
+  const [searchParams] = useSearchParams();
   const { data: allVendas = [], isLoading } = useVendas();
   const { data: fechamentos = [], isLoading: isLoadingFechamentos } = useFechamentosDiarios();
   const { data: criativosVendas = [] } = useCriativosVendas();
@@ -316,11 +318,13 @@ const VendasPage = () => {
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("todos");
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("status") === "pendente" ? "pendente" : "todos");
   const [vendedorFilter, setVendedorFilter] = useState("todos");
   const [pagamentoFilter, setPagamentoFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("todos");
-  const [salesTableSection, setSalesTableSection] = useState<"cursos" | "servicos">("cursos");
+  const [salesTableSection, setSalesTableSection] = useState<"todos" | "cursos" | "servicos">(
+    () => searchParams.get("escopo") === "todos" ? "todos" : "cursos",
+  );
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVenda, setEditingVenda] = useState<Venda | null>(null);
   const [editingFechamento, setEditingFechamento] = useState<FechamentoDiario | null>(null);
@@ -483,7 +487,10 @@ const VendasPage = () => {
   );
 
   const tableFilteredSales = useMemo(
-    () => filtered.filter((venda) => salesTableSection === "cursos" ? isCourseSale(venda) : !isCourseSale(venda)),
+    () => filtered.filter((venda) => {
+      if (salesTableSection === "todos") return true;
+      return salesTableSection === "cursos" ? isCourseSale(venda) : !isCourseSale(venda);
+    }),
     [filtered, salesTableSection],
   );
 
@@ -2052,13 +2059,16 @@ const VendasPage = () => {
           </div>
         </div>
 
-        <div className="mb-4 rounded-xl border border-border/40 bg-card/60 p-3">
+        <div id="a-receber" className="mb-4 scroll-mt-24 rounded-xl border border-border/40 bg-card/60 p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold">Planilhas de vendas</p>
               <p className="text-xs text-muted-foreground">Cursos e serviços ficam separados somente na visualização, sem alterar os registros salvos.</p>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
+              <Button type="button" size="sm" variant={salesTableSection === "todos" ? "default" : "outline"} onClick={() => setSalesTableSection("todos")}>
+                Todos ({filtered.length})
+              </Button>
               <Button type="button" size="sm" variant={salesTableSection === "cursos" ? "default" : "outline"} onClick={() => setSalesTableSection("cursos")}>
                 Cursos ({filtered.filter(isCourseSale).length})
               </Button>
@@ -2188,7 +2198,7 @@ const VendasPage = () => {
             <TableHeader>
               <TableRow className="border-border/30 bg-secondary/30">
                 <TableHead className="w-[10%] px-2 text-xs">Cliente</TableHead>
-                <TableHead className="w-[12%] px-2 text-xs">{salesTableSection === "cursos" ? "Curso" : "Serviço"}</TableHead>
+                <TableHead className="w-[12%] px-2 text-xs">{salesTableSection === "todos" ? "Produto / serviço" : salesTableSection === "cursos" ? "Curso" : "Serviço"}</TableHead>
                 <TableHead className="w-[6%] px-2 text-right text-xs">Total</TableHead>
                 <TableHead className="w-[11%] px-2 text-right text-xs">Coletado / comissão</TableHead>
                 <TableHead className="w-[9%] px-2 text-right">A receber / comissão</TableHead>
@@ -2289,7 +2299,7 @@ const VendasPage = () => {
               <div className="grid grid-cols-5 gap-6 border-t-2 border-accent/40 bg-secondary/50 px-5 py-4 text-xs">
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Registros</p>
-                  <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} {salesTableSection === "cursos" ? "cursos" : "serviços"}</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} {salesTableSection === "todos" ? "itens" : salesTableSection === "cursos" ? "cursos" : "serviços"}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Total vendido</p>

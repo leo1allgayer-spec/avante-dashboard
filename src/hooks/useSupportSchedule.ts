@@ -138,8 +138,14 @@ export function useSupportSlots(from: string, to: string) {
 export function useCreateSupportBooking() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ cpf, date, time }: { cpf: string; date: string; time: string }) => {
-      const { data, error } = await db.rpc("create_support_booking", { p_cpf: cpf, p_date: date, p_start_time: time });
+    mutationFn: async ({ cpf, date, time, name, phone }: { cpf: string; date: string; time: string; name?: string; phone?: string }) => {
+      const { data, error } = await db.rpc("create_support_booking", {
+        p_cpf: cpf,
+        p_date: date,
+        p_start_time: time,
+        p_student_name: name || null,
+        p_student_phone: phone || null,
+      });
       if (error) throw error;
       return data as { id: string; name: string; date: string; time: string; used: number; remaining: number };
     },

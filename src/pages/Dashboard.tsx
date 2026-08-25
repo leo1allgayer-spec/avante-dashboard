@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 import { useDateFilter } from "@/hooks/useDateFilter";
 import { useDeleteMetrics } from "@/hooks/useMetrics";
@@ -119,6 +120,8 @@ const item = {
 };
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const openMonthlyReceivables = () => navigate("/vendas?status=pendente&escopo=todos#a-receber");
   const filter = useDateFilter();
   // Force month mode - no day/week switching on Visão Geral
   const summary = useBusinessSummary(filter);
@@ -583,7 +586,13 @@ const Dashboard = () => {
 
             {/* Faturamento Feito */}
             <motion.div variants={item}
-              className="col-span-1 md:col-span-5 rounded-2xl p-4 sm:p-5 relative overflow-hidden min-h-[110px] dashboard-card"
+              role="button"
+              tabIndex={0}
+              onClick={openMonthlyReceivables}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") openMonthlyReceivables();
+              }}
+              className="col-span-1 md:col-span-5 cursor-pointer rounded-2xl p-4 sm:p-5 relative overflow-hidden min-h-[110px] dashboard-card transition-colors hover:border-amber-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
             >
               <div className="flex items-center gap-2">
                 <DollarSign className="h-3.5 w-3.5 text-muted-foreground/50" />
@@ -659,7 +668,16 @@ const Dashboard = () => {
               </p>
             </motion.div>
 
-            <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
+            <motion.div
+              variants={item}
+              role="button"
+              tabIndex={0}
+              onClick={openMonthlyReceivables}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") openMonthlyReceivables();
+              }}
+              className="cursor-pointer rounded-2xl p-4 sm:p-5 dashboard-card transition-colors hover:border-amber-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+            >
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp className="h-3.5 w-3.5 text-muted-foreground/50" />
                 <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">A receber</p>
