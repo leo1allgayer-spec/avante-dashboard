@@ -21,6 +21,7 @@ import {
   UserRoundPlus,
   ReceiptText,
   CalendarCheck2,
+  KanbanSquare,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -69,6 +70,7 @@ const gestaoItems = [
   { title: "Clientes", url: "/gestao-clientes", icon: Users2 },
   { title: "Clientes Google Ads", url: "/clientes-google-ads", icon: Users2 },
   { title: "Tarefas", url: "/tasks", icon: ClipboardList },
+  { title: "Kanban Social Media", url: "/kanban-social-media", icon: KanbanSquare },
   { title: "Agendamentos", url: "/admin/agendamentos", icon: Calendar },
   { title: "Configurações", url: "/admin-settings", icon: Settings2 },
 ];

@@ -36,6 +36,7 @@ import FutureStudentSignupPage from "./pages/FutureStudentSignupPage";
 import FutureStudentsPage from "./pages/FutureStudentsPage";
 import SupportSchedulePage from "./pages/SupportSchedulePage";
 import SupportBookingPublicPage from "./pages/SupportBookingPublicPage";
+import SocialMediaKanbanPage from "./pages/SocialMediaKanbanPage";
 import NotFound from "./pages/NotFound";
 
 // Imports das Novas Páginas e Integrações
@@ -162,6 +163,7 @@ const AnimatedRoutes = () => {
         <Route path="/alunos-futuros" element={<ProtectedRoute><FutureStudentsPage /></ProtectedRoute>} />
         <Route path="/aluno-futuro" element={<FutureStudentSignupPage />} />
         <Route path="/agenda-suporte" element={<ProtectedRoute><SupportSchedulePage /></ProtectedRoute>} />
+        <Route path="/kanban-social-media" element={<ProtectedRoute><SocialMediaKanbanPage /></ProtectedRoute>} />
         <Route path="/agendar-suporte" element={<SupportBookingPublicPage />} />
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
