@@ -49,7 +49,9 @@ const CATEGORY_GROUPS = ["Cursos", "Serviços", "Suporte Extra", "Captação/Edi
 
 const getCategoryGroup = (sale: { produto?: string | null; servico?: string | null; origem?: string | null }) => {
   const category = canonicalizeSaleCategory(sale.servico || sale.produto);
-  if (normalizeText(sale.origem) === "upsell" || normalizeText(category) === "upsell") return "Upsell";
+  // A categoria financeira deve seguir o item vendido. "Upsell" é a origem
+  // comercial da venda e não deve retirar um curso ou serviço de sua categoria.
+  if (normalizeText(category) === "upsell") return "Upsell";
   if (COURSE_PRODUCTS.some((item) => normalizeText(item) === normalizeText(category))) return "Cursos";
   if (GENERAL_SERVICE_OPTIONS.some((item) => normalizeText(item) === normalizeText(category))) return "Serviços";
   if (normalizeText(category) === normalizeText("Suporte Extra")) return "Suporte Extra";
