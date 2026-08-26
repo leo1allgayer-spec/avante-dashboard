@@ -75,6 +75,7 @@ const gestaoItems = [
   { title: "Kanban Social Media", url: "/kanban-social-media", icon: KanbanSquare },
   { title: "Kanban Sites", url: "/kanban-sites", icon: KanbanSquare },
   { title: "Kanban CRM", url: "/kanban-crm", icon: KanbanSquare },
+  { title: "Kanban Edição Foto/Vídeo", url: "/kanban-edicao", icon: KanbanSquare },
   { title: "Agendamentos", url: "/admin/agendamentos", icon: Calendar },
   { title: "Configurações", url: "/admin-settings", icon: Settings2 },
 ];

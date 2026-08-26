@@ -43,12 +43,14 @@ const boardLabels: Record<KanbanBoardType, { title: string; subtitle: string; ne
   social_media: { title: "Kanban Social Media", subtitle: "Fluxo de produção, responsáveis e prioridades", newTask: "Nova tarefa de Social Media" },
   sites: { title: "Kanban Sites", subtitle: "Fluxo de desenvolvimento e entrega de sites", newTask: "Nova tarefa de Site" },
   crm: { title: "Kanban CRM", subtitle: "Fluxo de implantação e acompanhamento de CRM", newTask: "Nova tarefa de CRM" },
+  video_photo: { title: "Kanban Edição de Foto/Vídeo", subtitle: "Fluxo de edição, aprovação e entrega de conteúdos", newTask: "Nova tarefa de Foto/Vídeo" },
 };
 
 const boardOwners = {
   social_media: SOCIAL_MEDIA_OWNERS,
   sites: SITES_OWNERS,
   crm: CRM_OWNERS,
+  video_photo: SOCIAL_MEDIA_OWNERS,
 } satisfies Record<KanbanBoardType, readonly string[]>;
 
 interface Props { boardType?: KanbanBoardType }

@@ -7,7 +7,7 @@ export const SOCIAL_MEDIA_OWNERS = ["Ana", "Luana", "Andrei"] as const;
 export const SITES_OWNERS = ["Leonardo"] as const;
 export const CRM_OWNERS = ["Matheus"] as const;
 export const SOCIAL_MEDIA_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
-export type KanbanBoardType = "social_media" | "sites" | "crm";
+export type KanbanBoardType = "social_media" | "sites" | "crm" | "video_photo";
 
 export type SocialMediaStatus = (typeof SOCIAL_MEDIA_STATUSES)[number];
 export type SocialMediaOwner = (typeof SOCIAL_MEDIA_OWNERS)[number] | (typeof SITES_OWNERS)[number] | (typeof CRM_OWNERS)[number];

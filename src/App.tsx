@@ -168,6 +168,7 @@ const AnimatedRoutes = () => {
         <Route path="/kanban-social-media" element={<ProtectedRoute><SocialMediaKanbanPage /></ProtectedRoute>} />
         <Route path="/kanban-sites" element={<ProtectedRoute><SocialMediaKanbanPage boardType="sites" /></ProtectedRoute>} />
         <Route path="/kanban-crm" element={<ProtectedRoute><SocialMediaKanbanPage boardType="crm" /></ProtectedRoute>} />
+        <Route path="/kanban-edicao" element={<ProtectedRoute><SocialMediaKanbanPage boardType="video_photo" /></ProtectedRoute>} />
         <Route path="/agendar-suporte" element={<SupportBookingPublicPage />} />
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
