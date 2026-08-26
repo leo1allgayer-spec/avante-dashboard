@@ -25,6 +25,7 @@ const PESSOAS = [
   { label: "Nicolas Patizlaff", match: ["nicolas"] },
   { label: "Leonardo Webster", match: ["webster", "leonardo webster"] },
   { label: "Leonardo Allgayer", match: ["leo", "léo"] },
+  { label: "Ana", match: [] },
 ];
 
 const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonardo Allgayer", "Leonardo Webster"];
