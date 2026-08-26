@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { toast } from "sonner";
 
-export const SOCIAL_MEDIA_STATUSES = ["Solicitado", "Em produção", "Aguardando aprovação", "Concluído"] as const;
+export const SOCIAL_MEDIA_STATUSES = ["Solicitado", "Em produção", "Aguardando aprovação", "Ajustes", "Concluído"] as const;
 export const SOCIAL_MEDIA_OWNERS = ["Ana", "Luana", "Andrei"] as const;
 export const SITES_OWNERS = ["Leonardo"] as const;
 export const CRM_OWNERS = ["Matheus"] as const;

@@ -29,6 +29,7 @@ const columnStyles: Record<SocialMediaStatus, string> = {
   "Solicitado": "bg-blue-500",
   "Em produção": "bg-violet-500",
   "Aguardando aprovação": "bg-amber-500",
+  "Ajustes": "bg-orange-500",
   "Concluído": "bg-emerald-500",
 };
 
@@ -104,7 +105,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
         </div>
 
         {loading ? <div className="flex min-h-80 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div> : (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
             {SOCIAL_MEDIA_STATUSES.map((status) => {
               const columnTasks = filtered.filter((task) => task.status === status);
               return (
