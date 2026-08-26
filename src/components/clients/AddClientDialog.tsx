@@ -10,15 +10,16 @@ interface AddClientDialogProps {
   onClose: () => void;
   onAdd: (client: Client) => void | Promise<void>;
   hideContractValues?: boolean;
+  managerOptions?: readonly string[];
 }
 
-export function AddClientDialog({ open, onClose, onAdd, hideContractValues = false }: AddClientDialogProps) {
+export function AddClientDialog({ open, onClose, onAdd, hideContractValues = false, managerOptions = MANAGERS }: AddClientDialogProps) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
     company: "",
     instagram: "",
-    manager: MANAGERS[0],
+    manager: managerOptions[0] || MANAGERS[0],
     monthlyBudget: 0,
     paymentDate: 1,
     commissionValue: 0,
@@ -57,7 +58,7 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
     };
     try {
       await onAdd(newClient);
-      setForm({ name: "", company: "", instagram: "", manager: MANAGERS[0], monthlyBudget: 0, paymentDate: 1, commissionValue: 0, contractValue: 0, contractType: "MRR", contractMonths: 1, reportDay: WEEKDAYS[0] });
+      setForm({ name: "", company: "", instagram: "", manager: managerOptions[0] || MANAGERS[0], monthlyBudget: 0, paymentDate: 1, commissionValue: 0, contractValue: 0, contractType: "MRR", contractMonths: 1, reportDay: WEEKDAYS[0] });
       onClose();
     } finally {
       setSaving(false);
@@ -79,7 +80,7 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
               <SelectValue placeholder="Gestor" />
             </SelectTrigger>
             <SelectContent>
-              {MANAGERS.map((m) => (
+              {managerOptions.map((m) => (
                 <SelectItem key={m} value={m}>{m}</SelectItem>
               ))}
             </SelectContent>

@@ -14,9 +14,10 @@ interface ClientDetailProps {
   onBack: () => void;
   onUpdate: (client: Client) => void;
   hideContractValues?: boolean;
+  managerOptions?: readonly string[];
 }
 
-export function ClientDetail({ client, onBack, onUpdate, hideContractValues = false }: ClientDetailProps) {
+export function ClientDetail({ client, onBack, onUpdate, hideContractValues = false, managerOptions = MANAGERS }: ClientDetailProps) {
   const [noteText, setNoteText] = useState("");
 
   const updateField = (field: keyof Client, value: any) => {
@@ -119,7 +120,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
               </div>
             </InfoCard>
             <InfoCard title="Informações preenchidas pela equipe">
-              <Field label="Gestor responsável"><Select value={client.manager} onValueChange={(v) => updateField("manager", v)}><SelectTrigger className="bg-input border-border"><SelectValue /></SelectTrigger><SelectContent>{MANAGERS.map((manager) => <SelectItem key={manager} value={manager}>{manager}</SelectItem>)}</SelectContent></Select></Field>
+              <Field label="Gestor responsável"><Select value={client.manager} onValueChange={(v) => updateField("manager", v)}><SelectTrigger className="bg-input border-border"><SelectValue /></SelectTrigger><SelectContent>{managerOptions.map((manager) => <SelectItem key={manager} value={manager}>{manager}</SelectItem>)}</SelectContent></Select></Field>
               <Field label="Tipos de serviços a serem prestados"><Textarea value={client.servicesDescription || ""} onChange={(e) => updateField("servicesDescription", e.target.value)} className="bg-input border-border min-h-20" placeholder="Descreva todos os serviços contratados" /></Field>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Tempo de contrato (meses)"><Input type="number" min={1} value={client.contractMonths} onChange={(e) => updateField("contractMonths", Math.max(1, Number(e.target.value)))} className="bg-input border-border" /></Field>
@@ -142,7 +143,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MANAGERS.map((m) => (
+                {managerOptions.map((m) => (
                   <SelectItem key={m} value={m}>{m}</SelectItem>
                 ))}
               </SelectContent>

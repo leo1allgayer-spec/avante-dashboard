@@ -22,11 +22,12 @@ interface ClientTableProps {
   onlyStatus?: "Ativo" | "Pausado";
   title?: string;
   hideContractValues?: boolean;
+  managerOptions?: readonly string[];
 }
 
 type SortKey = "name" | "retention" | "paymentDate" | "lastAccountUpdate" | "lastBalanceDate";
 
-export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteClient, onAddClient, onlyStatus, title, hideContractValues = false }: ClientTableProps) {
+export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteClient, onAddClient, onlyStatus, title, hideContractValues = false, managerOptions = MANAGERS }: ClientTableProps) {
   const [search, setSearch] = useState("");
   const [filterManager, setFilterManager] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -191,8 +192,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             <SelectValue placeholder="Gestor" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos gestores</SelectItem>
-            {MANAGERS.map((m) => (
+            {managerOptions.length > 1 && <SelectItem value="all">Todos gestores</SelectItem>}
+            {managerOptions.map((m) => (
               <SelectItem key={m} value={m}>{m}</SelectItem>
             ))}
           </SelectContent>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { ClientTable } from "@/components/clients/ClientTable";
@@ -10,7 +10,18 @@ export default function GoogleAdsClientsPage() {
   const { clients, loading, addClient, updateClient, deleteClient } = useClients("google_ads");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const normalizedManagers = useRef(new Set<string>());
+  const googleManagers = ["Henrique"] as const;
   const selectedClient = clients.find((client) => client.id === selectedId);
+
+  useEffect(() => {
+    clients.forEach((client) => {
+      if (client.manager !== "Henrique" && !normalizedManagers.current.has(client.id)) {
+        normalizedManagers.current.add(client.id);
+        void updateClient({ ...client, manager: "Henrique" });
+      }
+    });
+  }, [clients, updateClient]);
 
   if (loading) {
     return (
@@ -32,14 +43,14 @@ export default function GoogleAdsClientsPage() {
       contentClassName="max-w-[1720px]"
     >
       {selectedClient ? (
-        <ClientDetail client={selectedClient} onBack={() => setSelectedId(null)} onUpdate={updateClient} hideContractValues />
+        <ClientDetail client={selectedClient} onBack={() => setSelectedId(null)} onUpdate={updateClient} hideContractValues managerOptions={googleManagers} />
       ) : (
         <div className="space-y-8">
-          <ClientTable clients={clients} onClientClick={setSelectedId} onUpdateClient={updateClient} onDeleteClient={handleDelete} onAddClient={() => setShowAdd(true)} onlyStatus="Ativo" title="Clientes Google Ads ativos" hideContractValues />
-          <ClientTable clients={clients} onClientClick={setSelectedId} onUpdateClient={updateClient} onDeleteClient={handleDelete} onAddClient={() => setShowAdd(true)} onlyStatus="Pausado" title="Clientes Google Ads pausados" hideContractValues />
+          <ClientTable clients={clients} onClientClick={setSelectedId} onUpdateClient={updateClient} onDeleteClient={handleDelete} onAddClient={() => setShowAdd(true)} onlyStatus="Ativo" title="Clientes Google Ads ativos" hideContractValues managerOptions={googleManagers} />
+          <ClientTable clients={clients} onClientClick={setSelectedId} onUpdateClient={updateClient} onDeleteClient={handleDelete} onAddClient={() => setShowAdd(true)} onlyStatus="Pausado" title="Clientes Google Ads pausados" hideContractValues managerOptions={googleManagers} />
         </div>
       )}
-      <AddClientDialog open={showAdd} onClose={() => setShowAdd(false)} onAdd={addClient} hideContractValues />
+      <AddClientDialog open={showAdd} onClose={() => setShowAdd(false)} onAdd={addClient} hideContractValues managerOptions={googleManagers} />
     </DashboardLayout>
   );
 }
