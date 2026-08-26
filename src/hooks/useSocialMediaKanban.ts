@@ -22,6 +22,7 @@ export interface SocialMediaTask {
   priority: SocialMediaPriority;
   status: SocialMediaStatus;
   dueDate: string;
+  commissionPaid: boolean;
   createdAt: string;
 }
 
@@ -36,6 +37,7 @@ const fromRow = (row: any): SocialMediaTask => ({
   priority: row.priority,
   status: row.status,
   dueDate: row.due_date || "",
+  commissionPaid: Boolean(row.commission_paid),
   createdAt: row.created_at,
 });
 
@@ -78,6 +80,7 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
       priority: task.priority,
       status: task.status,
       due_date: task.dueDate || null,
+      commission_paid: task.commissionPaid,
       board_type: boardType,
     } as any);
     if (error) return toast.error("Erro ao criar tarefa");
@@ -94,6 +97,7 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
     if (task.priority !== undefined) payload.priority = task.priority;
     if (task.status !== undefined) payload.status = task.status;
     if (task.dueDate !== undefined) payload.due_date = task.dueDate || null;
+    if (task.commissionPaid !== undefined) payload.commission_paid = task.commissionPaid;
     const { error } = await supabase.from("social_media_kanban_tasks" as any).update(payload as any).eq("id", id);
     if (error) return toast.error("Erro ao atualizar tarefa");
     setTasks((current) => current.map((item) => item.id === id ? { ...item, ...task } : item));

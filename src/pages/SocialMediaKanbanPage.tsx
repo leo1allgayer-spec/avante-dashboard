@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, GripVertical, Loader2, Pencil, Plus, Search, Trash2, UserRound } from "lucide-react";
+import { CalendarDays, CircleDollarSign, GripVertical, Loader2, Pencil, Plus, Search, Trash2, UserRound } from "lucide-react";
 import {
   SOCIAL_MEDIA_OWNERS,
   SITES_OWNERS,
@@ -22,7 +22,7 @@ import {
 } from "@/hooks/useSocialMediaKanban";
 
 const emptyTask: SocialMediaTaskInput = {
-  title: "", client: "", description: "", owner: "Ana", priority: "Média", status: "Solicitado", dueDate: "",
+  title: "", client: "", description: "", owner: "Ana", priority: "Média", status: "Solicitado", dueDate: "", commissionPaid: false,
 };
 
 const columnStyles: Record<SocialMediaStatus, string> = {
@@ -77,7 +77,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
 
   const showEdit = (task: SocialMediaTask) => {
     setEditing(task);
-    setForm({ title: task.title, client: task.client, description: task.description, owner: task.owner, priority: task.priority, status: task.status, dueDate: task.dueDate });
+    setForm({ title: task.title, client: task.client, description: task.description, owner: task.owner, priority: task.priority, status: task.status, dueDate: task.dueDate, commissionPaid: task.commissionPaid });
     setOpen(true);
   };
 
@@ -128,6 +128,14 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
                           <Badge variant="outline" className={priorityStyles[task.priority]}>{task.priority}</Badge>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground"><UserRound className="h-3.5 w-3.5" />{task.owner}</span>
                           {task.dueDate && <span className="flex items-center gap-1 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />{new Date(`${task.dueDate}T12:00:00`).toLocaleDateString("pt-BR")}</span>}
+                          <button
+                            type="button"
+                            onClick={(event) => { event.stopPropagation(); void updateTask(task.id, { commissionPaid: !task.commissionPaid }); }}
+                            className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold transition ${task.commissionPaid ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-amber-500/30 bg-amber-500/10 text-amber-400"}`}
+                            title="Esta informação é somente um controle e não depende do prazo"
+                          >
+                            <CircleDollarSign className="h-3 w-3" />{task.commissionPaid ? "Comissão paga" : "Comissão pendente"}
+                          </button>
                         </div>
                       </article>
                     ))}
@@ -152,6 +160,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
               <div className="space-y-2"><Label>Prazo</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
             </div>
             <div className="space-y-2"><Label>Fase</Label><Select value={form.status} onValueChange={(status: any) => setForm({ ...form, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SOCIAL_MEDIA_STATUSES.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label>Controle da comissão</Label><Select value={form.commissionPaid ? "paga" : "pendente"} onValueChange={(value) => setForm({ ...form, commissionPaid: value === "paga" })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Comissão pendente</SelectItem><SelectItem value="paga">Comissão paga</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Controle informativo, sem vínculo com a data da tarefa.</p></div>
             <div className="space-y-2"><Label>Descrição</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Detalhes, formato, referências e observações..." rows={4} /></div>
           </div>
           <div className="flex items-center gap-2">
