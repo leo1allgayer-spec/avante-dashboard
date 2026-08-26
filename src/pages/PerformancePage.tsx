@@ -1,6 +1,11 @@
 import { useMemo } from "react";
 import { useDateFilter } from "@/hooks/useDateFilter";
 import { useCursosDados } from "@/hooks/useCursosDados";
+import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
+import { useMetaAds } from "@/hooks/useMetaAds";
+import { useCrmMql } from "@/hooks/useCrmMql";
+import { useSurveyResponses } from "@/hooks/useSurveyInsights";
+import { isCourseCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
 import DateFilterBar from "@/components/DateFilterBar";
 import PageTransition from "@/components/PageTransition";
@@ -20,10 +25,53 @@ const gridColor = "hsl(260, 15%, 18%)";
 
 const CHART_COLORS = ["hsl(270, 70%, 60%)", "hsl(174, 75%, 48%)", "hsl(45, 93%, 58%)", "hsl(340, 75%, 55%)", "hsl(210, 70%, 55%)"];
 
+const normalizeText = (value?: string | null) =>
+  (value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+const getCollectedNet = (item: { valor_sinal?: number | null; valor_sinal_liquido?: number | null }) =>
+  Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
+
+const getFirstMetaAction = (actions: Array<{ action_type: string; value: string }> | undefined, types: string[]) => {
+  for (const type of types) {
+    const action = actions?.find((item) => item.action_type.toLowerCase() === type);
+    if (action) return Number(action.value || 0);
+  }
+  return 0;
+};
+
+const getCampaignLeads = (actions?: Array<{ action_type: string; value: string }>) => getFirstMetaAction(actions, [
+  "lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead",
+  "offsite_complete_registration_add_meta_leads", "offsite_content_view_add_meta_leads",
+]);
+
+const getCampaignConversations = (actions?: Array<{ action_type: string; value: string }>) => {
+  const preferred = getFirstMetaAction(actions, [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "onsite_conversion.total_messaging_connection",
+    "onsite_conversion.messaging_first_reply",
+  ]);
+  if (preferred > 0) return preferred;
+  return (actions || []).reduce((total, action) => {
+    const type = action.action_type.toLowerCase();
+    return type.includes("conversation_started") || type.includes("whatsapp") ? total + Number(action.value || 0) : total;
+  }, 0);
+};
+
+const getSaoPauloDate = (value: string) => {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
 const PerformancePage = () => {
   const filter = useDateFilter();
   const monthData = filter.metrics;
   const { data: allCursos = [] } = useCursosDados();
+  const { data: fechamentos = [] } = useFechamentosDiarios();
+  const { data: surveyResponses = [] } = useSurveyResponses();
+  const metaFilters = useMemo(() => ({ datePreset: "custom" as const, since: filter.range.start, until: filter.range.end }), [filter.range.start, filter.range.end]);
+  const { data: metaAds } = useMetaAds(metaFilters);
+  const { data: crmMql } = useCrmMql(filter.range.start, filter.range.end);
 
   // Filter cursos by same date range
   const cursosFiltrados = useMemo(() => {
@@ -32,27 +80,46 @@ const PerformancePage = () => {
     return allCursos.filter((c) => c.data >= range.start && c.data <= range.end);
   }, [allCursos, filter.range]);
 
-  const daysWithData = monthData.filter(d => Number(d.faturamento_dia) > 0 || Number(d.leads) > 0);
-  const totalFat = daysWithData.reduce((s, d) => s + Number(d.faturamento_dia), 0);
-  const totalFatMarcado = daysWithData.reduce((s, d) => s + Number(d.faturamento_marcado || 0), 0);
-  const totalFatTotal = totalFat + totalFatMarcado;
-  const totalAds = daysWithData.reduce((s, d) => s + Number(d.ads || 0), 0);
-  const totalLeads = daysWithData.reduce((s, d) => s + Number(d.leads), 0);
-  const totalMql = daysWithData.reduce((s, d) => s + Number(d.lead_mql), 0);
-  const totalCursoFeito = daysWithData.reduce((s, d) => s + Number(d.curso_feito || 0), 0);
-  const totalCursoMarcado = daysWithData.reduce((s, d) => s + Number(d.curso_marcado || 0), 0);
+  const sales = useMemo(() => filter.vendas.filter((sale) => normalizeText(sale.status) !== "cancelada"), [filter.vendas]);
+  const periodClosings = useMemo(() => fechamentos.filter((item) => normalizeText(item.status) !== "cancelado" && item.data >= filter.range.start && item.data <= filter.range.end), [fechamentos, filter.range.start, filter.range.end]);
+  const totalFat = useMemo(() => periodClosings.reduce((sum, item) => sum + getCollectedNet(item), 0), [periodClosings]);
+  const totalFatMarcado = useMemo(() => fechamentos.reduce((sum, item) => {
+    if (normalizeText(item.status) === "cancelado") return sum;
+    const parcelDates = Array.isArray(item.parcelas_datas) ? item.parcelas_datas : [];
+    const inRange = parcelDates.filter((date) => date >= filter.range.start && date <= filter.range.end);
+    if (inRange.length && Number(item.valor_parcela || 0) > 0) return sum + inRange.length * Number(item.valor_parcela || 0);
+    if (item.previsao_entrada && item.previsao_entrada >= filter.range.start && item.previsao_entrada <= filter.range.end) return sum + Number(item.valor_a_entrar || 0);
+    if (!item.previsao_entrada && parcelDates.length === 0 && item.data >= filter.range.start && item.data <= filter.range.end) return sum + Number(item.valor_a_entrar || 0);
+    return sum;
+  }, 0), [fechamentos, filter.range.start, filter.range.end]);
+  const totalFatTotal = useMemo(() => sales.reduce((sum, sale) => sum + Number(sale.valor || 0), 0), [sales]);
+  const dailyMetaRows = metaAds?.dailyInsights || [];
+  const totalAds = dailyMetaRows.length > 0 ? dailyMetaRows.reduce((sum, row) => sum + Number(row.spend || 0), 0) : monthData.reduce((sum, row) => sum + Number(row.ads || 0), 0);
+  const totalLeads = useMemo(() => {
+    const rows = (metaAds?.campaignInsights || []).length ? metaAds!.campaignInsights : dailyMetaRows;
+    return rows.reduce((sum, row) => sum + getCampaignLeads(row.actions) + getCampaignConversations(row.actions), 0);
+  }, [metaAds]);
+  const totalMql = Number(crmMql?.total || 0);
+  const totalCursoFeito = useMemo(() => surveyResponses.filter((response) => {
+    if (!response.created_at) return false;
+    const date = getSaoPauloDate(response.created_at);
+    return date >= filter.range.start && date <= filter.range.end;
+  }).length, [surveyResponses, filter.range.start, filter.range.end]);
+  const totalCursoMarcado = useMemo(() => sales.filter((sale) => isCourseCategory(sale.servico) || isCourseCategory(sale.produto)).length, [sales]);
 
-  const totalComissaoVendas = daysWithData.reduce((s, d) => s + Number(d.faturamento_dia) * 0.15, 0);
+  const totalComissaoVendas = sales.reduce((sum, sale) => sum + Number(sale.comissao_paga_valor ?? (sale.status_comissao === "paga" ? sale.comissao : 0)), 0);
   const totalComissaoCurso = cursosFiltrados.reduce((s, c) => s + c.comissao_extra, 0);
-  const fatLiquido = totalFatTotal - totalAds - totalComissaoVendas - totalComissaoCurso;
+  const fatLiquido = totalFat - totalAds - totalComissaoVendas - totalComissaoCurso;
 
-  const avgRoas = totalAds > 0 ? (totalFatMarcado + totalFat) / totalAds : 0;
-  const avgCac = totalCursoFeito > 0 ? totalAds / totalCursoFeito : 0;
+  const avgRoas = totalAds > 0 ? totalFat / totalAds : 0;
+  const avgCac = sales.length > 0 ? totalAds / sales.length : 0;
   const avgCpl = totalLeads > 0 ? totalAds / totalLeads : 0;
+  const avgCplMql = totalMql > 0 ? totalAds / totalMql : 0;
+  const cacCursos = totalCursoMarcado > 0 ? totalAds / totalCursoMarcado : 0;
   const convRate = totalLeads > 0 ? (totalCursoMarcado / totalLeads) * 100 : 0;
   const mqlRate = totalLeads > 0 ? (totalMql / totalLeads) * 100 : 0;
-  const ticketMedioFeito = totalCursoFeito > 0 ? totalFat / totalCursoFeito : 0;
-  const ticketMedioMarcado = totalCursoMarcado > 0 ? totalFatMarcado / totalCursoMarcado : 0;
+  const ticketMedioFeito = sales.length > 0 ? totalFat / sales.length : 0;
+  const ticketMedioMarcado = sales.length > 0 ? totalFatTotal / sales.length : 0;
 
   // Cursos dados metrics
   const cursosMetrics = useMemo(() => {
@@ -93,16 +160,28 @@ const PerformancePage = () => {
     return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([instrutor, total]) => ({ instrutor, total }));
   }, [cursosFiltrados]);
 
-  const dailyHistory = monthData.map((d) => ({
-    date: new Date(d.date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit" }),
-    roas: Number(d.roas),
-    cac: Number(d.cac),
-    cpl: Number(d.custo_por_lead),
-    leads: Number(d.leads),
-    mql: Number(d.lead_mql),
-    faturamento: Number(d.faturamento_dia),
-    ads: Number(d.ads || 0),
-  }));
+  const dailyHistory = useMemo(() => {
+    const collectedByDay = new Map<string, number>();
+    periodClosings.forEach((item) => collectedByDay.set(item.data, (collectedByDay.get(item.data) || 0) + getCollectedNet(item)));
+    const salesByDay = new Map<string, number>();
+    sales.forEach((sale) => salesByDay.set(sale.data, (salesByDay.get(sale.data) || 0) + 1));
+    return dailyMetaRows.map((day) => {
+      const spend = Number(day.spend || 0);
+      const leads = getCampaignLeads(day.actions) + getCampaignConversations(day.actions);
+      const salesCount = salesByDay.get(day.date_start) || 0;
+      const faturamento = collectedByDay.get(day.date_start) || 0;
+      return {
+        date: new Date(`${day.date_start}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit" }),
+        roas: spend > 0 ? faturamento / spend : 0,
+        cac: salesCount > 0 ? spend / salesCount : 0,
+        cpl: leads > 0 ? spend / leads : 0,
+        leads,
+        mql: Number(crmMql?.daily?.[day.date_start] || 0),
+        faturamento,
+        ads: spend,
+      };
+    });
+  }, [dailyMetaRows, periodClosings, sales, crmMql]);
 
   const ChartTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -131,15 +210,17 @@ const PerformancePage = () => {
 
         <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StaggerItem><MetricCard title="Faturamento Feito" value={totalFat} icon={<TrendingUp className="h-5 w-5" />} variant="primary" countUp prefix="R$ " decimals={0} /></StaggerItem>
-          <StaggerItem><MetricCard title="Faturamento Marcado" value={totalFatMarcado} icon={<TrendingUp className="h-5 w-5" />} variant="accent" countUp prefix="R$ " decimals={0} /></StaggerItem>
-          <StaggerItem><MetricCard title="Faturamento Total" value={totalFatTotal} icon={<TrendingUp className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={0} /></StaggerItem>
-          <StaggerItem><MetricCard title="Faturamento Líquido" value={fatLiquido} subtitle="Total - ADS - Comissões" icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={0} /></StaggerItem>
+          <StaggerItem><MetricCard title="A Receber" value={totalFatMarcado} subtitle="Previsto no período" icon={<TrendingUp className="h-5 w-5" />} variant="accent" countUp prefix="R$ " decimals={0} /></StaggerItem>
+          <StaggerItem><MetricCard title="Total Vendido" value={totalFatTotal} subtitle={`${sales.length} vendas registradas`} icon={<TrendingUp className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={0} /></StaggerItem>
+          <StaggerItem><MetricCard title="Faturamento Líquido" value={fatLiquido} subtitle="Coletado - ADS - comissões pagas" icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={0} /></StaggerItem>
         </StaggerContainer>
 
         <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StaggerItem><MetricCard title="Investido (ADS)" value={totalAds} icon={<DollarSign className="h-5 w-5" />} countUp prefix="R$ " decimals={2} /></StaggerItem>
-          <StaggerItem><MetricCard title="Ticket Médio (Feito)" value={ticketMedioFeito} subtitle="Fat. Feito / Cursos Feitos" icon={<DollarSign className="h-5 w-5" />} variant="primary" countUp prefix="R$ " decimals={0} /></StaggerItem>
-          <StaggerItem><MetricCard title="Ticket Médio (Marcado)" value={ticketMedioMarcado} subtitle="Fat. Marcado / Cursos Marcados" icon={<DollarSign className="h-5 w-5" />} variant="accent" countUp prefix="R$ " decimals={0} /></StaggerItem>
+          <StaggerItem><MetricCard title="Custo por MQL" value={avgCplMql} subtitle="ADS / MQL do CRM" icon={<Target className="h-5 w-5" />} variant="accent" countUp prefix="R$ " decimals={2} /></StaggerItem>
+          <StaggerItem><MetricCard title="CAC Cursos" value={cacCursos} subtitle="ADS / cursos vendidos" icon={<GraduationCap className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} /></StaggerItem>
+          <StaggerItem><MetricCard title="Ticket Médio Recebido" value={ticketMedioFeito} subtitle="Coletado / vendas" icon={<DollarSign className="h-5 w-5" />} variant="primary" countUp prefix="R$ " decimals={0} /></StaggerItem>
+          <StaggerItem><MetricCard title="Ticket Médio Vendido" value={ticketMedioMarcado} subtitle="Total vendido / vendas" icon={<DollarSign className="h-5 w-5" />} variant="accent" countUp prefix="R$ " decimals={0} /></StaggerItem>
         </StaggerContainer>
 
         <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
