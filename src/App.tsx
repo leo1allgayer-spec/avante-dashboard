@@ -31,6 +31,8 @@ import PlanilhaInstaPage from "./pages/PlanilhaInstaPage";
 import PagamentosPage from "./pages/PagamentosPage";
 import BoletosPage from "./pages/BoletosPage";
 import GoogleAdsClientsPage from "./pages/clients/GoogleAdsClientsPage";
+import ClientNotesPage from "./pages/clients/ClientNotesPage";
+import ClientNotesPublicFormPage from "./pages/clients/ClientNotesPublicFormPage";
 import ClientIntakePage from "./pages/clients/ClientIntakePage";
 import FutureStudentSignupPage from "./pages/FutureStudentSignupPage";
 import FutureStudentsPage from "./pages/FutureStudentsPage";
@@ -170,6 +172,8 @@ const AnimatedRoutes = () => {
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
         <Route path="/gestao-clientes" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
+        <Route path="/notas-clientes" element={<ProtectedRoute><ClientNotesPage /></ProtectedRoute>} />
+        <Route path="/cadastro-notas-cliente" element={<ClientNotesPublicFormPage />} />
         <Route path="/clientes-google-ads" element={<ProtectedRoute><GoogleAdsClientsPage /></ProtectedRoute>} />
         <Route path="/cadastro-cliente/:token" element={<ClientIntakePage />} />
         <Route path="/tasks" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
