@@ -97,16 +97,24 @@ Deno.serve(async (request) => {
     const action = typeof body?.action === "string" ? body.action : "list";
     const since = typeof body?.since === "string" ? body.since : "";
     const until = typeof body?.until === "string" ? body.until : "";
-    const buildQuery = (page: number) => {
+    const buildQuery = (page: number, dateStyle: "start" | "range" | "from" | "none" = "start") => {
       const query = new URLSearchParams();
-      if (since) {
+      if (dateStyle === "start" && since) {
         query.set("start_date", since);
+      }
+      if (dateStyle === "start" && until) {
+        query.set("end_date", until);
+      }
+      if (dateStyle === "range" && since) {
         query.set("date_from", since);
+      }
+      if (dateStyle === "range" && until) {
+        query.set("date_to", until);
+      }
+      if (dateStyle === "from" && since) {
         query.set("from", since);
       }
-      if (until) {
-        query.set("end_date", until);
-        query.set("date_to", until);
+      if (dateStyle === "from" && until) {
         query.set("to", until);
       }
       query.set("page", String(page));
@@ -118,18 +126,31 @@ Deno.serve(async (request) => {
 
     let payload: unknown = null;
     let selectedEndpoint = "";
+    let selectedDateStyle: "start" | "range" | "from" | "none" = "start";
+    let bestRowCount = -1;
     const errors: string[] = [];
-    for (const endpoint of ["appointments", "commitments", "agenda"]) {
-      const response = await fetch(`${CRM_BASE_URL}/${endpoint}?${buildQuery(1).toString()}`, {
-        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
-      });
-      const candidate = await response.json().catch(() => null);
-      if (response.ok) {
-        payload = candidate;
-        selectedEndpoint = endpoint;
-        break;
+    const attempts: Array<Record<string, unknown>> = [];
+    for (const endpoint of ["appointments", "commitments", "agenda", "calendar", "schedules"]) {
+      for (const dateStyle of ["start", "range", "from", "none"] as const) {
+        const response = await fetch(`${CRM_BASE_URL}/${endpoint}?${buildQuery(1, dateStyle).toString()}`, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        });
+        const candidate = await response.json().catch(() => null);
+        if (response.ok) {
+          const rowCount = extractRows(candidate).length;
+          attempts.push({ endpoint, dateStyle, status: response.status, rowCount, rootKeys: Object.keys(asObject(candidate)) });
+          if (rowCount > bestRowCount) {
+            payload = candidate;
+            selectedEndpoint = endpoint;
+            selectedDateStyle = dateStyle;
+            bestRowCount = rowCount;
+          }
+          if (rowCount > 0) break;
+        } else {
+          attempts.push({ endpoint, dateStyle, status: response.status, rowCount: 0 });
+          errors.push(`${endpoint}/${dateStyle}: HTTP ${response.status}`);
+        }
       }
-      errors.push(`${endpoint}: HTTP ${response.status}`);
     }
     if (!selectedEndpoint) throw new Error(`Não foi possível consultar a agenda do CRM (${errors.join(", ")}).`);
 
@@ -182,7 +203,7 @@ Deno.serve(async (request) => {
     const totalPagesRaw = Number(meta.last_page ?? meta.total_pages ?? root.last_page ?? root.total_pages ?? 1);
     const totalPages = Number.isFinite(totalPagesRaw) ? Math.min(Math.max(totalPagesRaw, 1), 100) : 1;
     for (let page = 2; page <= totalPages; page += 1) {
-      const response = await fetch(`${CRM_BASE_URL}/${selectedEndpoint}?${buildQuery(page).toString()}`, {
+      const response = await fetch(`${CRM_BASE_URL}/${selectedEndpoint}?${buildQuery(page, selectedDateStyle).toString()}`, {
         headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
       });
       if (!response.ok) break;
@@ -201,7 +222,7 @@ Deno.serve(async (request) => {
         seen.add(item.id);
         return true;
       });
-    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint, pages: totalPages }), {
+    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint, dateStyle: selectedDateStyle, pages: totalPages, attempts }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
