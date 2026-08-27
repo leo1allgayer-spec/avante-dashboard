@@ -43,7 +43,7 @@ const FullTasks = () => {
 
   const { signOut: signOutMain } = useMainAuth();
   const location = useLocation();
-  const initialTab = location.pathname === "/reunioes" ? "meetings" : "dashboard";
+  const initialTab = location.pathname === "/reunioes" ? "meetings" : "curso-todos";
 
   if (!session && !loading) {
     signOutMain();

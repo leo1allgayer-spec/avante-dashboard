@@ -72,7 +72,7 @@ const gestaoItems = [
   { title: "Clientes", url: "/gestao-clientes", icon: Users2 },
   { title: "Notas dos Clientes", url: "/notas-clientes", icon: NotebookPen },
   { title: "Clientes Google Ads", url: "/clientes-google-ads", icon: Users2 },
-  { title: "Tarefas", url: "/tasks", icon: ClipboardList },
+  { title: "Agenda Curso", url: "/tasks", icon: CalendarCheck2 },
   { title: "Agendamentos", url: "/admin/agendamentos", icon: Calendar },
   { title: "Configurações", url: "/admin-settings", icon: Settings2 },
   { title: "Kanban Social Media", url: "/kanban-social-media", icon: KanbanSquare },
