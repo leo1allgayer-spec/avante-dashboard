@@ -93,6 +93,12 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
           {m.outcome === "positive" ? "Positiva" : "Negativa"}
         </Badge>
       )}
+      {m.status === "completed" && !m.outcome && (
+        <Badge className="text-[9px] h-4 bg-green-600">Concluída</Badge>
+      )}
+      {m.status === "cancelled" && (
+        <Badge variant="destructive" className="text-[9px] h-4">Cancelada</Badge>
+      )}
       <div className="flex flex-wrap gap-1">
         {m.modality && (
           <Badge variant="outline" className="text-[9px] h-4 gap-0.5">
@@ -178,13 +184,18 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
     return filtered.sort((a, b) => b.date.localeCompare(a.date));
   }, [meetings, filterParticipant, filterOutcome, filterMonth]);
 
+  const cancelledMeetings = useMemo(() => {
+    const filtered = applyFilters(meetings.filter((m) => m.status === "cancelled"));
+    return filtered.sort((a, b) => b.date.localeCompare(a.date));
+  }, [meetings, filterParticipant, filterOutcome, filterMonth]);
+
   const meetingsByDay = useMemo(() => {
     const map = new Map<string, Meeting[]>();
     weekDays.forEach((day) => {
       const key = format(day, "yyyy-MM-dd");
       map.set(key, []);
     });
-    pendingMeetings.forEach((m) => {
+    applyFilters(meetings).forEach((m) => {
       try {
         const mDate = parseISO(m.date);
         if (isWithinInterval(mDate, { start: currentWeekStart, end: weekEnd })) {
@@ -197,7 +208,7 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
     // Sort each day by time
     map.forEach((arr) => arr.sort((a, b) => (a.time || "").localeCompare(b.time || "")));
     return map;
-  }, [pendingMeetings, currentWeekStart]);
+  }, [meetings, currentWeekStart, filterParticipant, filterOutcome, filterMonth]);
 
   const openAdd = () => {
     setEditingMeeting(null);
@@ -292,7 +303,7 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="font-semibold">Reuniões</h3>
+        <h3 className="font-semibold">Agenda Reuniões</h3>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1 text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
@@ -345,6 +356,9 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
           </TabsTrigger>
           <TabsTrigger value="history" className="gap-1.5">
             <History className="h-3.5 w-3.5" /> Histórico ({completedMeetings.length})
+          </TabsTrigger>
+          <TabsTrigger value="cancelled" className="gap-1.5">
+            Canceladas ({cancelledMeetings.length})
           </TabsTrigger>
         </TabsList>
 
@@ -446,6 +460,26 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
             {completedMeetings.length === 0 && (
               <p className="text-sm text-muted-foreground col-span-2 text-center py-8">Nenhuma reunião concluída</p>
             )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="cancelled">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {cancelledMeetings.map((m) => (
+              <Card key={m.id}>
+                <CardContent className="p-4 space-y-2 opacity-75">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-medium text-sm">{m.title}</h4>
+                    <Badge variant="destructive" className="text-[10px]">Cancelada</Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{formatDateWithWeekday(m.date)}</span>
+                    {m.time && <span>{m.time}</span>}
+                  </div>
+                  {m.participants.length > 0 && <p className="text-xs text-muted-foreground">{m.participants.join(", ")}</p>}
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </TabsContent>
       </Tabs>

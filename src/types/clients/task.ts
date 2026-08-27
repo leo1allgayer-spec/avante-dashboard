@@ -28,7 +28,7 @@ export interface Meeting {
   time: string;
   participants: string[];
   description: string;
-  status: "pending" | "completed";
+  status: "pending" | "completed" | "cancelled";
   outcome: "positive" | "negative" | null;
   origin: string;
   modality: "presencial" | "online";

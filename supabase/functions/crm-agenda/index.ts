@@ -21,7 +21,7 @@ const firstString = (row: JsonObject, keys: string[]) => {
 const extractRows = (payload: unknown): JsonObject[] => {
   if (Array.isArray(payload)) return payload.map(asObject);
   const root = asObject(payload);
-  for (const key of ["data", "appointments", "commitments", "events", "items", "results"]) {
+  for (const key of ["data", "appointments", "commitments", "events", "schedules", "calendar", "items", "results"]) {
     const value = root[key];
     if (Array.isArray(value)) return value.map(asObject);
     const nested = asObject(value);
@@ -47,7 +47,8 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
   const contact = asObject(row.contact ?? row.lead ?? row.customer ?? row.client);
   const owner = asObject(row.owner ?? row.user ?? row.assignee);
   const { date, time } = splitDateTime(row);
-  const statusRaw = firstString(row, ["status", "state"]).toLowerCase();
+  const statusObject = asObject(row.status);
+  const statusRaw = (firstString(row, ["status", "state", "situation"]) || firstString(statusObject, ["name", "slug", "value"])).toLowerCase();
   const title = firstString(row, ["title", "name", "subject", "summary"]) || "Reunião do CRM";
   const participantNames = [
     firstString(contact, ["name", "full_name", "title"]),
@@ -72,7 +73,11 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
     time,
     participants: [...new Set(participantNames)],
     description: firstString(row, ["description", "notes", "note", "details"]),
-    status: ["completed", "done", "finished", "realizado", "concluido", "concluído"].includes(statusRaw) ? "completed" : "pending",
+    status: ["cancelled", "canceled", "cancelado", "cancelada"].includes(statusRaw)
+      ? "cancelled"
+      : ["completed", "done", "finished", "realizado", "realizada", "concluido", "concluído", "concluida", "concluída"].includes(statusRaw)
+        ? "completed"
+        : "pending",
     outcome: null,
     origin: "CRM",
     modality: firstString(row, ["modality", "type", "location_type"]).toLowerCase().includes("online") ? "online" : "presencial",
@@ -92,15 +97,30 @@ Deno.serve(async (request) => {
     const action = typeof body?.action === "string" ? body.action : "list";
     const since = typeof body?.since === "string" ? body.since : "";
     const until = typeof body?.until === "string" ? body.until : "";
-    const query = new URLSearchParams();
-    if (since) query.set("start_date", since);
-    if (until) query.set("end_date", until);
+    const buildQuery = (page: number) => {
+      const query = new URLSearchParams();
+      if (since) {
+        query.set("start_date", since);
+        query.set("date_from", since);
+        query.set("from", since);
+      }
+      if (until) {
+        query.set("end_date", until);
+        query.set("date_to", until);
+        query.set("to", until);
+      }
+      query.set("page", String(page));
+      query.set("per_page", "100");
+      query.set("limit", "100");
+      query.set("status", "all");
+      return query;
+    };
 
     let payload: unknown = null;
     let selectedEndpoint = "";
     const errors: string[] = [];
     for (const endpoint of ["appointments", "commitments", "agenda"]) {
-      const response = await fetch(`${CRM_BASE_URL}/${endpoint}?${query.toString()}`, {
+      const response = await fetch(`${CRM_BASE_URL}/${endpoint}?${buildQuery(1).toString()}`, {
         headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
       });
       const candidate = await response.json().catch(() => null);
@@ -156,10 +176,32 @@ Deno.serve(async (request) => {
       });
     }
 
-    const appointments = extractRows(payload)
+    const allRows = [...extractRows(payload)];
+    const root = asObject(payload);
+    const meta = asObject(root.meta ?? root.pagination);
+    const totalPagesRaw = Number(meta.last_page ?? meta.total_pages ?? root.last_page ?? root.total_pages ?? 1);
+    const totalPages = Number.isFinite(totalPagesRaw) ? Math.min(Math.max(totalPagesRaw, 1), 100) : 1;
+    for (let page = 2; page <= totalPages; page += 1) {
+      const response = await fetch(`${CRM_BASE_URL}/${selectedEndpoint}?${buildQuery(page).toString()}`, {
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+      });
+      if (!response.ok) break;
+      const nextPayload = await response.json().catch(() => null);
+      const rows = extractRows(nextPayload);
+      if (!rows.length) break;
+      allRows.push(...rows);
+    }
+
+    const seen = new Set<string>();
+    const appointments = allRows
       .map(normalizeAppointment)
-      .filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item.date));
-    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint }), {
+      .filter((item) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date)) return false;
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint, pages: totalPages }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
