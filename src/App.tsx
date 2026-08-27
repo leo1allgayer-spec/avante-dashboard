@@ -178,6 +178,7 @@ const AnimatedRoutes = () => {
         <Route path="/clientes-google-ads" element={<ProtectedRoute><GoogleAdsClientsPage /></ProtectedRoute>} />
         <Route path="/cadastro-cliente/:token" element={<ClientIntakePage />} />
         <Route path="/tasks" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
+        <Route path="/reunioes" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
         <Route path="/admin-settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/agendamentos" element={<ProtectedRoute><AdminBookingsPage /></ProtectedRoute>} />
         <Route path="/agendar" element={<BookingPublicPage />} />

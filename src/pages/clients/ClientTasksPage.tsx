@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   LayoutDashboard, KanbanSquare, List, CalendarDays, Users2, Plus, Search, Loader2, ClipboardList, RefreshCw, GraduationCap,
 } from "lucide-react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
 import { isGoogleTasksOnlyUser } from "@/lib/accessControl";
@@ -42,6 +42,8 @@ const FullTasks = () => {
   const loading = tasksLoading || membersLoading || meetingsLoading;
 
   const { signOut: signOutMain } = useMainAuth();
+  const location = useLocation();
+  const initialTab = location.pathname === "/reunioes" ? "meetings" : "dashboard";
 
   if (!session && !loading) {
     signOutMain();
@@ -65,7 +67,7 @@ const FullTasks = () => {
       subtitle="Organização de tarefas, equipe e reuniões"
       contentClassName="max-w-[96rem]"
     >
-        <Tabs defaultValue="dashboard" className="space-y-6">
+        <Tabs key={initialTab} defaultValue={initialTab} className="space-y-6">
           <TabsList className="h-auto min-h-12 flex-wrap justify-start gap-1 bg-card border border-border p-1.5">
             <TabsTrigger value="dashboard" className="h-9 gap-1.5 px-3">
               <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
