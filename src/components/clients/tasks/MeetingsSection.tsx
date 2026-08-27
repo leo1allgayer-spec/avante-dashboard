@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake } from "lucide-react";
+import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw } from "lucide-react";
 import { format, parseISO, startOfWeek, endOfWeek, addWeeks, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -22,6 +22,8 @@ interface Props {
   onAdd: (meeting: Omit<Meeting, "id">) => void;
   onUpdate: (meeting: Meeting) => void;
   onDelete: (id: string) => void;
+  onRefresh?: () => void;
+  syncing?: boolean;
 }
 
 const WEEKDAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -76,9 +78,9 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
               <CheckCircle2 className="h-2.5 w-2.5 text-muted-foreground" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDelete(m.id)}>
+          {m.source !== "crm" && <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDelete(m.id)} title="Excluir">
             <Trash2 className="h-2.5 w-2.5 text-muted-foreground" />
-          </Button>
+          </Button>}
         </div>
       </div>
       {m.time && (
@@ -101,6 +103,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
         {m.origin && (
           <Badge variant="secondary" className="text-[9px] h-4">{m.origin}</Badge>
         )}
+        {m.source === "crm" && <Badge className="text-[9px] h-4 bg-violet-600">Sincronizado</Badge>}
         {m.hasClosed && (
           <Badge variant="default" className="text-[9px] h-4 gap-0.5 bg-green-600">
             <Handshake className="h-2 w-2" /> Fechou
@@ -120,7 +123,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
   );
 }
 
-export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete }: Props) {
+export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, onRefresh, syncing }: Props) {
   const [showDialog, setShowDialog] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
   const [title, setTitle] = useState("");
@@ -329,6 +332,9 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete }
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4 mr-1" /> Agendar
           </Button>
+          {onRefresh && <Button variant="outline" size="sm" onClick={onRefresh} disabled={syncing}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? "animate-spin" : ""}`} /> Atualizar CRM
+          </Button>}
         </div>
       </div>
 

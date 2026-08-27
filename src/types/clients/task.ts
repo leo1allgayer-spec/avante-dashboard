@@ -33,6 +33,8 @@ export interface Meeting {
   origin: string;
   modality: "presencial" | "online";
   hasClosed: boolean;
+  source?: "local" | "crm";
+  externalId?: string;
 }
 
 export function formatDuration(ms: number): string {

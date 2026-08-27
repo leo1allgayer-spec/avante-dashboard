@@ -30,7 +30,7 @@ const FullTasks = () => {
   const { session, signOut } = useAuth();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks();
   const { members, loading: membersLoading, addMember, updateMember, deleteMember } = useTeamMembers();
-  const { meetings, loading: meetingsLoading, addMeeting, updateMeeting, deleteMeeting } = useMeetings();
+  const { meetings, loading: meetingsLoading, syncing: meetingsSyncing, refreshMeetings, addMeeting, updateMeeting, deleteMeeting } = useMeetings();
 
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskView, setTaskView] = useState<"kanban" | "list">("kanban");
@@ -223,6 +223,8 @@ const FullTasks = () => {
               onAdd={addMeeting}
               onUpdate={updateMeeting}
               onDelete={deleteMeeting}
+              onRefresh={refreshMeetings}
+              syncing={meetingsSyncing}
             />
           </TabsContent>
 
