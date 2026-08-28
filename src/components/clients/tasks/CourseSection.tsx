@@ -97,33 +97,33 @@ export function CourseSection({ courseType }: Props) {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5" /> {title}
           </CardTitle>
-          <Button onClick={() => openAdd()} size="sm">
+          <Button onClick={() => openAdd()} size="sm" className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-1" /> Adicionar Aluno
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
           {/* Week navigation */}
-          <div className="flex items-center justify-between mb-4">
-            <Button variant="outline" size="icon" onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => setCurrentWeekStart(subWeeks(currentWeekStart, 1))}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">{weekLabel}</h3>
-              <Button variant="ghost" size="sm" onClick={goToToday} className="text-xs">
+            <div className="flex min-w-0 flex-col items-center gap-1 sm:flex-row sm:gap-2">
+              <h3 className="truncate text-sm font-semibold sm:text-lg">{weekLabel}</h3>
+              <Button variant="ghost" size="sm" onClick={goToToday} className="h-7 px-2 text-xs">
                 Hoje
               </Button>
             </div>
-            <Button variant="outline" size="icon" onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}>
+            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => setCurrentWeekStart(addWeeks(currentWeekStart, 1))}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
 
           {/* Weekly grid */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
             {weekDays.map((day) => {
               const dateStr = format(day, "yyyy-MM-dd");
               const dayEnrollments = enrollmentsByDate[dateStr] || [];
@@ -136,18 +136,19 @@ export function CourseSection({ courseType }: Props) {
                   key={dateStr}
                   onClick={() => setSelectedDate(isSelected ? null : day)}
                   className={cn(
-                    "relative p-3 min-h-[90px] rounded-lg border text-left transition-colors flex flex-col",
+                    "relative min-h-[64px] rounded-lg border p-1.5 text-left transition-colors flex flex-col sm:min-h-[90px] sm:p-3",
                     "hover:bg-accent/50",
                     isSelected && "ring-2 ring-primary border-primary bg-transparent",
                     isToday && !isSelected && "border-primary bg-primary/5",
                     !isSelected && !isToday && "border-border"
                   )}
                 >
-                  <span className="text-[10px] font-medium text-muted-foreground uppercase">
-                    {format(day, "EEE", { locale: ptBR })}
+                  <span className="block truncate text-[9px] font-medium uppercase text-muted-foreground sm:text-[10px]">
+                    <span className="sm:hidden">{["D", "S", "T", "Q", "Q", "S", "S"][day.getDay()]}</span>
+                    <span className="hidden sm:inline">{format(day, "EEE", { locale: ptBR })}</span>
                   </span>
                   <span className={cn(
-                    "text-lg font-semibold",
+                    "text-sm font-semibold sm:text-lg",
                     isToday && "text-primary",
                   )}>
                     {format(day, "dd")}
@@ -165,12 +166,12 @@ export function CourseSection({ courseType }: Props) {
 
           {/* Selected date detail */}
           {selectedDate && (
-            <div className="mt-4 border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
+            <div className="mt-4 rounded-lg border p-2 sm:p-4">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h4 className="font-semibold capitalize">
                   {format(selectedDate, "EEEE, dd/MM/yyyy", { locale: ptBR })}
                 </h4>
-                <div className="flex gap-2">
+                <div className="flex items-center justify-between gap-2 sm:justify-end">
                   <Button size="sm" variant="outline" onClick={() => openAdd(format(selectedDate, "yyyy-MM-dd"))}>
                     <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
                   </Button>
@@ -184,8 +185,8 @@ export function CourseSection({ courseType }: Props) {
               ) : (
                 <div className="space-y-2">
                   {selectedEnrollments.map((e) => (
-                    <div key={e.id} className="flex items-center justify-between p-3 rounded-md bg-muted/50 border">
-                      <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+                    <div key={e.id} className="flex flex-col gap-3 rounded-md border bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 text-sm sm:grid-cols-2 md:grid-cols-5">
                         <div>
                           <span className="text-muted-foreground text-xs">Aluno</span>
                           <p className="font-medium">{e.studentName}</p>
@@ -218,7 +219,7 @@ export function CourseSection({ courseType }: Props) {
                           <p>{e.time === "Manhã" ? "08:30" : e.time === "Tarde" ? "14:00" : e.time}</p>
                         </div>
                       </div>
-                      <div className="flex gap-1 ml-2">
+                      <div className="flex justify-end gap-1 sm:ml-2">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(e)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>

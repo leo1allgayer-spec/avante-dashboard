@@ -34,17 +34,17 @@ const DashboardLayout = ({ children, title, subtitle, actions, contentClassName 
 
         <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-y-auto">
           {/* Top bar */}
-          <header className="h-16 flex items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-lg px-5 sm:px-8 sticky top-0 z-50">
-            <div className="flex items-center gap-4">
+          <header className="sticky top-0 z-50 flex min-h-16 items-center justify-between gap-2 border-b border-border/40 bg-background/80 px-3 py-2 backdrop-blur-lg sm:h-16 sm:px-8 sm:py-0">
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
               <SidebarTrigger className="text-muted-foreground hover:text-primary transition-colors -ml-1">
                 <PanelLeft className="h-5 w-5" />
               </SidebarTrigger>
-              <div className="border-l border-border/40 pl-4">
-                <h1 className="font-display text-lg font-bold text-foreground leading-tight">{title}</h1>
-                {subtitle && <p className="text-xs text-muted-foreground leading-tight mt-0.5">{subtitle}</p>}
+              <div className="min-w-0 border-l border-border/40 pl-3 sm:pl-4">
+                <h1 className="truncate font-display text-base font-bold leading-tight text-foreground sm:text-lg">{title}</h1>
+                {subtitle && <p className="mt-0.5 hidden truncate text-xs leading-tight text-muted-foreground min-[390px]:block">{subtitle}</p>}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
               {actions}
               <Button
                 type="button"
@@ -64,7 +64,7 @@ const DashboardLayout = ({ children, title, subtitle, actions, contentClassName 
           {/* Dot pattern background */}
           <div className="flex-1 relative">
             <div className="absolute inset-0 dot-pattern opacity-30 pointer-events-none" />
-            <main className="relative z-10 p-4 sm:p-6">
+            <main className="relative z-10 p-3 sm:p-6">
               <div className={cn("mx-auto max-w-7xl space-y-5", contentClassName)}>
                 {children}
               </div>
