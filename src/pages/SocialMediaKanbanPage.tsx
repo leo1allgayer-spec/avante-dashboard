@@ -115,15 +115,19 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
               const status = stage.name;
               const columnTasks = filtered.filter((task) => task.status === status);
               return (
-                <section key={stage.id} className="min-h-[32rem] w-[19rem] shrink-0 rounded-xl border border-border/70 bg-card/60 p-3" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const id = event.dataTransfer.getData("text/task-id"); if (id) updateTask(id, { status }); }}>
-                  <header className="mb-3 flex items-center gap-2 px-1">
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${columnStyles[status] || fallbackColumnStyles[stageIndex % fallbackColumnStyles.length]}`} />
-                    <button className="truncate text-left font-semibold hover:text-primary" title="Clique para renomear" onClick={async () => { const next = window.prompt("Novo nome da etapa", status); if (next) await renameStage(stage, next); }}>{status}</button>
-                    <Badge variant="secondary" className="ml-auto">{columnTasks.length}</Badge>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" disabled={stageIndex === 0} title="Mover etapa para a esquerda" onClick={() => moveStage(stage.id, -1)}><ArrowLeft className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" disabled={stageIndex === stages.length - 1} title="Mover etapa para a direita" onClick={() => moveStage(stage.id, 1)}><ArrowRight className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => showCreate(status)}><Plus className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Excluir etapa vazia" onClick={async () => { if (window.confirm(`Excluir a etapa “${status}”?`)) await deleteStage(stage); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                <section key={stage.id} className="min-h-[32rem] w-[20rem] shrink-0 rounded-xl border border-border/70 bg-card/60 p-3" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const id = event.dataTransfer.getData("text/task-id"); if (id) updateTask(id, { status }); }}>
+                  <header className="mb-3 space-y-1 px-1">
+                    <div className="flex min-h-8 items-start gap-2">
+                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${columnStyles[status] || fallbackColumnStyles[stageIndex % fallbackColumnStyles.length]}`} />
+                      <button className="min-w-0 flex-1 whitespace-normal text-left font-semibold leading-snug hover:text-primary" title="Clique para renomear" onClick={async () => { const next = window.prompt("Novo nome da etapa", status); if (next) await renameStage(stage, next); }}>{status}</button>
+                      <Badge variant="secondary" className="shrink-0">{columnTasks.length}</Badge>
+                    </div>
+                    <div className="flex items-center justify-end gap-1 border-t border-border/50 pt-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" disabled={stageIndex === 0} title="Mover etapa para a esquerda" onClick={() => moveStage(stage.id, -1)}><ArrowLeft className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" disabled={stageIndex === stages.length - 1} title="Mover etapa para a direita" onClick={() => moveStage(stage.id, 1)}><ArrowRight className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Adicionar tarefa" onClick={() => showCreate(status)}><Plus className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Excluir etapa vazia" onClick={async () => { if (window.confirm(`Excluir a etapa “${status}”?`)) await deleteStage(stage); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
                   </header>
                   <div className="space-y-3">
                     {columnTasks.map((task) => (
