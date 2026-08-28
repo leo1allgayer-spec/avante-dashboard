@@ -43,6 +43,45 @@ const firstName = (...rows: JsonObject[]) => {
   }
   return "";
 };
+const relatedRecordKeys = new Set(["lead", "contact", "customer", "client", "participant", "person", "prospect"]);
+
+const collectRelatedRecords = (row: JsonObject, depth = 0): JsonObject[] => {
+  if (depth > 3) return [];
+  const records: JsonObject[] = [];
+  for (const [key, value] of Object.entries(row)) {
+    if (!value || typeof value !== "object") continue;
+    const normalizedKey = key.replace(/[_-]/g, "").toLowerCase();
+    if (Array.isArray(value)) {
+      if ([...relatedRecordKeys].some((candidate) => normalizedKey.includes(candidate))) {
+        records.push(...value.map(asObject).filter((item) => Object.keys(item).length));
+      }
+      continue;
+    }
+    const nested = asObject(value);
+    if ([...relatedRecordKeys].some((candidate) => normalizedKey.includes(candidate))) records.push(nested);
+    records.push(...collectRelatedRecords(nested, depth + 1));
+  }
+  return records;
+};
+
+const linkedLeadIdentifier = (row: JsonObject) => {
+  const direct = firstIdentifier(row, [
+    "lead_id", "leadId", "contact_id", "contactId", "customer_id", "customerId",
+    "client_id", "clientId", "person_id", "personId", "prospect_id", "prospectId",
+  ]);
+  if (direct) return direct;
+  for (const key of relatedRecordKeys) {
+    const value = row[key];
+    if (typeof value === "string" || typeof value === "number") return String(value);
+    const id = firstIdentifier(asObject(value), ["id", "lead_id", "leadId", "uuid"]);
+    if (id) return id;
+  }
+  for (const related of collectRelatedRecords(row)) {
+    const id = firstIdentifier(related, ["id", "lead_id", "leadId", "uuid"]);
+    if (id) return id;
+  }
+  return "";
+};
 
 const isGenericMeetingTitle = (value: string) => {
   const normalized = value
@@ -86,14 +125,19 @@ const splitDateTime = (row: JsonObject) => {
 };
 
 const normalizeAppointment = (row: JsonObject, index: number) => {
+  const relatedRecords = collectRelatedRecords(row);
   const contact = asObject(row.contact ?? row.lead ?? row.customer ?? row.client);
   const participant = asObject(row.participant ?? row.person ?? row.prospect);
   const owner = asObject(row.owner ?? row.user ?? row.assignee);
   const { date, time } = splitDateTime(row);
   const statusObject = asObject(row.status);
   const statusRaw = (firstString(row, ["status", "state", "situation"]) || firstString(statusObject, ["name", "slug", "value"])).toLowerCase();
-  const meetingTitle = firstString(row, ["title", "subject", "summary"]);
-  const personName = firstName(contact, participant, row);
+  const meetingTitle = firstString(row, ["title", "subject", "summary", "name"]);
+  const explicitPersonName = firstString(row, [
+    "lead_name", "leadName", "contact_name", "contactName", "customer_name", "customerName",
+    "client_name", "clientName", "participant_name", "participantName", "person_name", "personName",
+  ]);
+  const personName = explicitPersonName || firstName(contact, participant, ...relatedRecords);
   const title = personName || (!isGenericMeetingTitle(meetingTitle) ? meetingTitle : "") || "Reunião do CRM";
   const participantNames = [
     personName,
@@ -264,7 +308,7 @@ Deno.serve(async (request) => {
       allRows.push(...rows);
     }
 
-    const leadIds = [...new Set(allRows.map((row) => firstIdentifier(row, ["lead_id"])).filter(Boolean))];
+    const leadIds = [...new Set(allRows.map(linkedLeadIdentifier).filter(Boolean))];
     const leadMap = new Map<string, JsonObject>();
     for (let offset = 0; offset < leadIds.length; offset += 10) {
       const batch = leadIds.slice(offset, offset + 10);
@@ -300,7 +344,7 @@ Deno.serve(async (request) => {
     }
 
     const enrichedRows = allRows.map((row) => {
-      const leadId = firstIdentifier(row, ["lead_id"]);
+      const leadId = linkedLeadIdentifier(row);
       return leadId && leadMap.has(leadId) ? { ...row, lead: leadMap.get(leadId) } : row;
     });
     const seen = new Set<string>();
