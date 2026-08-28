@@ -85,6 +85,9 @@ Deno.serve(async (req) => {
           message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte foi agendada com sucesso.", `📅 ${when}`, `📍 Modalidade: ${modality}`, "", "Você receberá outro aviso 1 hora antes."].join("\n");
         } else if (job.message_type === "student_reminder_1h") {
           message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte começa em 1 hora.", `📅 ${when}`, `📍 Modalidade: ${modality}`, "", "Até breve!"].join("\n");
+        } else if (job.message_type === "admin_reminder_1h") {
+          phone = NICOLAS_PHONE;
+          message = ["⏰ Aula de suporte em 1 hora", "", "Aluno: " + booking.student_name, "Telefone: " + studentPhone, "Data: " + when, "Modalidade: " + modality].join("\n");
         } else {
           phone = NICOLAS_PHONE;
           message = ["🔔 Nova aula de suporte agendada", "", `Aluno: ${booking.student_name}`, `Telefone: ${studentPhone}`, `Data: ${when}`, `Modalidade: ${modality}`].join("\n");
