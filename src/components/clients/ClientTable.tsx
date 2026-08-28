@@ -237,7 +237,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
       {/* Table */}
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <div className="overflow-x-auto overscroll-contain">
-        <table className={cn(hideContractValues ? "min-w-[1510px]" : "min-w-[1860px]", "w-full table-fixed text-xs")}>
+        <table className={cn(hideContractValues ? "min-w-[1360px]" : "min-w-[1710px]", "w-full table-fixed text-xs")}>
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
               <SortHeader label="Cliente" sortField="name" className="w-[150px]" />
@@ -248,7 +248,6 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
               <StaticHeader label="Saldo" className="w-[150px]" />
               <StaticHeader label="Otimizacao" className="w-[150px]" />
               <StaticHeader label="Dia relatorio" className="w-[105px]" />
-              <SortHeader label="Atualizacao" sortField="lastAccountUpdate" className="w-[150px]" />
               <SortHeader label="Retencao" sortField="retention" className="w-[85px]" />
               <StaticHeader label="Cobranca" className="w-[95px]" />
               {!hideContractValues && <StaticHeader label="Tipo" className="w-[75px]" />}
@@ -347,28 +346,6 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     <SelectContent>{WEEKDAYS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}</SelectContent>
                   </Select>
                 </td>
-                {(() => {
-                  const dateStr = client.lastAccountUpdate;
-                  const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
-                  const status = getAlertStatus(dateStr);
-                  const label = getAlertLabel(dateStr);
-                  const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
-                  return (
-                    <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className={cn("inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 transition-colors whitespace-nowrap hover:brightness-110", alertBadgeClasses[status])}>
-                            <span className="text-xs whitespace-nowrap">{dateFormatted}</span>
-                            <span className="text-xs font-semibold whitespace-nowrap">{label}</span>
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
-                          <Calendar mode="single" selected={parsedDate} onSelect={(date) => { if (date) onUpdateClient({ ...client, lastAccountUpdate: format(date, "yyyy-MM-dd") }); }} locale={ptBR} initialFocus className={cn("p-3 pointer-events-auto")} />
-                        </PopoverContent>
-                      </Popover>
-                    </td>
-                  );
-                })()}
                 <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -454,7 +431,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={hideContractValues ? 15 : 19} className="px-2 py-6 text-center text-muted-foreground">
+                <td colSpan={hideContractValues ? 14 : 18} className="px-2 py-6 text-center text-muted-foreground">
                   Nenhum cliente encontrado.
                 </td>
               </tr>
@@ -469,7 +446,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 <td className="px-2 py-2 font-semibold text-primary">
                   {formatCurrency(filtered.filter(c => c.status === "Ativo").reduce((sum, c) => sum + (Number(c.monthlyBudget) || 0), 0))}
                 </td>
-                <td colSpan={4}></td>
+                <td colSpan={3}></td>
                 <td className="px-2 py-2 font-semibold text-primary whitespace-nowrap">
                   {(() => {
                     const ativos = filtered.filter(c => c.status === "Ativo" && c.startDate);
