@@ -40,6 +40,9 @@ function isMissingTableError(error: unknown) {
 export function useFutureStudents() {
   return useQuery({
     queryKey: ["future-students"],
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
+    refetchInterval: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("alunos_futuros" as any)
@@ -89,7 +92,12 @@ export function useUpdateFutureStudent() {
       if (error) throw error;
       return data as FutureStudent;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["future-students"] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["future-students"] }),
+        qc.invalidateQueries({ queryKey: ["vendas"] }),
+      ]);
+    },
   });
 }
 

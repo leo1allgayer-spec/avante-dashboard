@@ -71,7 +71,12 @@ export function useUpdateVenda() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["vendas"] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["vendas"] }),
+        qc.invalidateQueries({ queryKey: ["future-students"] }),
+      ]);
+    },
   });
 }
 
