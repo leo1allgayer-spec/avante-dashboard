@@ -27,6 +27,39 @@ const firstIdentifier = (row: JsonObject, keys: string[]) => {
   return "";
 };
 
+const firstName = (...rows: JsonObject[]) => {
+  for (const row of rows) {
+    const value = firstString(row, [
+      "full_name",
+      "lead_name",
+      "contact_name",
+      "customer_name",
+      "client_name",
+      "participant_name",
+      "name",
+      "title",
+    ]);
+    if (value) return value;
+  }
+  return "";
+};
+
+const isGenericMeetingTitle = (value: string) => {
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return [
+    "reuniao",
+    "reuniao do crm",
+    "compromisso",
+    "compromisso do crm",
+    "agendamento",
+    "sem titulo",
+  ].includes(normalized);
+};
+
 const extractRows = (payload: unknown): JsonObject[] => {
   if (Array.isArray(payload)) return payload.map(asObject);
   const root = asObject(payload);
@@ -54,13 +87,16 @@ const splitDateTime = (row: JsonObject) => {
 
 const normalizeAppointment = (row: JsonObject, index: number) => {
   const contact = asObject(row.contact ?? row.lead ?? row.customer ?? row.client);
+  const participant = asObject(row.participant ?? row.person ?? row.prospect);
   const owner = asObject(row.owner ?? row.user ?? row.assignee);
   const { date, time } = splitDateTime(row);
   const statusObject = asObject(row.status);
   const statusRaw = (firstString(row, ["status", "state", "situation"]) || firstString(statusObject, ["name", "slug", "value"])).toLowerCase();
-  const title = firstString(row, ["title", "name", "subject", "summary"]) || firstString(contact, ["name", "full_name", "title"]) || "Reunião do CRM";
+  const meetingTitle = firstString(row, ["title", "subject", "summary"]);
+  const personName = firstName(contact, participant, row);
+  const title = personName || (!isGenericMeetingTitle(meetingTitle) ? meetingTitle : "") || "Reunião do CRM";
   const participantNames = [
-    firstString(contact, ["name", "full_name", "title"]),
+    personName,
     firstString(owner, ["name", "full_name"]),
   ].filter(Boolean);
   const directParticipants = row.participants;
