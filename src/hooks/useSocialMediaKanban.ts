@@ -9,7 +9,7 @@ export const CRM_OWNERS = ["Matheus"] as const;
 export const SOCIAL_MEDIA_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
 export type KanbanBoardType = "social_media" | "sites" | "crm" | "video_photo";
 
-export type SocialMediaStatus = (typeof SOCIAL_MEDIA_STATUSES)[number];
+export type SocialMediaStatus = string;
 export type SocialMediaOwner = (typeof SOCIAL_MEDIA_OWNERS)[number] | (typeof SITES_OWNERS)[number] | (typeof CRM_OWNERS)[number];
 export type SocialMediaPriority = (typeof SOCIAL_MEDIA_PRIORITIES)[number];
 
@@ -24,6 +24,12 @@ export interface SocialMediaTask {
   dueDate: string;
   commissionPaid: boolean;
   createdAt: string;
+}
+
+export interface KanbanStage {
+  id: string;
+  name: string;
+  position: number;
 }
 
 export type SocialMediaTaskInput = Omit<SocialMediaTask, "id" | "createdAt">;
@@ -43,7 +49,18 @@ const fromRow = (row: any): SocialMediaTask => ({
 
 export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media") {
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
+  const [stages, setStages] = useState<KanbanStage[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchStages = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("operational_kanban_stages" as any)
+      .select("id,name,position")
+      .eq("board_type", boardType)
+      .order("position", { ascending: true });
+    if (error) console.error(error);
+    else setStages((data || []) as unknown as KanbanStage[]);
+  }, [boardType]);
 
   const fetchTasks = useCallback(async () => {
     const { data, error } = await supabase
@@ -61,15 +78,60 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
     setLoading(false);
   }, [boardType]);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => { void Promise.all([fetchTasks(), fetchStages()]); }, [fetchTasks, fetchStages]);
 
   useEffect(() => {
     const channel = supabase
       .channel(`operational-kanban-${boardType}-realtime`)
       .on("postgres_changes", { event: "*", schema: "public", table: "social_media_kanban_tasks" }, fetchTasks)
+      .on("postgres_changes", { event: "*", schema: "public", table: "operational_kanban_stages" }, fetchStages)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [boardType, fetchTasks]);
+  }, [boardType, fetchTasks, fetchStages]);
+
+  const addStage = async (name: string) => {
+    const cleanName = name.trim();
+    if (!cleanName) return false;
+    const { error } = await supabase.from("operational_kanban_stages" as any).insert({ board_type: boardType, name: cleanName, position: stages.length } as any);
+    if (error) { toast.error(error.code === "23505" ? "Essa etapa já existe" : "Erro ao criar etapa"); return false; }
+    await fetchStages();
+    toast.success("Etapa criada");
+    return true;
+  };
+
+  const renameStage = async (stage: KanbanStage, name: string) => {
+    const cleanName = name.trim();
+    if (!cleanName || cleanName === stage.name) return false;
+    const { error } = await supabase.rpc("rename_operational_kanban_stage" as any, { p_stage_id: stage.id, p_new_name: cleanName } as any);
+    if (error) { toast.error("Erro ao renomear etapa"); return false; }
+    await Promise.all([fetchStages(), fetchTasks()]);
+    toast.success("Etapa renomeada");
+    return true;
+  };
+
+  const deleteStage = async (stage: KanbanStage) => {
+    if (tasks.some((task) => task.status === stage.name)) { toast.error("Mova os cartões antes de excluir esta etapa"); return false; }
+    if (stages.length <= 1) { toast.error("O Kanban precisa ter pelo menos uma etapa"); return false; }
+    const { error } = await supabase.from("operational_kanban_stages" as any).delete().eq("id", stage.id);
+    if (error) { toast.error("Erro ao excluir etapa"); return false; }
+    await fetchStages();
+    toast.success("Etapa excluída");
+    return true;
+  };
+
+  const moveStage = async (stageId: string, direction: -1 | 1) => {
+    const index = stages.findIndex((stage) => stage.id === stageId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= stages.length) return;
+    const current = stages[index];
+    const target = stages[targetIndex];
+    setStages((items) => { const next = [...items]; [next[index], next[targetIndex]] = [next[targetIndex], next[index]]; return next; });
+    const [first, second] = await Promise.all([
+      supabase.from("operational_kanban_stages" as any).update({ position: target.position } as any).eq("id", current.id),
+      supabase.from("operational_kanban_stages" as any).update({ position: current.position } as any).eq("id", target.id),
+    ]);
+    if (first.error || second.error) { toast.error("Erro ao reorganizar etapas"); await fetchStages(); }
+  };
 
   const addTask = async (task: SocialMediaTaskInput) => {
     const { error } = await supabase.from("social_media_kanban_tasks" as any).insert({
@@ -110,5 +172,5 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
     toast.success("Tarefa excluída");
   };
 
-  return { tasks, loading, addTask, updateTask, deleteTask };
+  return { tasks, stages, loading, addTask, updateTask, deleteTask, addStage, renameStage, deleteStage, moveStage };
 }
