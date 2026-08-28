@@ -52,13 +52,6 @@ export function useMeetings() {
       console.warn("Agenda do CRM indisponível:", crmError || crmData?.error);
       setMeetings(localMeetings);
     } else {
-      console.warn("Diagnóstico seguro da Agenda CRM:", JSON.stringify({
-        endpoint: crmData?.endpoint,
-        dateStyle: crmData?.dateStyle,
-        pages: crmData?.pages,
-        attempts: crmData?.attempts,
-        count: Array.isArray(crmData?.appointments) ? crmData.appointments.length : 0,
-      }));
       const crmMeetings = Array.isArray(crmData?.appointments) ? crmData.appointments as Meeting[] : [];
       const localExternalIds = new Set(localMeetings.map((meeting) => meeting.externalId).filter(Boolean));
       setMeetings([...localMeetings, ...crmMeetings.filter((meeting) => !localExternalIds.has(meeting.externalId))]);

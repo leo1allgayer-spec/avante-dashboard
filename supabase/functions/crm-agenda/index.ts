@@ -18,6 +18,15 @@ const firstString = (row: JsonObject, keys: string[]) => {
   return "";
 };
 
+const firstIdentifier = (row: JsonObject, keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return "";
+};
+
 const extractRows = (payload: unknown): JsonObject[] => {
   if (Array.isArray(payload)) return payload.map(asObject);
   const root = asObject(payload);
@@ -49,7 +58,7 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
   const { date, time } = splitDateTime(row);
   const statusObject = asObject(row.status);
   const statusRaw = (firstString(row, ["status", "state", "situation"]) || firstString(statusObject, ["name", "slug", "value"])).toLowerCase();
-  const title = firstString(row, ["title", "name", "subject", "summary"]) || "Reunião do CRM";
+  const title = firstString(row, ["title", "name", "subject", "summary"]) || firstString(contact, ["name", "full_name", "title"]) || "Reunião do CRM";
   const participantNames = [
     firstString(contact, ["name", "full_name", "title"]),
     firstString(owner, ["name", "full_name"]),
@@ -64,7 +73,7 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
       }
     });
   }
-  const id = firstString(row, ["id", "appointment_id", "commitment_id", "uuid"]) || `${date}-${time}-${index}`;
+  const id = firstIdentifier(row, ["id", "appointment_id", "commitment_id", "uuid"]) || `${date}-${time}-${index}`;
   return {
     id: `crm:${id}`,
     externalId: id,
@@ -120,7 +129,8 @@ Deno.serve(async (request) => {
       query.set("page", String(page));
       query.set("per_page", "100");
       query.set("limit", "100");
-      query.set("status", "all");
+      query.set("include", "lead,professional,service");
+      query.set("expand", "lead,professional,service");
       return query;
     };
 
@@ -137,8 +147,13 @@ Deno.serve(async (request) => {
         });
         const candidate = await response.json().catch(() => null);
         if (response.ok) {
-          const rowCount = extractRows(candidate).length;
-          attempts.push({ endpoint, dateStyle, status: response.status, rowCount, rootKeys: Object.keys(asObject(candidate)) });
+          const candidateRows = extractRows(candidate);
+          const rowCount = candidateRows.length;
+          const sample = candidateRows[0] ?? {};
+          const nestedKeys = Object.fromEntries(Object.entries(sample)
+            .filter(([, value]) => value && typeof value === "object" && !Array.isArray(value))
+            .map(([key, value]) => [key, Object.keys(asObject(value))]));
+          attempts.push({ endpoint, dateStyle, status: response.status, rowCount, rootKeys: Object.keys(asObject(candidate)), sampleKeys: Object.keys(sample), nestedKeys });
           if (rowCount > bestRowCount) {
             payload = candidate;
             selectedEndpoint = endpoint;
@@ -213,8 +228,47 @@ Deno.serve(async (request) => {
       allRows.push(...rows);
     }
 
+    const leadIds = [...new Set(allRows.map((row) => firstIdentifier(row, ["lead_id"])).filter(Boolean))];
+    const leadMap = new Map<string, JsonObject>();
+    for (let offset = 0; offset < leadIds.length; offset += 10) {
+      const batch = leadIds.slice(offset, offset + 10);
+      await Promise.all(batch.map(async (leadId) => {
+        const response = await fetch(`${CRM_BASE_URL}/leads/${encodeURIComponent(leadId)}`, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        });
+        if (!response.ok) return;
+        const result = asObject(await response.json().catch(() => null));
+        const lead = asObject(result.data ?? result.lead ?? result);
+        if (Object.keys(lead).length) leadMap.set(leadId, lead);
+      }));
+    }
+    if (leadMap.size < leadIds.length) {
+      const wantedLeadIds = new Set(leadIds);
+      let leadPage = 1;
+      let leadTotalPages = 1;
+      do {
+        const response = await fetch(`${CRM_BASE_URL}/leads?page=${leadPage}&per_page=100&limit=100`, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+        });
+        if (!response.ok) break;
+        const result = asObject(await response.json().catch(() => null));
+        const rows = Array.isArray(result.data) ? result.data.map(asObject) : [];
+        rows.forEach((lead) => {
+          const id = firstIdentifier(lead, ["id", "lead_id", "uuid"]);
+          if (id && wantedLeadIds.has(id)) leadMap.set(id, lead);
+        });
+        const pagination = asObject(result.pagination ?? result.meta);
+        leadTotalPages = Math.min(Math.max(Number(pagination.total_pages ?? pagination.last_page ?? 1) || 1, 1), 100);
+        leadPage += 1;
+      } while (leadPage <= leadTotalPages && leadMap.size < leadIds.length);
+    }
+
+    const enrichedRows = allRows.map((row) => {
+      const leadId = firstIdentifier(row, ["lead_id"]);
+      return leadId && leadMap.has(leadId) ? { ...row, lead: leadMap.get(leadId) } : row;
+    });
     const seen = new Set<string>();
-    const appointments = allRows
+    const appointments = enrichedRows
       .map(normalizeAppointment)
       .filter((item) => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(item.date)) return false;
@@ -222,7 +276,7 @@ Deno.serve(async (request) => {
         seen.add(item.id);
         return true;
       });
-    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint, dateStyle: selectedDateStyle, pages: totalPages, attempts }), {
+    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint, dateStyle: selectedDateStyle, pages: totalPages }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
