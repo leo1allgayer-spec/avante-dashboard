@@ -387,42 +387,44 @@ export default function AdminBookings() {
         </div>
 
         <Tabs defaultValue={isAdmin ? "availability" : "bookings"} className="space-y-4">
-          <TabsList className="flex-wrap">
-            {isAdmin && <TabsTrigger value="availability" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Disponibilidade</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="weekdays" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Dias da Semana</TabsTrigger>}
-            <TabsTrigger value="bookings" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Agendamentos</TabsTrigger>
-            {isAdmin && <TabsTrigger value="whatsapp-templates" className="gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Mensagens</TabsTrigger>}
-            <TabsTrigger value="whatsapp-logs" className="gap-1.5"><Send className="h-3.5 w-3.5" /> Logs de Envio</TabsTrigger>
-            {isAdmin && <TabsTrigger value="settings" className="gap-1.5"><Settings className="h-3.5 w-3.5" /> Configurações</TabsTrigger>}
+          <div className="w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="h-auto min-w-max flex-nowrap justify-start">
+            {isAdmin && <TabsTrigger value="availability" className="shrink-0 gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Disponibilidade</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="weekdays" className="shrink-0 gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Dias da Semana</TabsTrigger>}
+            <TabsTrigger value="bookings" className="shrink-0 gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Agendamentos</TabsTrigger>
+            {isAdmin && <TabsTrigger value="whatsapp-templates" className="shrink-0 gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Mensagens</TabsTrigger>}
+            <TabsTrigger value="whatsapp-logs" className="shrink-0 gap-1.5"><Send className="h-3.5 w-3.5" /> Logs de Envio</TabsTrigger>
+            {isAdmin && <TabsTrigger value="settings" className="shrink-0 gap-1.5"><Settings className="h-3.5 w-3.5" /> Configurações</TabsTrigger>}
           </TabsList>
+          </div>
 
           {/* Availability Tab */}
           <TabsContent value="availability">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" /> Calendário de Disponibilidade</CardTitle>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="flex items-center gap-2 text-xl sm:text-2xl"><CalendarDays className="h-5 w-5 shrink-0" /> Calendário de Disponibilidade</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => openBlockDialog()}>
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => openBlockDialog()}>
                     <Ban className="h-4 w-4 mr-1" /> Bloquear Data
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500" /> Disponível</span>
                   <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-destructive/20 border border-destructive" /> Bloqueado</span>
-                  <span className="text-xs">Padrão: todos os dias liberados, {MAX_STUDENTS} vagas por turno</span>
+                  <span className="w-full text-xs sm:w-auto">Padrão: todos os dias liberados, {MAX_STUDENTS} vagas por turno</span>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w - 1)}>← Semana anterior</Button>
-                  <span className="text-sm font-medium">
+                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+                  <Button variant="outline" size="sm" className="px-3" onClick={() => setWeekOffset(w => w - 1)} aria-label="Semana anterior"><span className="sm:hidden">←</span><span className="hidden sm:inline">← Semana anterior</span></Button>
+                  <span className="text-center text-xs font-medium sm:text-sm">
                     {format(currentWeekStart, "dd/MM", { locale: ptBR })} — {format(currentWeekEnd, "dd/MM/yyyy", { locale: ptBR })}
                   </span>
-                  <Button variant="outline" size="sm" onClick={() => setWeekOffset(w => w + 1)}>Semana seguinte →</Button>
+                  <Button variant="outline" size="sm" className="px-3" onClick={() => setWeekOffset(w => w + 1)} aria-label="Semana seguinte"><span className="sm:hidden">→</span><span className="hidden sm:inline">Semana seguinte →</span></Button>
                 </div>
 
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-7">
                   {weekDays.map(day => {
                     const dateStr = format(day, "yyyy-MM-dd");
                     const isPast = isBefore(day, startOfDay(today));
@@ -431,12 +433,12 @@ export default function AdminBookings() {
                     const hasAnyBlock = blocks.length > 0;
 
                     return (
-                      <div key={dateStr} className={`border rounded-lg p-2 min-h-[120px] ${isPast ? "opacity-40" : ""} ${hasAnyBlock ? "border-destructive/50 bg-destructive/5" : "border-border"}`}>
-                        <div className="text-xs font-medium text-center mb-1">
+                      <div key={dateStr} className={`grid min-h-0 grid-cols-[76px_1fr] items-center gap-2 rounded-lg border p-2 sm:block sm:min-h-[120px] ${isPast ? "opacity-40" : ""} ${hasAnyBlock ? "border-destructive/50 bg-destructive/5" : "border-border"}`}>
+                        <div className="mb-0 text-center text-xs font-medium sm:mb-1">
                           {DAY_NAMES[day.getDay()]} {format(day, "dd/MM")}
                         </div>
                         {!isPast && (
-                          <div className="space-y-1">
+                          <div className="grid grid-cols-2 gap-1 sm:block sm:space-y-1">
                             {SHIFTS.map(shift => {
                               const allBlocked = filterCourse
                                 ? isDateBlocked(dateStr, filterCourse, shift)
@@ -448,14 +450,14 @@ export default function AdminBookings() {
                               }, 0);
 
                               return (
-                                <div key={shift} className={`text-xs px-1.5 py-1 rounded flex items-center justify-between ${allBlocked ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"}`}>
+                                <div key={shift} className={`flex items-center justify-between rounded px-2 py-1.5 text-xs sm:px-1.5 sm:py-1 ${allBlocked ? "bg-destructive/10 text-destructive" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"}`}>
                                   <span>{shift === "Manhã" ? "☀️" : "☁️"} {shift === "Manhã" ? "08:30" : "14:00"}</span>
                                   {allBlocked ? <Ban className="h-3 w-3" /> : <span>{totalBooked > 0 ? `${totalBooked}` : ""}</span>}
                                 </div>
                               );
                             })}
                             {!isPast && (
-                              <Button variant="ghost" size="sm" className="w-full h-6 text-xs" onClick={() => openBlockDialog(dateStr)}>
+                              <Button variant="ghost" size="sm" className="col-span-2 h-7 w-full text-xs sm:h-6" onClick={() => openBlockDialog(dateStr)}>
                                 {hasAnyBlock ? "Gerenciar" : "Bloquear"}
                               </Button>
                             )}
@@ -499,11 +501,11 @@ export default function AdminBookings() {
             </Card>
 
             <Card className="mt-4">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-base">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="flex items-start gap-2 text-base">
                   <CalendarDays className="h-4 w-4" /> Exceções Meta Ads (Básico + Avançado no mesmo período)
                 </CardTitle>
-                <Button variant="outline" size="sm" onClick={() => { setExcForm({ date: "", shift: "all" }); setExcDialog(true); }}>
+                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => { setExcForm({ date: "", shift: "all" }); setExcDialog(true); }}>
                   Adicionar exceção
                 </Button>
               </CardHeader>
