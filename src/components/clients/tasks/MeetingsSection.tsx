@@ -109,6 +109,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
         {m.origin && (
           <Badge variant="secondary" className="text-[9px] h-4">{m.origin}</Badge>
         )}
+        {m.service && <Badge variant="outline" className="text-[9px] h-4">{m.service}</Badge>}
         {m.source === "crm" && <Badge className="text-[9px] h-4 bg-violet-600">Sincronizado</Badge>}
         {m.hasClosed && (
           <Badge variant="default" className="text-[9px] h-4 gap-0.5 bg-green-600">
@@ -138,6 +139,7 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
   const [description, setDescription] = useState("");
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [origin, setOrigin] = useState("");
+  const [service, setService] = useState("");
   const [modality, setModality] = useState<"presencial" | "online">("presencial");
   const [hasClosed, setHasClosed] = useState(false);
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
@@ -213,7 +215,7 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
   const openAdd = () => {
     setEditingMeeting(null);
     setTitle(""); setDate(""); setTime(""); setDescription("");
-    setSelectedParticipants([]); setOrigin(""); setModality("presencial"); setHasClosed(false);
+    setSelectedParticipants([]); setOrigin(""); setService(""); setModality("presencial"); setHasClosed(false);
     setConflictMsg(null);
     setShowDialog(true);
   };
@@ -222,7 +224,7 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
     setEditingMeeting(m);
     setTitle(m.title); setDate(m.date); setTime(m.time);
     setDescription(m.description); setSelectedParticipants(m.participants);
-    setOrigin(m.origin); setModality(m.modality); setHasClosed(m.hasClosed);
+    setOrigin(m.origin); setService(m.service || ""); setModality(m.modality); setHasClosed(m.hasClosed);
     setConflictMsg(null);
     setShowDialog(true);
   };
@@ -260,9 +262,9 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
     if (conflict) { setConflictMsg(conflict); return; }
     setConflictMsg(null);
     if (editingMeeting) {
-      onUpdate({ ...editingMeeting, title: title.trim(), date, time, participants: selectedParticipants, description, origin, modality, hasClosed });
+      onUpdate({ ...editingMeeting, title: title.trim(), date, time, participants: selectedParticipants, description, origin, service, modality, hasClosed });
     } else {
-      onAdd({ title: title.trim(), date, time, participants: selectedParticipants, description, status: "pending", outcome: null, origin, modality, hasClosed });
+      onAdd({ title: title.trim(), date, time, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed });
     }
     setShowDialog(false);
   };
@@ -505,7 +507,14 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
               </div>
             </div>
             <div>
-              <Label>Participantes</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Participantes</Label>
+                {members.length > 0 && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedParticipants(members.map((member) => member.name))}>
+                    Marcar todos
+                  </Button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2 mt-1">
                 {members.map((m) => (
                   <Button
@@ -523,16 +532,7 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Origem</Label>
-                <Select value={origin} onValueChange={setOrigin}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="indicação">Indicação</SelectItem>
-                    <SelectItem value="anúncio">Anúncio</SelectItem>
-                    <SelectItem value="social seller">Social Seller</SelectItem>
-                    <SelectItem value="alinhamento interno">Alinhamento Interno</SelectItem>
-                    <SelectItem value="alinhamento cliente">Alinhamento Cliente</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Ex: indicação, anúncio..." />
               </div>
               <div>
                 <Label>Modalidade</Label>
@@ -544,6 +544,10 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div>
+              <Label>Serviço</Label>
+              <Input value={service} onChange={(e) => setService(e.target.value)} placeholder="Ex: Google Ads, site, CRM..." />
             </div>
             <div className="flex items-center gap-3">
               <Label htmlFor="has-closing" className="cursor-pointer">Houve fechamento?</Label>

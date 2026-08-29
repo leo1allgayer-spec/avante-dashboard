@@ -31,6 +31,7 @@ export interface Meeting {
   status: "pending" | "completed" | "cancelled";
   outcome: "positive" | "negative" | null;
   origin: string;
+  service: string;
   modality: "presencial" | "online";
   hasClosed: boolean;
   source?: "local" | "crm";

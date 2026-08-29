@@ -35,9 +35,11 @@ export function useMeetings() {
           status: r.status || "pending",
           outcome: r.outcome || null,
           origin: r.origin || "",
+          service: r.service || "",
           modality: r.modality || "presencial",
           hasClosed: r.has_closing || false,
           source: "local",
+          externalId: r.external_id || undefined,
         }));
     }
 
@@ -76,39 +78,35 @@ export function useMeetings() {
   const addMeeting = async (meeting: Omit<Meeting, "id">) => {
     if (!session?.user?.id) return;
     setSyncing(true);
-    const { data: crmData, error: crmError } = await supabase.functions.invoke("crm-agenda", {
-      body: { action: "create", meeting },
-    });
-    if (!crmError && !crmData?.error) {
-      toast.success("Reunião criada no CRM!");
-      await fetchMeetings();
-      setSyncing(false);
-      return;
-    }
-    setSyncing(false);
-    toast.error(crmData?.error || crmError?.message || "Não foi possível criar a reunião no CRM");
-    return;
-    /* Compatibilidade histórica: reuniões locais anteriores continuam sendo exibidas.
-    const { hasClosed, ...rest } = meeting;
-    const { data, error } = await supabase
+    const { hasClosed, source: _source, externalId: _externalId, ...rest } = meeting;
+    const { data: localData, error: localError } = await supabase
       .from("meetings" as any)
       .insert({ ...rest, has_closing: hasClosed, user_id: session.user.id } as any)
       .select()
       .single();
 
-    if (error) {
-      toast.error("Erro ao criar reunião");
-    } else {
-      const r = data as any;
-      setMeetings((prev) => [
-        ...prev,
-        { id: r.id, title: r.title, date: r.date, time: r.time || "", participants: r.participants || [], description: r.description || "", status: r.status || "pending", outcome: r.outcome || null, origin: r.origin || "", modality: r.modality || "presencial", hasClosed: r.has_closing || false },
-      ]);
-      toast.success("Reunião agendada!");
+    if (localError || !localData) {
+      setSyncing(false);
+      toast.error("Não foi possível registrar a reunião no dashboard");
+      return;
     }
-    */
-  };
 
+    const { data: crmData, error: crmError } = await supabase.functions.invoke("crm-agenda", {
+      body: { action: "create", meeting },
+    });
+    if (!crmError && !crmData?.error) {
+      const appointment = crmData?.appointment || {};
+      const crmId = String(appointment?.id || appointment?.data?.id || appointment?.appointment?.id || "");
+      if (crmId) {
+        await supabase.from("meetings" as any).update({ external_id: crmId } as any).eq("id", (localData as any).id);
+      }
+      toast.success("Reunião registrada no dashboard e no CRM!");
+    } else {
+      toast.warning("Reunião salva no dashboard, mas o CRM não confirmou a sincronização");
+    }
+    await fetchMeetings();
+    setSyncing(false);
+  };
   const updateMeeting = async (meeting: Meeting) => {
     if (meeting.source === "crm") {
       setSyncing(true);
@@ -124,7 +122,7 @@ export function useMeetings() {
       }
       return;
     }
-    const { id, hasClosed, ...rest } = meeting;
+    const { id, hasClosed, source: _source, externalId: _externalId, ...rest } = meeting;
     const { error } = await supabase
       .from("meetings" as any)
       .update({ ...rest, has_closing: hasClosed } as any)
