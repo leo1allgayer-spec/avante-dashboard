@@ -132,6 +132,16 @@ export function useMeetings() {
       toast.error("Erro ao atualizar reunião");
     } else {
       setMeetings((prev) => prev.map((m) => (m.id === id ? meeting : m)));
+      if (meeting.externalId) {
+        const { data: crmData, error: crmError } = await supabase.functions.invoke("crm-agenda", {
+          body: { action: "update", meeting },
+        });
+        if (crmError || crmData?.error) {
+          toast.warning("Alteração salva no dashboard, mas o CRM não confirmou a atualização");
+        } else {
+          toast.success("Reunião atualizada no dashboard e no CRM!");
+        }
+      }
     }
   };
 
