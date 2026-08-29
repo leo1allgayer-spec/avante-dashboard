@@ -76,24 +76,31 @@ Deno.serve(async (req) => {
     const sendMessageNow = async (messageType: string) => {
       if (sentMessageTypes.has(messageType)) return true;
 
-      const response = await fetch(sendUrl, {
-        method: "POST",
-        headers: sendHeaders,
-        body: JSON.stringify({
-          phone: booking.phone,
-          bookingId: booking.id,
-          messageType,
-          studentName: booking.student_name,
-          courseName: booking.course_name,
-        }),
-      });
+      try {
+        const response = await fetch(sendUrl, {
+          method: "POST",
+          headers: sendHeaders,
+          body: JSON.stringify({
+            phone: booking.phone,
+            bookingId: booking.id,
+            messageType,
+            studentName: booking.student_name,
+            courseName: booking.course_name,
+          }),
+          signal: AbortSignal.timeout(12000),
+        });
 
-      if (response.ok) sentMessageTypes.add(messageType);
-      return response.ok;
+        if (response.ok) sentMessageTypes.add(messageType);
+        return response.ok;
+      } catch (error) {
+        console.error(`Immediate WhatsApp ${messageType} failed:`, error);
+        return false;
+      }
     };
 
-    if (!sentMessageTypes.has("confirmation")) {
-      await sendMessageNow("confirmation");
+    let confirmationSent = sentMessageTypes.has("confirmation");
+    if (!confirmationSent) {
+      confirmationSent = await sendMessageNow("confirmation");
     }
 
     // 2. Schedule future messages
@@ -143,6 +150,12 @@ Deno.serve(async (req) => {
     }
 
     const scheduledMessages = [
+      ...(!confirmationSent ? [{
+        booking_id: bookingId,
+        message_type: "confirmation",
+        scheduled_for: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
+        status: "pending",
+      }] : []),
       {
         booking_id: bookingId,
         message_type: "reminder_24h",

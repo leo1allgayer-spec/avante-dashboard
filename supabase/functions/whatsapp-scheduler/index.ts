@@ -195,10 +195,23 @@ Deno.serve(async (req) => {
         });
 
         const result = await response.json();
-        await supabase
-          .from("whatsapp_scheduled_messages")
-          .update({ status: result.success ? "sent" : "error", updated_at: new Date().toISOString() })
-          .eq("id", msg.id);
+        if (result.success) {
+          await supabase
+            .from("whatsapp_scheduled_messages")
+            .update({ status: "sent", updated_at: new Date().toISOString() })
+            .eq("id", msg.id);
+        } else {
+          const courseDateTime = getCourseDateTime(booking);
+          const retryableType = ["confirmation", "reminder_24h", "reminder_1h"].includes(msg.message_type);
+          const retryAt = new Date(Date.now() + 10 * 60 * 1000);
+          const canRetry = retryableType && !!courseDateTime && retryAt < courseDateTime;
+          await supabase
+            .from("whatsapp_scheduled_messages")
+            .update(canRetry
+              ? { status: "pending", scheduled_for: retryAt.toISOString(), updated_at: new Date().toISOString() }
+              : { status: "error", updated_at: new Date().toISOString() })
+            .eq("id", msg.id);
+        }
 
         processed++;
       } catch (err) {
