@@ -192,6 +192,7 @@ Deno.serve(async (req) => {
             studentName: booking.student_name,
             courseName: booking.course_name,
           }),
+          signal: AbortSignal.timeout(15000),
         });
 
         const result = await response.json();
@@ -216,9 +217,15 @@ Deno.serve(async (req) => {
         processed++;
       } catch (err) {
         console.error(`Error sending scheduled message ${msg.id}:`, err);
+        const courseDateTime = getCourseDateTime(booking);
+        const retryableType = ["confirmation", "reminder_24h", "reminder_1h"].includes(msg.message_type);
+        const retryAt = new Date(Date.now() + 10 * 60 * 1000);
+        const canRetry = retryableType && !!courseDateTime && retryAt < courseDateTime;
         await supabase
           .from("whatsapp_scheduled_messages")
-          .update({ status: "error", updated_at: new Date().toISOString() })
+          .update(canRetry
+            ? { status: "pending", scheduled_for: retryAt.toISOString(), updated_at: new Date().toISOString() }
+            : { status: "error", updated_at: new Date().toISOString() })
           .eq("id", msg.id);
       }
     }
