@@ -140,7 +140,7 @@ async function sendText(phone: string, text: string) {
   }
 
   const baseUrl = normalizeBaseUrl(apiUrl);
-  const instance = await resolveInstanceName(baseUrl, instanceName, apiToken);
+  const instance = instanceName;
   const response = await fetch(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
     method: "POST",
     headers: {
@@ -148,6 +148,7 @@ async function sendText(phone: string, text: string) {
       "apikey": apiToken,
     },
     body: JSON.stringify({ number: formatPhone(phone), text }),
+    signal: AbortSignal.timeout(15000),
   });
 
   const resultText = await response.text();

@@ -10,7 +10,7 @@ where exists (
 
 select cron.schedule(
   'daily-course-summary-18h',
-  '0 21 * * *',
+  '*/10 0-2,21-23 * * *',
   $$
   select net.http_post(
     url := 'https://ohhgmoivhgkdxakrrutg.supabase.co/functions/v1/daily-course-summary',
@@ -20,7 +20,8 @@ select cron.schedule(
       'x-cron-secret',
       'TROQUE_PELO_MESMO_VALOR_DO_DAILY_COURSE_SUMMARY_SECRET'
     ),
-    body := '{}'::jsonb
+    body := '{}'::jsonb,
+    timeout_milliseconds := 25000
   );
   $$
 );
