@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/clients/useGestaoAuth";
 import { useTasks } from "@/hooks/clients/useTasks";
 import { useTeamMembers } from "@/hooks/clients/useTeamMembers";
 import { useMeetings } from "@/hooks/clients/useMeetings";
+import { useClients } from "@/hooks/clients/useGestaoClients";
 import { TaskKanban } from "@/components/clients/tasks/TaskKanban";
 import { TaskListView } from "@/components/clients/tasks/TaskListView";
 import { TaskDashboard } from "@/components/clients/tasks/TaskDashboard";
@@ -31,6 +32,9 @@ const FullTasks = () => {
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks();
   const { members, loading: membersLoading, addMember, updateMember, deleteMember } = useTeamMembers();
   const { meetings, loading: meetingsLoading, syncing: meetingsSyncing, refreshMeetings, addMeeting, updateMeeting, deleteMeeting } = useMeetings();
+  const { clients: metaClients, loading: metaClientsLoading } = useClients("meta_ads");
+  const { clients: googleClients, loading: googleClientsLoading } = useClients("google_ads");
+  const meetingClientNames = useMemo(() => [...new Set([...metaClients, ...googleClients].map((client) => client.name).filter(Boolean))].sort(), [metaClients, googleClients]);
 
   const [showAddTask, setShowAddTask] = useState(false);
   const [taskView, setTaskView] = useState<"kanban" | "list">("kanban");
@@ -39,7 +43,7 @@ const FullTasks = () => {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
 
-  const loading = tasksLoading || membersLoading || meetingsLoading;
+  const loading = tasksLoading || membersLoading || meetingsLoading || metaClientsLoading || googleClientsLoading;
 
   const { signOut: signOutMain } = useMainAuth();
   const location = useLocation();
@@ -222,6 +226,7 @@ const FullTasks = () => {
             <MeetingsSection
               meetings={meetings}
               members={members}
+              clientNames={meetingClientNames}
               onAdd={addMeeting}
               onUpdate={updateMeeting}
               onDelete={deleteMeeting}

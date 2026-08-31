@@ -137,7 +137,9 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
   const relatedRecords = collectRelatedRecords(row);
   const contact = asObject(row.contact ?? row.lead ?? row.customer ?? row.client);
   const participant = asObject(row.participant ?? row.person ?? row.prospect);
-  const owner = asObject(row.owner ?? row.user ?? row.assignee);
+  const owner = asObject(row.owner ?? row.user ?? row.assignee ?? row.responsible);
+  const professional = asObject(row.professional ?? row.agent ?? row.attendant);
+  const serviceRecord = asObject(row.service ?? row.service_type);
   const { date, time } = splitDateTime(row);
   const statusObject = asObject(row.status);
   const statusRaw = (firstString(row, ["status", "state", "situation"]) || firstString(statusObject, ["name", "slug", "value"])).toLowerCase();
@@ -167,8 +169,13 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
     id: `crm:${id}`,
     externalId: id,
     title,
+    meetingType: firstString(row, ["appointment_type", "meeting_type", "type"]) || "reuniao",
+    clientName: personName || title,
     date,
     time,
+    durationMinutes: Number(row.duration_minutes ?? row.duration ?? 60) || 60,
+    responsible: firstString(owner, ["name", "full_name"]),
+    professional: firstString(professional, ["name", "full_name"]),
     participants: [...new Set(participantNames)],
     description: firstString(row, ["description", "notes", "note", "details"]),
     status: ["cancelled", "canceled", "cancelado", "cancelada"].includes(statusRaw)
@@ -177,7 +184,8 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
         ? "completed"
         : "pending",
     outcome: null,
-    origin: "CRM",
+    origin: firstString(row, ["origin", "source"]) || "CRM",
+    service: firstString(row, ["service_name", "service"]) || firstString(serviceRecord, ["name", "title"]),
     modality: firstString(row, ["modality", "type", "location_type"]).toLowerCase().includes("online") ? "online" : "presencial",
     hasClosed: false,
     source: "crm",
@@ -266,9 +274,17 @@ Deno.serve(async (request) => {
       const startsAt = date ? `${date}T${time || "00:00"}:00-03:00` : "";
       const crmPayload = {
         title: firstString(meeting, ["title"]) || "Reunião",
+        type: firstString(meeting, ["meetingType", "meeting_type"]) || "reuniao",
+        appointment_type: firstString(meeting, ["meetingType", "meeting_type"]) || "reuniao",
+        client_name: firstString(meeting, ["clientName", "client_name", "title"]),
         description: firstString(meeting, ["description"]),
         date,
         time,
+        duration_minutes: Number(meeting.durationMinutes ?? meeting.duration_minutes ?? 60) || 60,
+        responsible: firstString(meeting, ["responsible"]),
+        professional: firstString(meeting, ["professional"]),
+        service: firstString(meeting, ["service"]),
+        origin: firstString(meeting, ["origin"]),
         starts_at: startsAt,
         start_at: startsAt,
         scheduled_at: startsAt,

@@ -24,8 +24,13 @@ export interface Task {
 export interface Meeting {
   id: string;
   title: string;
+  meetingType?: string;
+  clientName?: string;
   date: string;
   time: string;
+  durationMinutes?: number;
+  responsible?: string;
+  professional?: string;
   participants: string[];
   description: string;
   status: "pending" | "completed" | "cancelled";

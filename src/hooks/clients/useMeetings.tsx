@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 // Realtime enabled
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { useAuth } from "./useGestaoAuth";
@@ -10,6 +10,8 @@ export function useMeetings() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const globalSyncChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const notifyOtherAccounts = () => globalSyncChannel.current?.send({ type: "broadcast", event: "refresh", payload: {} });
 
   const fetchMeetings = useCallback(async () => {
     if (!session?.user?.id) {
@@ -28,8 +30,13 @@ export function useMeetings() {
       localMeetings = (data as any[]).map((r) => ({
           id: r.id,
           title: r.title,
+          meetingType: r.meeting_type || "reuniao",
+          clientName: r.client_name || r.title || "",
           date: r.date,
           time: r.time || "",
+          durationMinutes: Number(r.duration_minutes || 60),
+          responsible: r.responsible || "",
+          professional: r.professional || "",
           participants: r.participants || [],
           description: r.description || "",
           status: r.status || "pending",
@@ -68,6 +75,24 @@ export function useMeetings() {
 
   useEffect(() => {
     if (!session?.user?.id) return;
+    const timer = window.setInterval(() => fetchMeetings(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [session?.user?.id, fetchMeetings]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const channel = supabase
+      .channel("meetings-global-sync")
+      .on("broadcast", { event: "refresh" }, () => fetchMeetings())
+      .subscribe();
+    globalSyncChannel.current = channel;
+    return () => {
+      globalSyncChannel.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, fetchMeetings]);
+  useEffect(() => {
+    if (!session?.user?.id) return;
     const channel = supabase
       .channel("meetings-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "meetings" }, () => fetchMeetings())
@@ -78,10 +103,29 @@ export function useMeetings() {
   const addMeeting = async (meeting: Omit<Meeting, "id">) => {
     if (!session?.user?.id) return;
     setSyncing(true);
-    const { hasClosed, source: _source, externalId: _externalId, ...rest } = meeting;
+    const { hasClosed } = meeting;
+    const localPayload = {
+      title: meeting.title,
+      meeting_type: meeting.meetingType || "reuniao",
+      client_name: meeting.clientName || meeting.title,
+      date: meeting.date,
+      time: meeting.time,
+      duration_minutes: meeting.durationMinutes || 60,
+      responsible: meeting.responsible || "",
+      professional: meeting.professional || "",
+      participants: meeting.participants,
+      description: meeting.description,
+      status: meeting.status,
+      outcome: meeting.outcome,
+      origin: meeting.origin,
+      service: meeting.service,
+      modality: meeting.modality,
+      has_closing: hasClosed,
+      user_id: session.user.id,
+    };
     const { data: localData, error: localError } = await supabase
       .from("meetings" as any)
-      .insert({ ...rest, has_closing: hasClosed, user_id: session.user.id } as any)
+      .insert(localPayload as any)
       .select()
       .single();
 
@@ -101,6 +145,7 @@ export function useMeetings() {
         await supabase.from("meetings" as any).update({ external_id: crmId } as any).eq("id", (localData as any).id);
       }
       toast.success("Reunião registrada no dashboard e no CRM!");
+      void notifyOtherAccounts();
     } else {
       toast.warning("Reunião salva no dashboard, mas o CRM não confirmou a sincronização");
     }
@@ -118,14 +163,32 @@ export function useMeetings() {
         toast.error(data?.error || error?.message || "Erro ao atualizar reunião no CRM");
       } else {
         toast.success("Reunião atualizada no CRM!");
+        void notifyOtherAccounts();
         await fetchMeetings();
       }
       return;
     }
-    const { id, hasClosed, source: _source, externalId: _externalId, ...rest } = meeting;
+    const { id, hasClosed } = meeting;
     const { error } = await supabase
       .from("meetings" as any)
-      .update({ ...rest, has_closing: hasClosed } as any)
+      .update({
+        title: meeting.title,
+        meeting_type: meeting.meetingType || "reuniao",
+        client_name: meeting.clientName || meeting.title,
+        date: meeting.date,
+        time: meeting.time,
+        duration_minutes: meeting.durationMinutes || 60,
+        responsible: meeting.responsible || "",
+        professional: meeting.professional || "",
+        participants: meeting.participants,
+        description: meeting.description,
+        status: meeting.status,
+        outcome: meeting.outcome,
+        origin: meeting.origin,
+        service: meeting.service,
+        modality: meeting.modality,
+        has_closing: hasClosed,
+      } as any)
       .eq("id", id);
 
     if (error) {
@@ -140,6 +203,7 @@ export function useMeetings() {
           toast.warning("Alteração salva no dashboard, mas o CRM não confirmou a atualização");
         } else {
           toast.success("Reunião atualizada no dashboard e no CRM!");
+          void notifyOtherAccounts();
         }
       }
     }

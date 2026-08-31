@@ -19,6 +19,7 @@ import { ptBR } from "date-fns/locale";
 interface Props {
   meetings: Meeting[];
   members: TeamMember[];
+  clientNames?: string[];
   onAdd: (meeting: Omit<Meeting, "id">) => void;
   onUpdate: (meeting: Meeting) => void;
   onDelete: (id: string) => void;
@@ -85,7 +86,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
       </div>
       {m.time && (
         <span className="flex items-center gap-1 text-muted-foreground">
-          <Clock className="h-2.5 w-2.5" />{m.time}
+          <Clock className="h-2.5 w-2.5" />{m.time}{m.durationMinutes ? ` · ${m.durationMinutes} min` : ""}
         </span>
       )}
       {m.status === "completed" && m.outcome && (
@@ -110,6 +111,8 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
           <Badge variant="secondary" className="text-[9px] h-4">{m.origin}</Badge>
         )}
         {m.service && <Badge variant="outline" className="text-[9px] h-4">{m.service}</Badge>}
+        {m.meetingType && <Badge variant="secondary" className="text-[9px] h-4 capitalize">{m.meetingType.replace("_", " ")}</Badge>}
+        {m.responsible && <Badge variant="outline" className="text-[9px] h-4">Resp. {m.responsible}</Badge>}
         {m.source === "crm" && <Badge className="text-[9px] h-4 bg-violet-600">Sincronizado</Badge>}
         {m.hasClosed && (
           <Badge variant="default" className="text-[9px] h-4 gap-0.5 bg-green-600">
@@ -130,10 +133,15 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
   );
 }
 
-export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, onRefresh, syncing }: Props) {
+export function MeetingsSection({ meetings, members, clientNames = [], onAdd, onUpdate, onDelete, onRefresh, syncing }: Props) {
   const [showDialog, setShowDialog] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
   const [title, setTitle] = useState("");
+  const [meetingType, setMeetingType] = useState("reuniao");
+  const [clientName, setClientName] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [responsible, setResponsible] = useState("");
+  const [professional, setProfessional] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [description, setDescription] = useState("");
@@ -214,7 +222,8 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
 
   const openAdd = () => {
     setEditingMeeting(null);
-    setTitle(""); setDate(""); setTime(""); setDescription("");
+    setTitle(""); setMeetingType("reuniao"); setClientName(""); setDate(""); setTime(""); setDurationMinutes(60);
+    setResponsible(""); setProfessional(""); setDescription("");
     setSelectedParticipants([]); setOrigin(""); setService(""); setModality("presencial"); setHasClosed(false);
     setConflictMsg(null);
     setShowDialog(true);
@@ -222,7 +231,9 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
 
   const openEdit = (m: Meeting) => {
     setEditingMeeting(m);
-    setTitle(m.title); setDate(m.date); setTime(m.time);
+    setTitle(m.title); setMeetingType(m.meetingType || "reuniao"); setClientName(m.clientName || m.title);
+    setDate(m.date); setTime(m.time); setDurationMinutes(m.durationMinutes || 60);
+    setResponsible(m.responsible || ""); setProfessional(m.professional || "");
     setDescription(m.description); setSelectedParticipants(m.participants);
     setOrigin(m.origin); setService(m.service || ""); setModality(m.modality); setHasClosed(m.hasClosed);
     setConflictMsg(null);
@@ -262,9 +273,9 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
     if (conflict) { setConflictMsg(conflict); return; }
     setConflictMsg(null);
     if (editingMeeting) {
-      onUpdate({ ...editingMeeting, title: title.trim(), date, time, participants: selectedParticipants, description, origin, service, modality, hasClosed });
+      onUpdate({ ...editingMeeting, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed });
     } else {
-      onAdd({ title: title.trim(), date, time, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed });
+      onAdd({ title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed });
     }
     setShowDialog(false);
   };
@@ -487,79 +498,124 @@ export function MeetingsSection({ meetings, members, onAdd, onUpdate, onDelete, 
       </Tabs>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingMeeting ? "Editar Reunião" : "Agendar Reunião"}</DialogTitle>
+            <DialogTitle>{editingMeeting ? "Editar horário" : "Novo horário"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Título *</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Daily standup" />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Label>Tipo</Label>
+              <Select value={meetingType} onValueChange={setMeetingType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ligacao">Ligação</SelectItem>
+                  <SelectItem value="reuniao">Reunião</SelectItem>
+                  <SelectItem value="alinhamento">Alinhamento interno</SelectItem>
+                  <SelectItem value="suporte">Suporte</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <Label>Cliente</Label>
+              <Select
+                value={clientName || "__none"}
+                onValueChange={(value) => {
+                  const nextClient = value === "__none" ? "" : value;
+                  setClientName(nextClient);
+                  if (nextClient) setTitle(nextClient);
+                }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Sem cliente vinculado</SelectItem>
+                  {clientNames.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {!clientName && (
+              <div className="sm:col-span-2">
+                <Label>Nome ou título *</Label>
+                <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Nome da pessoa ou assunto" />
+              </div>
+            )}
+            <div>
+              <Label>Data *</Label>
+              <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            </div>
+            <div className="grid grid-cols-[1fr_110px] gap-2">
               <div>
-                <Label>Data *</Label>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <Label>Hora</Label>
+                <Input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
               </div>
               <div>
-                <Label>Horário</Label>
-                <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+                <Label>Duração (min)</Label>
+                <Input type="number" min={5} step={5} value={durationMinutes} onChange={(event) => setDurationMinutes(Math.max(5, Number(event.target.value) || 60))} />
               </div>
             </div>
             <div>
+              <Label>Responsável</Label>
+              <Select value={responsible || "__none"} onValueChange={(value) => setResponsible(value === "__none" ? "" : value)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Sem responsável</SelectItem>
+                  {members.map((member) => <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Profissional</Label>
+              <Select value={professional || "__none"} onValueChange={(value) => setProfessional(value === "__none" ? "" : value)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Não definido</SelectItem>
+                  {members.map((member) => <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Serviço</Label>
+              <Input value={service} onChange={(event) => setService(event.target.value)} placeholder="Ex.: Google Ads, Site, CRM" />
+            </div>
+            <div>
+              <Label>Modalidade</Label>
+              <Select value={modality} onValueChange={(value) => setModality(value as "presencial" | "online")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="presencial">Presencial</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2">
               <div className="flex items-center justify-between gap-2">
-                <Label>Participantes</Label>
+                <Label>Membros envolvidos</Label>
                 {members.length > 0 && (
                   <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setSelectedParticipants(members.map((member) => member.name))}>
                     Marcar todos
                   </Button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {members.map((m) => (
-                  <Button
-                    key={m.id}
-                    variant={selectedParticipants.includes(m.name) ? "default" : "outline"}
-                    size="sm"
-                    className="text-xs h-7"
-                    onClick={() => toggleParticipant(m.name)}
-                  >
-                    {m.name}
+              <div className="mt-1 flex flex-wrap gap-2">
+                {members.map((member) => (
+                  <Button key={member.id} type="button" variant={selectedParticipants.includes(member.name) ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => toggleParticipant(member.name)}>
+                    {member.name}
                   </Button>
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Origem</Label>
-                <Input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Ex: indicação, anúncio..." />
-              </div>
-              <div>
-                <Label>Modalidade</Label>
-                <Select value={modality} onValueChange={(v) => setModality(v as "presencial" | "online")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="presencial">Presencial</SelectItem>
-                    <SelectItem value="online">Online</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="sm:col-span-2">
+              <Label>Origem</Label>
+              <Input value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="Ex.: indicação, anúncio, WhatsApp" />
             </div>
-            <div>
-              <Label>Serviço</Label>
-              <Input value={service} onChange={(e) => setService(e.target.value)} placeholder="Ex: Google Ads, site, CRM..." />
+            <div className="sm:col-span-2">
+              <Label>Observação</Label>
+              <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} />
             </div>
-            <div className="flex items-center gap-3">
+            <div className="sm:col-span-2 flex items-center gap-3">
               <Label htmlFor="has-closing" className="cursor-pointer">Houve fechamento?</Label>
               <Switch id="has-closing" checked={hasClosed} onCheckedChange={setHasClosed} />
             </div>
-            <div>
-              <Label>Pauta / Descrição</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-            </div>
-            {conflictMsg && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-md p-2">{conflictMsg}</p>
-            )}
+            {conflictMsg && <p className="sm:col-span-2 rounded-md bg-destructive/10 p-2 text-sm text-destructive">{conflictMsg}</p>}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowDialog(false)}>Cancelar</Button>
