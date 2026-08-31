@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, parse, addDays, startOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -49,6 +50,13 @@ const normalizeShift = (time: string) => {
   return time;
 };
 
+interface ExistingCourseBooking {
+  bookingId: string;
+  studentName: string;
+  courseName: string;
+  date: string;
+  shift: string;
+}
 interface DateShift {
   date: string;
   shift: string;
@@ -75,6 +83,8 @@ export default function BookingPublic() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [existingRegistration, setExistingRegistration] = useState(false);
   const [lookupMessage, setLookupMessage] = useState("");
+  const [existingCourseBooking, setExistingCourseBooking] = useState<ExistingCourseBooking | null>(null);
+  const [showExistingBooking, setShowExistingBooking] = useState(false);
 
   useEffect(() => {
     try {
@@ -341,6 +351,47 @@ export default function BookingPublic() {
     }
   };
 
+  const keepExistingBooking = () => {
+    if (!existingCourseBooking) return;
+    setSelectedShift({
+      date: existingCourseBooking.date,
+      shift: normalizeShift(existingCourseBooking.shift),
+      bookedCount: 0,
+      available: true,
+    });
+    setShowExistingBooking(false);
+    setStep("done");
+  };
+
+  const replaceExistingBooking = async () => {
+    if (!existingCourseBooking || !selectedShift) return;
+    setSubmitting(true);
+    try {
+      const bookingPayload = {
+        courseName: selectedCourse,
+        date: selectedShift.date,
+        shift: selectedShift.shift,
+        studentName: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        cpf: form.cpf,
+        instagram: form.instagram.trim(),
+        certificateName: form.certificateName.trim() || form.name.trim(),
+        action: "reschedule",
+      };
+      const { data, error } = await supabase.functions.invoke("reschedule-booking-request", { body: bookingPayload });
+      if (error || !data?.rescheduled) {
+        throw new Error(data?.error || getSupabaseErrorMessage(error) || "Não foi possível remarcar o curso.");
+      }
+      setShowExistingBooking(false);
+      setExistingCourseBooking(data.currentBooking || existingCourseBooking);
+      setStep("done");
+    } catch (error) {
+      alert(getSupabaseErrorMessage(error) || "Não foi possível remarcar o curso.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const handleSubmit = async () => {
     if (!selectedShift) return;
     setSubmitting(true);
@@ -358,35 +409,15 @@ export default function BookingPublic() {
 
     try {
       const { data: existingBookingCheck, error: existingBookingError } = await supabase.functions.invoke("reschedule-booking-request", {
-        body: { ...bookingPayload, dryRun: true },
+        body: { ...bookingPayload, cpf: form.cpf, action: "check" },
       });
 
-      if (!existingBookingError && existingBookingCheck?.exists) {
-        const wantsReschedule = window.confirm(
-          "Encontramos um agendamento ativo com este mesmo e-mail e telefone para este curso. Deseja remarcar para a nova data selecionada?"
-        );
-
-        if (!wantsReschedule) {
-          setSubmitting(false);
-          return;
-        }
-
-        const { data: rescheduleData, error: rescheduleError } = await supabase.functions.invoke("reschedule-booking-request", {
-          body: { ...bookingPayload, dryRun: false },
-        });
-
-        if (rescheduleError || !rescheduleData?.sent) {
-          const message = rescheduleData?.error || getSupabaseErrorMessage(rescheduleError);
-          alert(message ? `Erro ao solicitar remarcação: ${message}` : "Erro ao enviar o link de remarcação.");
-          setSubmitting(false);
-          return;
-        }
-
+      if (!existingBookingError && existingBookingCheck?.exists && existingBookingCheck?.currentBooking) {
+        setExistingCourseBooking(existingBookingCheck.currentBooking);
+        setShowExistingBooking(true);
         setSubmitting(false);
-        setStep("rescheduleSent");
         return;
       }
-
       const { data: rpcData, error: rpcError } = await supabase.rpc("create_public_course_booking", {
         p_course_name: bookingPayload.courseName,
         p_date: bookingPayload.date,
@@ -931,6 +962,41 @@ export default function BookingPublic() {
         </div>
       </div>
 
+      <Dialog open={showExistingBooking} onOpenChange={(open) => !submitting && setShowExistingBooking(open)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Você já possui este curso agendado</DialogTitle>
+            <DialogDescription>
+              Encontramos uma inscrição ativa para o mesmo curso pelo CPF ou nome informado.
+            </DialogDescription>
+          </DialogHeader>
+          {existingCourseBooking && selectedShift && (
+            <div className="grid gap-3 py-2 sm:grid-cols-2">
+              <Card className="border-border/70">
+                <CardContent className="p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data atual</p>
+                  <p className="mt-2 font-semibold capitalize">{formatDate(existingCourseBooking.date)}</p>
+                  <p className="text-sm text-muted-foreground">{normalizeShift(existingCourseBooking.shift)} — {shiftTime(normalizeShift(existingCourseBooking.shift))}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-primary/40 bg-primary/5">
+                <CardContent className="p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">Nova data escolhida</p>
+                  <p className="mt-2 font-semibold capitalize">{formatDate(selectedShift.date)}</p>
+                  <p className="text-sm text-muted-foreground">{selectedShift.shift} — {shiftTime(selectedShift.shift)}</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={keepExistingBooking} disabled={submitting}>Manter data atual</Button>
+            <Button onClick={replaceExistingBooking} disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Trocar para nova data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Footer */}
       <footer className="border-t border-border/30 py-4 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} Avante Digital
