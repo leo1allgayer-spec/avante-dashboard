@@ -113,6 +113,12 @@ const getSalesCommissionRate = (origin?: string | null) =>
 const getSalesCommissionPercent = (origin?: string | null) =>
   Math.round(getSalesCommissionRate(origin) * 100);
 
+const getPaidCommissionValue = (sale: Pick<Venda, "comissao" | "comissao_paga_valor" | "status_comissao">) =>
+  Math.min(
+    Number(sale.comissao || 0),
+    Math.max(0, Number(sale.comissao_paga_valor ?? (sale.status_comissao === "paga" ? sale.comissao : 0))),
+  );
+
 const getUniqueSaleNames = (products: string[], services: string[]) => {
   const unique = new Map<string, string>();
   [...products, ...services].filter(Boolean).forEach((name) => {
@@ -574,10 +580,7 @@ const VendasPage = () => {
         .map((booking) => booking.date))]
         .sort();
       const comissaoTotal = itens.reduce((total, item) => total + Number(item.comissao || 0), 0);
-      const comissaoPaga = itens.reduce((total, item) => total + Math.min(
-        Number(item.comissao || 0),
-        Number(item.comissao_paga_valor ?? (item.status_comissao === "paga" ? item.comissao : 0)),
-      ), 0);
+      const comissaoPaga = itens.reduce((total, item) => total + getPaidCommissionValue(item), 0);
 
       return {
         chave,
@@ -651,8 +654,10 @@ const VendasPage = () => {
           comissao_paga_valor: Number(item.comissao || 0),
           data_ultimo_pagamento_comissao: paidAt,
         } : {
-          comissao_paga_valor: 0,
-          data_ultimo_pagamento_comissao: null,
+          // Uma nova entrada pode gerar comissão pendente, mas nunca apaga o
+          // valor que já foi efetivamente pago sobre o sinal.
+          comissao_paga_valor: getPaidCommissionValue(item),
+          data_ultimo_pagamento_comissao: item.data_ultimo_pagamento_comissao || null,
         }),
       })));
       toast({ title: status_comissao === "paga" ? "Comissão marcada como paga" : "Comissão marcada como pendente" });
@@ -737,7 +742,7 @@ const VendasPage = () => {
         const novoColetadoLiquido = valorLiquidoJaColetado + baixaLiquidaItem;
         const novoSaldo = Math.max(0, valorTotal - novoColetado);
         const novaComissao = +(novoColetadoLiquido * getSalesCommissionRate(venda.origem)).toFixed(2);
-        const comissaoJaPaga = Number(venda.comissao_paga_valor ?? (venda.status_comissao === "paga" ? venda.comissao : 0));
+        const comissaoJaPaga = getPaidCommissionValue(venda);
         updates.push(updateVenda.mutateAsync({
           id: venda.id,
           pagamento_saldo: paymentLabel,
@@ -2233,7 +2238,7 @@ const VendasPage = () => {
                 <TableHead className="w-[10%] px-2 text-xs">Cliente</TableHead>
                 <TableHead className="w-[12%] px-2 text-xs">{salesTableSection === "todos" ? "Produto / serviço" : salesTableSection === "cursos" ? "Curso" : "Serviço"}</TableHead>
                 <TableHead className="w-[6%] px-2 text-right text-xs">Total</TableHead>
-                <TableHead className="w-[11%] px-2 text-right text-xs">Coletado / comissão</TableHead>
+                <TableHead className="w-[11%] px-2 text-right text-xs">Coletado / comissão paga</TableHead>
                 <TableHead className="w-[9%] px-2 text-right">A receber / comissão</TableHead>
                 <TableHead className="w-[5%] px-2">Pagamento</TableHead>
                 <TableHead className="w-[8%] px-2">Valor recebido</TableHead>
@@ -2281,14 +2286,17 @@ const VendasPage = () => {
                     <TableCell className="px-2 py-3 text-right text-[15px] font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
                     <TableCell className="px-2 py-3 text-right" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>
                       <span className="block text-[15px] font-semibold text-success">{formatBRL(grupo.sinal)}</span>
-                      <div className="mt-1 flex items-center justify-end gap-1">
-                        <span className="whitespace-nowrap text-[9px] text-muted-foreground">Comissão {formatBRL(grupo.comissaoPendente)}</span>
-                        {grupo.comissao > 0 && <Select value={grupo.comissaoPendente <= 0.009 ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}><SelectTrigger className="h-6 w-[76px] px-1.5 text-[9px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Paga</SelectItem></SelectContent></Select>}
+                      <div className="mt-1 space-y-0.5 text-right text-[9px]">
+                        <p className="whitespace-nowrap text-sky-400">Comissão paga {formatBRL(grupo.comissaoPaga)}</p>
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="whitespace-nowrap text-amber-400">Pendente {formatBRL(grupo.comissaoPendente)}</span>
+                          {grupo.comissao > 0 && <Select value={grupo.comissaoPendente <= 0.009 ? "paga" : "pendente"} onValueChange={(value) => updateCommissionStatus(grupo.itens, value)}><SelectTrigger className="h-6 w-[76px] px-1.5 text-[9px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Pendente</SelectItem><SelectItem value="paga">Pagar agora</SelectItem></SelectContent></Select>}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">
                       <span className="block text-[15px]">{formatBRL(grupo.saldo)}</span>
-                      <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão prevista {formatBRL(grupo.saldo * getSalesCommissionRate(v.origem))}</span>
+                      <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão futura {formatBRL(grupo.saldo * getSalesCommissionRate(v.origem))}</span>
                       {grupo.saldo > 0 && (
                         <span className="block truncate text-[9px] font-normal text-muted-foreground">
                           {grupo.previsoesRecebimento.length > 0
