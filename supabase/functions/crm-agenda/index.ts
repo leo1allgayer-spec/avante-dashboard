@@ -64,6 +64,15 @@ const collectRelatedRecords = (row: JsonObject, depth = 0): JsonObject[] => {
   return records;
 };
 
+const collectKeyPaths = (value: unknown, prefix = "", depth = 0): string[] => {
+  if (!value || typeof value !== "object" || depth > 4) return [];
+  const entries = Array.isArray(value) ? value.slice(0, 1).map((item, index) => [String(index), item] as const) : Object.entries(asObject(value));
+  return entries.flatMap(([key, nestedValue]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    return [path, ...collectKeyPaths(nestedValue, path, depth + 1)];
+  });
+};
+
 const linkedLeadIdentifier = (row: JsonObject) => {
   const direct = firstIdentifier(row, [
     "lead_id", "leadId", "contact_id", "contactId", "customer_id", "customerId",
@@ -102,11 +111,11 @@ const isGenericMeetingTitle = (value: string) => {
 const extractRows = (payload: unknown): JsonObject[] => {
   if (Array.isArray(payload)) return payload.map(asObject);
   const root = asObject(payload);
-  for (const key of ["data", "appointments", "commitments", "events", "schedules", "calendar", "items", "results"]) {
+  for (const key of ["data", "appointments", "commitments", "events", "schedules", "calendar", "items", "results", "leads", "contacts", "clients"]) {
     const value = root[key];
     if (Array.isArray(value)) return value.map(asObject);
     const nested = asObject(value);
-    for (const nestedKey of ["data", "items", "results"]) {
+    for (const nestedKey of ["data", "items", "results", "leads", "contacts", "clients"]) {
       if (Array.isArray(nested[nestedKey])) return (nested[nestedKey] as unknown[]).map(asObject);
     }
   }
@@ -332,12 +341,13 @@ Deno.serve(async (request) => {
         });
         if (!response.ok) break;
         const result = asObject(await response.json().catch(() => null));
-        const rows = Array.isArray(result.data) ? result.data.map(asObject) : [];
+        const rows = extractRows(result);
         rows.forEach((lead) => {
-          const id = firstIdentifier(lead, ["id", "lead_id", "uuid"]);
+          const id = firstIdentifier(lead, ["id", "_id", "lead_id", "leadId", "uuid"]);
           if (id && wantedLeadIds.has(id)) leadMap.set(id, lead);
         });
-        const pagination = asObject(result.pagination ?? result.meta);
+        const resultData = asObject(result.data);
+        const pagination = asObject(result.pagination ?? result.meta ?? resultData.pagination ?? resultData.meta);
         leadTotalPages = Math.min(Math.max(Number(pagination.total_pages ?? pagination.last_page ?? 1) || 1, 1), 100);
         leadPage += 1;
       } while (leadPage <= leadTotalPages && leadMap.size < leadIds.length);
@@ -347,6 +357,15 @@ Deno.serve(async (request) => {
       const leadId = linkedLeadIdentifier(row);
       return leadId && leadMap.has(leadId) ? { ...row, lead: leadMap.get(leadId) } : row;
     });
+    console.log("CRM_AGENDA_SCHEMA", JSON.stringify({
+      selectedEndpoint,
+      selectedDateStyle,
+      rowCount: allRows.length,
+      leadIdsFound: leadIds.length,
+      leadsResolved: leadMap.size,
+      attempts,
+      sampleKeyPaths: allRows.slice(0, 3).map((row) => collectKeyPaths(row)),
+    }));
     const seen = new Set<string>();
     const appointments = enrichedRows
       .map(normalizeAppointment)
