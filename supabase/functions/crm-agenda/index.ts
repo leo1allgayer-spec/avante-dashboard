@@ -122,10 +122,41 @@ const extractRows = (payload: unknown): JsonObject[] => {
   return [];
 };
 
+const formatInSaoPaulo = (value: string) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(parsed);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || "";
+  return {
+    date: `${get("year")}-${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}`,
+  };
+};
+
 const splitDateTime = (row: JsonObject) => {
+  const zonedTimestamp = firstString(row, ["starts_at", "start_at", "scheduled_at", "start"]);
+  if (zonedTimestamp && /T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(zonedTimestamp)) {
+    const local = formatInSaoPaulo(zonedTimestamp);
+    if (local) return local;
+  }
+
   const rawDate = firstString(row, ["date", "start_date", "scheduled_date", "appointment_date", "starts_at", "start_at", "start", "scheduled_at"]);
   const rawTime = firstString(row, ["time", "start_time", "scheduled_time", "appointment_time"]);
   if (!rawDate) return { date: "", time: rawTime.slice(0, 5) };
+
+  if (/T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(rawDate)) {
+    const local = formatInSaoPaulo(rawDate);
+    if (local) return local;
+  }
+
   const isoMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2}:\d{2}))?/);
   if (isoMatch) return { date: isoMatch[1], time: (rawTime || isoMatch[2] || "").slice(0, 5) };
   const brMatch = rawDate.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
