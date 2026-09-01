@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, FileText, NotebookPen, Plus, Save, Search, ShieldCheck, UserRound } from "lucide-react";
+import { Copy, Download, FileText, NotebookPen, Plus, Save, Search, ShieldCheck, UserRound } from "lucide-react";
+import { jsPDF } from "jspdf";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -172,6 +173,122 @@ export default function ClientNotesPage() {
     toast.success("Ficha salva no dashboard.");
   };
 
+  const generateFinancialPdf = async () => {
+    if (!draft) return;
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 16;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    const ensureSpace = (height: number) => {
+      if (y + height <= pageHeight - 18) return;
+      pdf.addPage();
+      y = 18;
+    };
+
+    const addSection = (title: string, fields: Array<[string, string]>) => {
+      const available = fields.filter(([, value]) => value.trim());
+      if (!available.length) return;
+      ensureSpace(14);
+      pdf.setFillColor(236, 242, 255);
+      pdf.roundedRect(margin, y, contentWidth, 9, 2, 2, "F");
+      pdf.setTextColor(28, 74, 160);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.text(title, margin + 4, y + 6);
+      y += 13;
+
+      available.forEach(([label, value]) => {
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(90, 100, 120);
+        const labelLines = pdf.splitTextToSize(label.toUpperCase(), 48) as string[];
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.setTextColor(25, 30, 40);
+        const valueLines = pdf.splitTextToSize(value, contentWidth - 55) as string[];
+        const lineCount = Math.max(labelLines.length, valueLines.length);
+        const rowHeight = Math.max(9, lineCount * 4.5 + 3);
+        ensureSpace(rowHeight);
+        pdf.setDrawColor(225, 229, 238);
+        pdf.line(margin, y + rowHeight - 1, pageWidth - margin, y + rowHeight - 1);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8);
+        pdf.setTextColor(90, 100, 120);
+        pdf.text(labelLines, margin, y + 4);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.setTextColor(25, 30, 40);
+        pdf.text(valueLines, margin + 55, y + 4);
+        y += rowHeight;
+      });
+      y += 5;
+    };
+
+    pdf.setFillColor(18, 29, 52);
+    pdf.rect(0, 0, pageWidth, 34, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(18);
+    pdf.text("AVANTE DIGITAL", margin, 15);
+    pdf.setFontSize(12);
+    pdf.text("Ficha cadastral e financeira", margin, 24);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, pageWidth - margin, 24, { align: "right" });
+    y = 43;
+
+    addSection("Identificação", [
+      ["Tipo de cadastro", draft.personType === "PJ" ? "Pessoa jurídica" : "Pessoa física"],
+      ["Responsável", draft.responsibleName],
+      ["CPF", draft.cpf],
+      ["RG / órgão emissor", [draft.rg, draft.rgIssuer].filter(Boolean).join(" - ")],
+      ["Nacionalidade", draft.nationality],
+      ["Estado civil", draft.maritalStatus],
+      ["Profissão", draft.profession],
+    ]);
+    addSection("Empresa e contato", [
+      ["Razão social", draft.companyName],
+      ["Nome fantasia", draft.tradeName],
+      ["CNPJ", draft.cnpj],
+      ["Inscrição estadual", draft.stateRegistration],
+      ["E-mail", draft.email],
+      ["Telefone / WhatsApp", draft.phone],
+      ["Endereço", draft.address],
+    ]);
+    addSection("Informações financeiras e contratuais", [
+      ["Objeto / serviços", draft.contractObject],
+      ["Valor total", draft.contractValue],
+      ["Forma de cobrança", draft.billingType],
+      ["Parcelas", draft.installments],
+      ["Forma de pagamento", draft.paymentMethod],
+      ["Dados bancários / PIX", draft.paymentDetails],
+      ["Prazo do contrato", draft.contractTerm],
+      ["Início do serviço", draft.serviceStartDate ? new Date(`${draft.serviceStartDate}T12:00:00`).toLocaleDateString("pt-BR") : ""],
+      ["Prazo / condição de entrega", draft.deliveryTerms],
+      ["Condições especiais", draft.specialClauses],
+    ]);
+
+    const totalPages = pdf.getNumberOfPages();
+    for (let page = 1; page <= totalPages; page += 1) {
+      pdf.setPage(page);
+      pdf.setDrawColor(220, 225, 235);
+      pdf.line(margin, pageHeight - 13, pageWidth - margin, pageHeight - 13);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      pdf.setTextColor(110, 118, 135);
+      pdf.text("Documento confidencial - uso exclusivo do financeiro", margin, pageHeight - 8);
+      pdf.text(`Página ${page} de ${totalPages}`, pageWidth - margin, pageHeight - 8, { align: "right" });
+    }
+
+    const baseName = draft.tradeName || draft.companyName || draft.responsibleName || selectedClient?.name || "cliente";
+    const safeName = baseName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+    pdf.save(`ficha-financeiro-${safeName || "cliente"}.pdf`);
+    toast.success("PDF financeiro gerado.");
+  };
   const selectedClient = allClients.find((client) => client.id === selectedId);
 
   const addLocalClient = () => {
@@ -239,7 +356,7 @@ export default function ClientNotesPage() {
                 <p className="text-lg font-bold">{selectedClient?.name}</p>
                 <p className="text-xs text-muted-foreground">{draft.updatedAt ? `Última alteração: ${new Date(draft.updatedAt).toLocaleString("pt-BR")}` : "Ficha ainda não salva"}</p>
               </div>
-              <Button onClick={save} className="gap-2"><Save className="h-4 w-4" /> Salvar ficha</Button>
+              <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={generateFinancialPdf} className="gap-2"><Download className="h-4 w-4" /> Gerar PDF</Button><Button onClick={save} className="gap-2"><Save className="h-4 w-4" /> Salvar ficha</Button></div>
             </div>
 
             <Card>
