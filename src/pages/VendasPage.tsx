@@ -411,8 +411,20 @@ const VendasPage = () => {
       : 0;
   };
 
+  const isClientFinanciallySettled = (item: FechamentoDiario) => {
+    const clientKey = normalizeText(item.cliente);
+    const sellerKey = normalizeText(item.vendedor);
+    const totalSold = allVendas
+      .filter((sale) => sale.status !== "cancelada" && normalizeText(sale.cliente) === clientKey && normalizeText(sale.vendedor) === sellerKey)
+      .reduce((sum, sale) => sum + Math.max(Number(sale.valor || 0), 0), 0);
+    if (totalSold <= 0) return false;
+    const totalCollected = fechamentos
+      .filter((closing) => normalizeFechamentoStatus(closing.status) !== "cancelado" && normalizeText(closing.cliente) === clientKey && normalizeText(closing.vendedor) === sellerKey)
+      .reduce((sum, closing) => sum + Math.max(Number(closing.valor_sinal || 0), 0), 0);
+    return totalCollected >= totalSold - 0.01;
+  };
   const isCarriedOverReceivable = (item: FechamentoDiario) => {
-    if (dateFilter.mode !== "mes" || Number(item.valor_a_entrar || 0) <= 0) return false;
+    if (dateFilter.mode !== "mes" || Number(item.valor_a_entrar || 0) <= 0 || isClientFinanciallySettled(item)) return false;
     if (["cancelado", "recebido"].includes(normalizeFechamentoStatus(item.status))) return false;
     const storedDates = getStoredParcelDates(item).filter(Boolean).sort();
     const dueDate = storedDates.length > 0
@@ -565,16 +577,24 @@ const VendasPage = () => {
         item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase() &&
         categoriasGrupo.has(normalizeText(getFechamentoCategoria(item))),
       );
+      // O histórico legado nem sempre possui a mesma grafia de categoria. Para
+      // valores já pagos, usamos a mesma consolidação por cliente/vendedor da
+      // tela de Pagamentos; a categoria exata continua valendo para previsões.
+      const fechamentosFinanceirosCliente = fechamentos.filter((item) =>
+        normalizeFechamentoStatus(item.status) !== "cancelado" &&
+        normalizeText(item.cliente) === normalizeText(principal.cliente) &&
+        normalizeText(item.vendedor) === normalizeText(principal.vendedor),
+      );
       const sinalBruto = Math.min(
         valorTotal,
-        fechamentosRelacionados.reduce((total, item) => total + Number(item.valor_sinal || 0), 0),
+        fechamentosFinanceirosCliente.reduce((total, item) => total + Number(item.valor_sinal || 0), 0),
       );
       const sinalLiquido = Math.min(
         sinalBruto,
-        fechamentosRelacionados.reduce((total, item) => total + getFechamentoCollectedNet(item), 0),
+        fechamentosFinanceirosCliente.reduce((total, item) => total + getFechamentoCollectedNet(item), 0),
       );
       const historyById = new Map<string, PaymentHistoryEntry>();
-      fechamentosRelacionados.flatMap((item) => getUniquePaymentHistory(item.observacao)).forEach((entry) => {
+      fechamentosFinanceirosCliente.flatMap((item) => getUniquePaymentHistory(item.observacao)).forEach((entry) => {
         const previous = historyById.get(entry.id);
         if (!previous || entry.amount > previous.amount) historyById.set(entry.id, entry);
       });
