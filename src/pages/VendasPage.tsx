@@ -1914,7 +1914,7 @@ const VendasPage = () => {
             <CardContent>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.coletado)}</div>
-                <span className="text-xs text-muted-foreground">Acumulado geral: {formatBRL(accumulatedTotalsBreakdown.total.coletado)}</span>
+                <span className="text-xs text-muted-foreground">Total já coletado: {formatBRL(accumulatedTotalsBreakdown.total.coletado)}</span>
               </div>
               <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.coletado)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.coletado)}</p>
@@ -1929,7 +1929,7 @@ const VendasPage = () => {
             <CardContent>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.aReceber)}</div>
-                <span className="text-xs text-muted-foreground">Acumulado geral: {formatBRL(accumulatedTotalsBreakdown.total.aReceber)}</span>
+                <span className="text-xs text-muted-foreground">Total ainda pendente: {formatBRL(accumulatedTotalsBreakdown.total.aReceber)}</span>
               </div>
               <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.aReceber)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.aReceber)}</p>
