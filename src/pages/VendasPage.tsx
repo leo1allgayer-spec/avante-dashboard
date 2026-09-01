@@ -373,8 +373,9 @@ const VendasPage = () => {
       const historyTotal = history.reduce((sum, entry) => sum + entry.amount, 0);
       const legacyAmount = Math.max(0, Number(item.valor_sinal || 0) - historyTotal);
       const legacyDate = getLocalCreatedDate(item.created_at) || item.data;
-      return history.filter((entry) => dateInRange(entry.date)).reduce((sum, entry) => sum + entry.amount, 0) +
+      const collectedInPeriod = history.filter((entry) => dateInRange(entry.date)).reduce((sum, entry) => sum + entry.amount, 0) +
         (dateInRange(legacyDate) ? legacyAmount : 0);
+      return Math.min(Number(item.valor_sinal || 0), collectedInPeriod);
     }
     return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
       ? Number(item.valor_sinal || 0)
@@ -390,10 +391,11 @@ const VendasPage = () => {
       );
       const legacyNetAmount = Math.max(0, getFechamentoCollectedNet(item) - historyNetTotal);
       const legacyDate = getLocalCreatedDate(item.created_at) || item.data;
-      return history
+      const collectedInPeriod = history
         .filter((entry) => dateInRange(entry.date))
         .reduce((sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0) +
         (dateInRange(legacyDate) ? legacyNetAmount : 0);
+      return Math.min(getFechamentoCollectedNet(item), collectedInPeriod);
     }
     return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
       ? getFechamentoCollectedNet(item)
@@ -1886,7 +1888,7 @@ const VendasPage = () => {
             <CardContent>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.coletado)}</div>
-                <span className="text-xs text-muted-foreground">Total: {formatBRL(accumulatedTotalsBreakdown.total.coletado)}</span>
+                <span className="text-xs text-muted-foreground">Acumulado geral: {formatBRL(accumulatedTotalsBreakdown.total.coletado)}</span>
               </div>
               <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.coletado)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.coletado)}</p>
@@ -1901,7 +1903,7 @@ const VendasPage = () => {
             <CardContent>
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.aReceber)}</div>
-                <span className="text-xs text-muted-foreground">Total: {formatBRL(accumulatedTotalsBreakdown.total.aReceber)}</span>
+                <span className="text-xs text-muted-foreground">Acumulado geral: {formatBRL(accumulatedTotalsBreakdown.total.aReceber)}</span>
               </div>
               <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.aReceber)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.aReceber)}</p>
