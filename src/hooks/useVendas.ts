@@ -22,6 +22,8 @@ export interface Venda {
   origem: string;
   created_at: string;
   updated_at: string;
+  aluno_futuro_id?: string | null;
+  aluno_futuro_item?: string | null;
 }
 
 export function useVendas() {

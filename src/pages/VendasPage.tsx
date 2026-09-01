@@ -381,12 +381,12 @@ const VendasPage = () => {
     if (history.length > 0) {
       const historyTotal = history.reduce((sum, entry) => sum + entry.amount, 0);
       const legacyAmount = Math.max(0, Number(item.valor_sinal || 0) - historyTotal);
-      const legacyDate = getLocalCreatedDate(item.created_at) || item.data;
+      const legacyDate = item.data || getLocalCreatedDate(item.created_at);
       const collectedInPeriod = history.filter((entry) => dateInRange(entry.date)).reduce((sum, entry) => sum + entry.amount, 0) +
         (dateInRange(legacyDate) ? legacyAmount : 0);
       return collectedInPeriod;
     }
-    return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
+    return dateInRange(item.data || getLocalCreatedDate(item.created_at))
       ? Number(item.valor_sinal || 0)
       : 0;
   };
@@ -399,14 +399,14 @@ const VendasPage = () => {
         0,
       );
       const legacyNetAmount = Math.max(0, getFechamentoCollectedNet(item) - historyNetTotal);
-      const legacyDate = getLocalCreatedDate(item.created_at) || item.data;
+      const legacyDate = item.data || getLocalCreatedDate(item.created_at);
       const collectedInPeriod = history
         .filter((entry) => dateInRange(entry.date))
         .reduce((sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0) +
         (dateInRange(legacyDate) ? legacyNetAmount : 0);
       return collectedInPeriod;
     }
-    return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
+    return dateInRange(item.data || getLocalCreatedDate(item.created_at))
       ? getFechamentoCollectedNet(item)
       : 0;
   };
@@ -434,7 +434,7 @@ const VendasPage = () => {
   };
 
   const getAReceberNoPeriodo = (item: FechamentoDiario) => {
-    if (dateFilter.mode !== "mes" && (dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at)))) {
+    if (dateFilter.mode !== "mes" && dateInRange(item.data || getLocalCreatedDate(item.created_at))) {
       return Number(item.valor_a_entrar || 0);
     }
     if (isCarriedOverReceivable(item)) return Number(item.valor_a_entrar || 0);
@@ -462,8 +462,7 @@ const VendasPage = () => {
     return fechamentos.filter((item) => {
       const hasRecurringInPeriod = Number(item.valor_recorrente || 0) > 0 && item.data <= dateFilter.range.end;
       return (
-        dateInRange(item.data) ||
-        dateInRange(getLocalCreatedDate(item.created_at)) ||
+        dateInRange(item.data || getLocalCreatedDate(item.created_at)) ||
         hasPaymentInRange(item) ||
         isCarriedOverReceivable(item) ||
         dateInRange(item.previsao_entrada) ||
@@ -481,9 +480,9 @@ const VendasPage = () => {
         normalizeText(item.cliente) === normalizeText(v.cliente) &&
         normalizeText(item.vendedor) === normalizeText(v.vendedor) &&
         normalizeText(getFechamentoCategoria(item)) === categoria &&
-        (dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at)) || hasPaymentInRange(item) || isCarriedOverReceivable(item))
+        (dateInRange(item.data || getLocalCreatedDate(item.created_at)) || hasPaymentInRange(item) || isCarriedOverReceivable(item))
       );
-      if (!dateInRange(v.data) && !dateInRange(getLocalCreatedDate(v.created_at)) && !hasRelatedFinancialActivity) return false;
+      if (!dateInRange(v.data || getLocalCreatedDate(v.created_at)) && !hasRelatedFinancialActivity) return false;
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
       if ((statusFilter === "paga" || statusFilter === "pendente") && v.status === "cancelada") return false;
@@ -559,14 +558,34 @@ const VendasPage = () => {
     });
 
     return [...grupos.entries()].map(([chave, itens]) => {
-      const itensPorLancamento = [...itens].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const itensOrdenados = [...itens].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const itensConsolidados = new Map<string, Venda>();
+      itensOrdenados.forEach((item) => {
+        const categoryKey = normalizeText(getVendaCategoria(item));
+        const previous = itensConsolidados.get(categoryKey);
+        const isLinkedDuplicate = previous && Boolean(previous.aluno_futuro_id) !== Boolean(item.aluno_futuro_id);
+        if (!previous) {
+          itensConsolidados.set(categoryKey, item);
+        } else if (isLinkedDuplicate) {
+          const preferred = Number(item.valor || 0) > Number(previous.valor || 0) ? item : previous;
+          itensConsolidados.set(categoryKey, {
+            ...preferred,
+            valor: Math.max(Number(previous.valor || 0), Number(item.valor || 0)),
+            comissao: Math.max(Number(previous.comissao || 0), Number(item.comissao || 0)),
+            comissao_paga_valor: Math.max(getPaidCommissionValue(previous), getPaidCommissionValue(item)),
+          });
+        } else {
+          itensConsolidados.set(`${categoryKey}|${item.id}`, item);
+        }
+      });
+      const itensPorLancamento = [...itensConsolidados.values()];
       const principal = itensPorLancamento[0];
-      const produtos = [...new Set(itens.map((item) => item.produto).filter(Boolean))];
-      const servicos = [...new Set(itens.map((item) => item.servico).filter(Boolean))];
-      const categoriasGrupo = new Set(itens.map((item) => normalizeText(getVendaCategoria(item))));
-      const valoresPositivos = itens.map((item) => Number(item.valor || 0)).filter((valor) => valor > 0);
+      const produtos = [...new Set(itensPorLancamento.map((item) => item.produto).filter(Boolean))];
+      const servicos = [...new Set(itensPorLancamento.map((item) => item.servico).filter(Boolean))];
+      const categoriasGrupo = new Set(itensPorLancamento.map((item) => normalizeText(getVendaCategoria(item))));
+      const valoresPositivos = itensPorLancamento.map((item) => Number(item.valor || 0)).filter((valor) => valor > 0);
       const valorTotal = valoresPositivos.reduce((total, valor) => total + valor, 0);
-      const liquidosPositivos = itens.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
+      const liquidosPositivos = itensPorLancamento.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
       const valorLiquido = liquidosPositivos.reduce((total, valor) => total + valor, 0);
       // O fechamento precisa permanecer ligado à venda mesmo quando a previsão
       // de recebimento está em outro mês. O período só é aplicado ao somar
@@ -613,7 +632,7 @@ const VendasPage = () => {
         .filter((date): date is string => Boolean(date)))]
         .sort();
 
-      const saleCategories = new Set(itens.map(getVendaCategoria).map(normalizeText));
+      const saleCategories = new Set(itensPorLancamento.map(getVendaCategoria).map(normalizeText));
       const datasPrevistasCurso = [...new Set(courseBookings
         .filter((booking) =>
           booking.status !== "cancelled" &&
@@ -622,8 +641,8 @@ const VendasPage = () => {
         )
         .map((booking) => booking.date))]
         .sort();
-      const comissaoPaga = itens.reduce((total, item) => total + getPaidCommissionValue(item), 0);
-      const comissaoCalculadaSobreRecebido = itens.reduce((total, item) => {
+      const comissaoPaga = itensPorLancamento.reduce((total, item) => total + getPaidCommissionValue(item), 0);
+      const comissaoCalculadaSobreRecebido = itensPorLancamento.reduce((total, item) => {
         const share = valorTotal > 0 ? Math.max(Number(item.valor || 0), 0) / valorTotal : 0;
         return total + sinalBruto * share * getSalesCommissionRate(item.origem);
       }, 0);
@@ -635,7 +654,7 @@ const VendasPage = () => {
         itens: itensPorLancamento,
         produtos,
         servicos,
-        quantidade: itens.length,
+        quantidade: itensPorLancamento.length,
         valorTotal,
         valorLiquido,
         sinal: sinalLiquido,
