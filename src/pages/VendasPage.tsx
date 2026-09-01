@@ -411,10 +411,21 @@ const VendasPage = () => {
       : 0;
   };
 
+  const isCarriedOverReceivable = (item: FechamentoDiario) => {
+    if (dateFilter.mode !== "mes" || Number(item.valor_a_entrar || 0) <= 0) return false;
+    if (["cancelado", "recebido"].includes(normalizeFechamentoStatus(item.status))) return false;
+    const storedDates = getStoredParcelDates(item).filter(Boolean).sort();
+    const dueDate = storedDates.length > 0
+      ? storedDates[storedDates.length - 1]
+      : item.previsao_entrada || item.data;
+    return Boolean(dueDate && dueDate < dateFilter.range.start);
+  };
+
   const getAReceberNoPeriodo = (item: FechamentoDiario) => {
     if (dateFilter.mode !== "mes" && (dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at)))) {
       return Number(item.valor_a_entrar || 0);
     }
+    if (isCarriedOverReceivable(item)) return Number(item.valor_a_entrar || 0);
     const parcelasNoPeriodo = getStoredParcelDates(item).filter(dateInRange);
     const isBoletoParcelado = Number(item.parcelas_total || 0) > 1;
     if (isBoletoParcelado && parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
@@ -442,6 +453,7 @@ const VendasPage = () => {
         dateInRange(item.data) ||
         dateInRange(getLocalCreatedDate(item.created_at)) ||
         hasPaymentInRange(item) ||
+        isCarriedOverReceivable(item) ||
         dateInRange(item.previsao_entrada) ||
         getStoredParcelDates(item).some(dateInRange) ||
         hasRecurringInPeriod
@@ -457,7 +469,7 @@ const VendasPage = () => {
         normalizeText(item.cliente) === normalizeText(v.cliente) &&
         normalizeText(item.vendedor) === normalizeText(v.vendedor) &&
         normalizeText(getFechamentoCategoria(item)) === categoria &&
-        (dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at)) || hasPaymentInRange(item))
+        (dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at)) || hasPaymentInRange(item) || isCarriedOverReceivable(item))
       );
       if (!dateInRange(v.data) && !dateInRange(getLocalCreatedDate(v.created_at)) && !hasRelatedFinancialActivity) return false;
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
@@ -611,6 +623,7 @@ const VendasPage = () => {
         paymentHistory,
         coletadoPeriodo,
         aReceberPeriodo,
+        pendenciaMesAnterior: fechamentosRelacionados.some(isCarriedOverReceivable),
         previsoesRecebimento,
         datasPrevistasCurso,
       };
@@ -2312,6 +2325,9 @@ const VendasPage = () => {
                     <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">
                       <span className="block text-[15px]">{formatBRL(grupo.saldo)}</span>
                       <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão futura {formatBRL(grupo.saldo * getSalesCommissionRate(v.origem))}</span>
+                      {grupo.pendenciaMesAnterior && grupo.saldo > 0 && (
+                        <span className="mt-1 block whitespace-nowrap text-[9px] font-semibold text-amber-400">Pendente do mês passado</span>
+                      )}
                       {grupo.saldo > 0 && (
                         <span className="block truncate text-[9px] font-normal text-muted-foreground">
                           {grupo.previsoesRecebimento.length > 0
