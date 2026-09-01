@@ -411,6 +411,21 @@ const VendasPage = () => {
       : 0;
   };
 
+  const getConsolidatedClosingTotals = (items: FechamentoDiario[]) => {
+    const byCategory = new Map<string, { gross: number; net: number }>();
+    items.forEach((closing) => {
+      const key = normalizeText(getFechamentoCategoria(closing));
+      const previous = byCategory.get(key) || { gross: 0, net: 0 };
+      byCategory.set(key, {
+        gross: Math.max(previous.gross, Math.max(Number(closing.valor_sinal || 0), 0)),
+        net: Math.max(previous.net, Math.max(Number(closing.valor_sinal_liquido ?? closing.valor_sinal ?? 0), 0)),
+      });
+    });
+    return [...byCategory.values()].reduce(
+      (totals, value) => ({ gross: totals.gross + value.gross, net: totals.net + value.net }),
+      { gross: 0, net: 0 },
+    );
+  };
   const isClientFinanciallySettled = (item: FechamentoDiario) => {
     const clientKey = normalizeText(item.cliente);
     const sellerKey = normalizeText(item.vendedor);
@@ -418,10 +433,12 @@ const VendasPage = () => {
       .filter((sale) => sale.status !== "cancelada" && normalizeText(sale.cliente) === clientKey && normalizeText(sale.vendedor) === sellerKey)
       .reduce((sum, sale) => sum + Math.max(Number(sale.valor || 0), 0), 0);
     if (totalSold <= 0) return false;
-    const totalCollected = fechamentos
-      .filter((closing) => normalizeFechamentoStatus(closing.status) !== "cancelado" && normalizeText(closing.cliente) === clientKey && normalizeText(closing.vendedor) === sellerKey)
-      .reduce((sum, closing) => sum + Math.max(Number(closing.valor_sinal || 0), 0), 0);
-    return totalCollected >= totalSold - 0.01;
+    const relatedClosings = fechamentos.filter((closing) =>
+      normalizeFechamentoStatus(closing.status) !== "cancelado" &&
+      normalizeText(closing.cliente) === clientKey &&
+      normalizeText(closing.vendedor) === sellerKey
+    );
+    return getConsolidatedClosingTotals(relatedClosings).gross >= totalSold - 0.01;
   };
   const isCarriedOverReceivable = (item: FechamentoDiario) => {
     if (dateFilter.mode !== "mes" || Number(item.valor_a_entrar || 0) <= 0 || isClientFinanciallySettled(item)) return false;
@@ -604,14 +621,9 @@ const VendasPage = () => {
         normalizeText(item.cliente) === normalizeText(principal.cliente) &&
         normalizeText(item.vendedor) === normalizeText(principal.vendedor),
       );
-      const sinalBruto = Math.min(
-        valorTotal,
-        fechamentosFinanceirosCliente.reduce((total, item) => total + Number(item.valor_sinal || 0), 0),
-      );
-      const sinalLiquido = Math.min(
-        sinalBruto,
-        fechamentosFinanceirosCliente.reduce((total, item) => total + getFechamentoCollectedNet(item), 0),
-      );
+      const closingTotals = getConsolidatedClosingTotals(fechamentosFinanceirosCliente);
+      const sinalBruto = Math.min(valorTotal, closingTotals.gross);
+      const sinalLiquido = Math.min(sinalBruto, closingTotals.net);
       const historyById = new Map<string, PaymentHistoryEntry>();
       fechamentosFinanceirosCliente.flatMap((item) => getUniquePaymentHistory(item.observacao)).forEach((entry) => {
         const previous = historyById.get(entry.id);
@@ -716,16 +728,12 @@ const VendasPage = () => {
       const paidAt = new Date().toISOString().split("T")[0];
       const totalSold = items.reduce((sum, item) => sum + Math.max(Number(item.valor || 0), 0), 0);
       const reference = items[0];
-      const totalCollected = Math.min(
-        totalSold,
-        fechamentos
-          .filter((closing) =>
-            normalizeFechamentoStatus(closing.status) !== "cancelado" &&
-            normalizeText(closing.cliente) === normalizeText(reference?.cliente) &&
-            normalizeText(closing.vendedor) === normalizeText(reference?.vendedor),
-          )
-          .reduce((sum, closing) => sum + Math.max(Number(closing.valor_sinal || 0), 0), 0),
+      const commissionClosings = fechamentos.filter((closing) =>
+        normalizeFechamentoStatus(closing.status) !== "cancelado" &&
+        normalizeText(closing.cliente) === normalizeText(reference?.cliente) &&
+        normalizeText(closing.vendedor) === normalizeText(reference?.vendedor)
       );
+      const totalCollected = Math.min(totalSold, getConsolidatedClosingTotals(commissionClosings).gross);
       await Promise.all(items.map((item) => {
         const share = totalSold > 0 ? Math.max(Number(item.valor || 0), 0) / totalSold : 0;
         const effectiveCommission = +(totalCollected * share * getSalesCommissionRate(item.origem)).toFixed(2);
