@@ -70,6 +70,7 @@ const metricsItems = [
 
 const gestaoItems = [
   { title: "Clientes", url: "/gestao-clientes", icon: Users2 },
+  { title: "Dados dos Alunos", url: "/dados-alunos", icon: GraduationCap },
   { title: "Notas dos Clientes", url: "/notas-clientes", icon: NotebookPen },
   { title: "Clientes Google Ads", url: "/clientes-google-ads", icon: Users2 },
   { title: "Agenda Curso", url: "/tasks", icon: CalendarCheck2 },

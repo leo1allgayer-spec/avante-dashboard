@@ -6,6 +6,7 @@ export interface SurveyResponse {
   user_id: string | null;
   nome: string;
   cpf: string | null;
+  data_nascimento: string | null;
   cep: string | null;
   cidade: string | null;
   email: string | null;
@@ -13,6 +14,7 @@ export interface SurveyResponse {
   endereco: string | null;
   whatsapp: string | null;
   data_curso: string | null;
+  curso_realizado: string | null;
   como_conheceu: string | null;
   tempo_para_fechar: string | null;
   conversou_outras_escolas: string | null;

@@ -7,6 +7,13 @@ export interface FutureStudent {
   telefone: string;
   cpf: string;
   cpf_limpo?: string | null;
+  data_nascimento?: string | null;
+  email?: string | null;
+  instagram?: string | null;
+  cep?: string | null;
+  cidade?: string | null;
+  endereco?: string | null;
+  nome_certificado?: string | null;
   curso: string;
   itens?: Array<{
     tipo: "curso" | "produto" | "servico";
