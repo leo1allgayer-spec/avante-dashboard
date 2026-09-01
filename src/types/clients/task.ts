@@ -1,6 +1,7 @@
 export interface TeamMember {
   id: string;
   name: string;
+  phone: string;
   dailyTaskGoal: number;
   weeklyTaskGoal: number;
   maxTaskMinutes: number;

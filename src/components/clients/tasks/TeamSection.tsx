@@ -8,19 +8,21 @@ import { Trash2, Save, UserPlus, Users2 } from "lucide-react";
 
 interface Props {
   members: TeamMember[];
-  onAdd: (name: string) => void;
+  onAdd: (name: string, phone?: string) => void;
   onUpdate: (member: TeamMember) => void;
   onDelete: (id: string) => void;
 }
 
 export function TeamSection({ members, onAdd, onUpdate, onDelete }: Props) {
   const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
   const [editing, setEditing] = useState<Record<string, TeamMember>>({});
 
   const handleAdd = () => {
     if (!newName.trim()) return;
-    onAdd(newName.trim());
+    onAdd(newName.trim(), newPhone.trim());
     setNewName("");
+    setNewPhone("");
   };
 
   const startEdit = (m: TeamMember) => {
@@ -40,12 +42,20 @@ export function TeamSection({ members, onAdd, onUpdate, onDelete }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="Nome do novo membro"
           className="max-w-xs"
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+        />
+        <Input
+          value={newPhone}
+          onChange={(e) => setNewPhone(e.target.value)}
+          placeholder="WhatsApp: 55 + DDD + número"
+          className="max-w-xs"
+          inputMode="tel"
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
         />
         <Button size="sm" onClick={handleAdd} disabled={!newName.trim()}>
@@ -93,6 +103,10 @@ export function TeamSection({ members, onAdd, onUpdate, onDelete }: Props) {
 
                 {isEditing && (
                   <div className="space-y-2">
+                    <div>
+                      <Label className="text-[10px]">WhatsApp para lembretes</Label>
+                      <Input value={current.phone} inputMode="tel" placeholder="55 + DDD + número" onChange={(e) => setEditing((prev) => ({ ...prev, [m.id]: { ...current, phone: e.target.value } }))} className="h-7 text-xs" />
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <Label className="text-[10px]">Meta diária</Label>
@@ -142,6 +156,7 @@ export function TeamSection({ members, onAdd, onUpdate, onDelete }: Props) {
 
                 {!isEditing && (
                   <div className="flex gap-3 text-xs text-muted-foreground">
+                    <span>{m.phone ? `WhatsApp: ${m.phone}` : "WhatsApp não cadastrado"}</span>
                     <span>Meta: {m.dailyTaskGoal}/dia</span>
                     <span>{m.weeklyTaskGoal}/sem</span>
                     <span>Max: {m.maxTaskMinutes}min</span>

@@ -27,6 +27,7 @@ export function useTeamMembers() {
         (data as any[]).map((r) => ({
           id: r.id,
           name: r.name,
+          phone: r.phone || "",
           dailyTaskGoal: r.daily_task_goal,
           weeklyTaskGoal: r.weekly_task_goal,
           maxTaskMinutes: r.max_task_minutes,
@@ -49,11 +50,11 @@ export function useTeamMembers() {
     return () => { supabase.removeChannel(channel); };
   }, [session?.user?.id, fetchMembers]);
 
-  const addMember = async (name: string) => {
+  const addMember = async (name: string, phone = "") => {
     if (!session?.user?.id) return;
     const { data, error } = await supabase
       .from("team_members" as any)
-      .insert({ name, user_id: session.user.id } as any)
+      .insert({ name, phone, user_id: session.user.id } as any)
       .select()
       .single();
 
@@ -63,7 +64,7 @@ export function useTeamMembers() {
       const r = data as any;
       setMembers((prev) => [
         ...prev,
-        { id: r.id, name: r.name, dailyTaskGoal: r.daily_task_goal, weeklyTaskGoal: r.weekly_task_goal, maxTaskMinutes: r.max_task_minutes },
+        { id: r.id, name: r.name, phone: r.phone || "", dailyTaskGoal: r.daily_task_goal, weeklyTaskGoal: r.weekly_task_goal, maxTaskMinutes: r.max_task_minutes },
       ]);
       toast.success("Membro adicionado!");
     }
@@ -74,6 +75,7 @@ export function useTeamMembers() {
       .from("team_members" as any)
       .update({
         name: member.name,
+        phone: member.phone,
         daily_task_goal: member.dailyTaskGoal,
         weekly_task_goal: member.weeklyTaskGoal,
         max_task_minutes: member.maxTaskMinutes,

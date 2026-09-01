@@ -11,7 +11,7 @@ function normalizeBaseUrl(raw: string): string {
   return url;
 }
 
-// Mapeamento fixo de participantes para números de WhatsApp
+// Fallback para responsáveis antigos enquanto o WhatsApp não é preenchido no cadastro da equipe
 const PARTICIPANT_PHONES: Record<string, string> = {
   "Leonardo Allgayer": "5551999692480",
   "Leonardo Webster": "5551993512435",
@@ -30,6 +30,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const expectedCronSecret = Deno.env.get("WHATSAPP_SCHEDULER_SECRET");
+    if (!expectedCronSecret || req.headers.get("x-cron-secret") !== expectedCronSecret) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
     const EVOLUTION_INSTANCE_NAME = Deno.env.get("EVOLUTION_INSTANCE_NAME");
     const EVOLUTION_API_TOKEN = Deno.env.get("EVOLUTION_API_TOKEN");
@@ -49,6 +56,7 @@ Deno.serve(async (req) => {
       const txt = await list.text();
       let arr: any[] = [];
       try { arr = JSON.parse(txt); } catch { arr = []; }
+
       const target = EVOLUTION_INSTANCE_NAME!.trim().toLowerCase();
       const m = arr.find((i: any) =>
         (i?.name && String(i.name).trim().toLowerCase() === target) ||
@@ -66,6 +74,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    const { data: teamRows, error: teamError } = await supabase
+      .from("team_members")
+      .select("name, phone");
+    if (teamError) throw new Error("Failed to fetch team members");
+    const teamPhones = new Map<string, string>(
+      (teamRows || []).filter((member) => member.name && member.phone).map((member) => [member.name, String(member.phone).replace(/\D/g, "")]),
+    );
     // Horário atual em BRT (UTC-3)
     const now = new Date();
     const brtOffset = -3 * 60;
@@ -107,13 +122,13 @@ Deno.serve(async (req) => {
       const meetingMinutes = hours * 60 + minutes;
       const diffMinutes = meetingMinutes - brtNowMinutes;
 
-      // Enviar se falta entre 25 e 35 minutos (janela de 10 min para o cron de 5 min)
-      if (diffMinutes < 25 || diffMinutes > 35) continue;
+      // Enviar se falta entre 55 e 65 minutos (janela segura para o cron de 5 min)
+      if (diffMinutes < 55 || diffMinutes > 65) continue;
 
-      const participants: string[] = meeting.participants || [];
+      const participants: string[] = meeting.responsible ? [meeting.responsible] : [];
 
       for (const participantName of participants) {
-        const phone = PARTICIPANT_PHONES[participantName];
+        const phone = teamPhones.get(participantName) || PARTICIPANT_PHONES[participantName];
         if (!phone) continue;
 
         // Verificar se já enviou
@@ -127,7 +142,7 @@ Deno.serve(async (req) => {
         if (existing) continue;
 
         // Montar mensagem
-        const messageText = `⏰ *Lembrete de Reunião*\n\nOlá ${participantName}! Sua reunião "${meeting.title}" está marcada para daqui a 30 minutos (${meeting.time}).\n\n📅 Data: ${formatDateBR(meeting.date)}\n📍 Modalidade: ${meeting.modality === "online" ? "Online" : "Presencial"}\n\n${meeting.description ? `📝 ${meeting.description}` : ""}`;
+        const messageText = `⏰ *Lembrete de Reunião*\n\nOlá ${participantName}! Sua reunião "${meeting.title}" está marcada para daqui a 1 hora (${meeting.time}).\n\n📅 Data: ${formatDateBR(meeting.date)}\n📍 Modalidade: ${meeting.modality === "online" ? "Online" : "Presencial"}\n\n${meeting.description ? `📝 ${meeting.description}` : ""}`;
 
         // Enviar via Evolution API
         const response = await fetch(evolutionUrl, {

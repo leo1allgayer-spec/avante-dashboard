@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.complete-course-from-survey]
 verify_jwt = false
+
+[functions.meeting-reminder]
+verify_jwt = false
