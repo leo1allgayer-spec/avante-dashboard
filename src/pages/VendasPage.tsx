@@ -196,6 +196,15 @@ const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =
     }
   });
 
+const getUniquePaymentHistory = (observation?: string | null): PaymentHistoryEntry[] => {
+  const entriesById = new Map<string, PaymentHistoryEntry>();
+  getPaymentHistory(observation).forEach((entry) => {
+    const previous = entriesById.get(entry.id);
+    if (!previous || entry.amount > previous.amount) entriesById.set(entry.id, entry);
+  });
+  return [...entriesById.values()];
+};
+
 const appendPaymentHistory = (observation: string | null | undefined, entry: PaymentHistoryEntry) =>
   [observation?.trim(), `${PAYMENT_HISTORY_PREFIX}${JSON.stringify(entry)}`].filter(Boolean).join("\n");
 
@@ -365,17 +374,17 @@ const VendasPage = () => {
   const dateInRange = (date?: string | null) => !!date && date >= dateFilter.range.start && date <= dateFilter.range.end;
 
   const hasPaymentInRange = (item: FechamentoDiario) =>
-    getPaymentHistory(item.observacao).some((entry) => dateInRange(entry.date));
+    getUniquePaymentHistory(item.observacao).some((entry) => dateInRange(entry.date));
 
   const getCollectedGrossInPeriod = (item: FechamentoDiario) => {
-    const history = getPaymentHistory(item.observacao);
+    const history = getUniquePaymentHistory(item.observacao);
     if (history.length > 0) {
       const historyTotal = history.reduce((sum, entry) => sum + entry.amount, 0);
       const legacyAmount = Math.max(0, Number(item.valor_sinal || 0) - historyTotal);
       const legacyDate = getLocalCreatedDate(item.created_at) || item.data;
       const collectedInPeriod = history.filter((entry) => dateInRange(entry.date)).reduce((sum, entry) => sum + entry.amount, 0) +
         (dateInRange(legacyDate) ? legacyAmount : 0);
-      return Math.min(Number(item.valor_sinal || 0), collectedInPeriod);
+      return collectedInPeriod;
     }
     return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
       ? Number(item.valor_sinal || 0)
@@ -383,7 +392,7 @@ const VendasPage = () => {
   };
 
   const getCollectedNetInPeriod = (item: FechamentoDiario) => {
-    const history = getPaymentHistory(item.observacao);
+    const history = getUniquePaymentHistory(item.observacao);
     if (history.length > 0) {
       const historyNetTotal = history.reduce(
         (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)),
@@ -395,7 +404,7 @@ const VendasPage = () => {
         .filter((entry) => dateInRange(entry.date))
         .reduce((sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0) +
         (dateInRange(legacyDate) ? legacyNetAmount : 0);
-      return Math.min(getFechamentoCollectedNet(item), collectedInPeriod);
+      return collectedInPeriod;
     }
     return dateInRange(item.data) || dateInRange(getLocalCreatedDate(item.created_at))
       ? getFechamentoCollectedNet(item)
@@ -553,9 +562,9 @@ const VendasPage = () => {
         fechamentosRelacionados.reduce((total, item) => total + getFechamentoCollectedNet(item), 0),
       );
       const historyById = new Map<string, PaymentHistoryEntry>();
-      fechamentosRelacionados.flatMap((item) => getPaymentHistory(item.observacao)).forEach((entry) => {
+      fechamentosRelacionados.flatMap((item) => getUniquePaymentHistory(item.observacao)).forEach((entry) => {
         const previous = historyById.get(entry.id);
-        historyById.set(entry.id, previous ? { ...previous, amount: previous.amount + entry.amount } : entry);
+        if (!previous || entry.amount > previous.amount) historyById.set(entry.id, entry);
       });
       const paymentHistory = [...historyById.values()].sort((a, b) => b.date.localeCompare(a.date));
       const historyTotal = paymentHistory.reduce((total, entry) => total + entry.amount, 0);
@@ -950,7 +959,11 @@ const VendasPage = () => {
     .reduce((totals, item) => {
       const isCourse = COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getFechamentoCategoria(item)));
       const target = isCourse ? totals.cursos : totals.servicos;
-      const coletado = getFechamentoCollectedNet(item);
+      const historyNetTotal = getUniquePaymentHistory(item.observacao).reduce(
+        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)),
+        0,
+      );
+      const coletado = Math.max(getFechamentoCollectedNet(item), historyNetTotal);
       const aReceber = Number(item.valor_a_entrar || 0);
       target.coletado += coletado;
       target.aReceber += aReceber;
@@ -961,7 +974,7 @@ const VendasPage = () => {
       total: { coletado: 0, aReceber: 0 },
       cursos: { coletado: 0, aReceber: 0 },
       servicos: { coletado: 0, aReceber: 0 },
-    }), [fechamentos]);
+    }), [fechamentos, taxProfile]);
 
   const visiblePeriodTotals = salesTableSection === "cursos"
     ? salesTotalsBreakdown.cursos
