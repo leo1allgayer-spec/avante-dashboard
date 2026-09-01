@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, DollarSign, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -42,6 +43,7 @@ export default function FutureStudentsPage() {
   const { data: students = [], isLoading } = useFutureStudents();
   const { data: surveys = [] } = useSurveyResponses();
   const [search, setSearch] = useState("");
+  const [studentView, setStudentView] = useState<"pending" | "linked">("pending");
   const [editing, setEditing] = useState<FutureStudent | null>(null);
   const [valueDrafts, setValueDrafts] = useState<Record<string, { signal: string; pending: string }>>({});
   const [editForm, setEditForm] = useState({ nome: "", telefone: "", cpf: "", observacao: "", itens: [] as NonNullable<FutureStudent["itens"]> });
@@ -53,16 +55,17 @@ export default function FutureStudentsPage() {
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return students;
-
-    return students.filter((student) =>
-      student.nome.toLowerCase().includes(q) ||
-      student.telefone.toLowerCase().includes(q) ||
-      student.cpf.toLowerCase().includes(q) ||
-      (student.curso || "").toLowerCase().includes(q) ||
-      (student.itens || []).some((item) => item.nome.toLowerCase().includes(q)),
-    );
-  }, [search, students]);
+    return students.filter((student) => {
+      const linked = surveyCpfSet.has(cleanCpf(student.cpf));
+      if (studentView === "linked" ? !linked : linked) return false;
+      if (!q) return true;
+      return student.nome.toLowerCase().includes(q) ||
+        student.telefone.toLowerCase().includes(q) ||
+        student.cpf.toLowerCase().includes(q) ||
+        (student.curso || "").toLowerCase().includes(q) ||
+        (student.itens || []).some((item) => item.nome.toLowerCase().includes(q));
+    });
+  }, [search, studentView, students, surveyCpfSet]);
 
   const totalSignal = students.reduce((sum, student) => sum + Number(student.valor_sinal || 0), 0);
   const totalPending = students.reduce((sum, student) => sum + (student.itens || []).reduce((itemSum, item) => itemSum + Number(item.valor_pendente || 0), 0), 0);
@@ -210,6 +213,21 @@ export default function FutureStudentsPage() {
             </div>
           </div>
 
+          <div className="border-b border-border/30 px-4 py-3">
+            <Tabs value={studentView} onValueChange={(value) => setStudentView(value as "pending" | "linked")}>
+              <TabsList className="grid h-auto w-full grid-cols-2 sm:w-[420px]">
+                <TabsTrigger value="pending" className="gap-2 py-2">
+                  Pendentes
+                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{Math.max(students.length - linkedCount, 0)}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="linked" className="gap-2 py-2">
+                  Vinculados
+                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{linkedCount}</Badge>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -234,7 +252,11 @@ export default function FutureStudentsPage() {
                 ) : filteredStudents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
-                      Nenhum aluno futuro cadastrado ainda.
+                      {search.trim()
+                        ? "Nenhum aluno encontrado com essa busca."
+                        : studentView === "linked"
+                          ? "Nenhum aluno vinculado ao formulário ainda."
+                          : "Nenhum aluno pendente de vinculação."}
                     </TableCell>
                   </TableRow>
                 ) : (
