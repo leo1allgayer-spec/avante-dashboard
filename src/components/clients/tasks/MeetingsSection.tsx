@@ -79,9 +79,9 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
               <CheckCircle2 className="h-2.5 w-2.5 text-muted-foreground" />
             </Button>
           )}
-          {m.source !== "crm" && <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDelete(m.id)} title="Excluir">
+          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDelete(m.id)} title="Excluir do dashboard e do CRM">
             <Trash2 className="h-2.5 w-2.5 text-muted-foreground" />
-          </Button>}
+          </Button>
         </div>
       </div>
       {m.time && (

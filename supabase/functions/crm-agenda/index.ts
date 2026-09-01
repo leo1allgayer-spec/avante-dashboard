@@ -326,8 +326,8 @@ Deno.serve(async (request) => {
       const isCreate = action === "create";
       if (!isCreate && !externalId) throw new Error("Identificador do compromisso não informado.");
       const target = `${CRM_BASE_URL}/${selectedEndpoint}${isCreate ? "" : `/${encodeURIComponent(externalId)}`}`;
-      if (action === "delete") throw new Error("Cancelamento pelo dashboard não está habilitado.");
-      const method = isCreate ? "POST" : "PATCH";
+      const isDelete = action === "delete";
+      const method = isDelete ? "DELETE" : isCreate ? "POST" : "PATCH";
       const response = await fetch(target, {
         method,
         headers: {
@@ -335,13 +335,13 @@ Deno.serve(async (request) => {
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(crmPayload),
+        body: isDelete ? undefined : JSON.stringify(crmPayload),
       });
       const result = await response.json().catch(() => null);
       if (!response.ok) {
         const resultObject = asObject(result);
         const apiMessage = firstString(resultObject, ["message", "error", "detail"]);
-        throw new Error(apiMessage || `CRM HTTP ${response.status} ao ${isCreate ? "criar" : "editar"} compromisso.`);
+        throw new Error(apiMessage || `CRM HTTP ${response.status} ao ${isDelete ? "excluir" : isCreate ? "criar" : "editar"} compromisso.`);
       }
       return new Response(JSON.stringify({ ok: true, appointment: result }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

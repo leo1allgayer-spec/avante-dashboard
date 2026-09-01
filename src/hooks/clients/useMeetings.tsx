@@ -210,17 +210,37 @@ export function useMeetings() {
   };
 
   const deleteMeeting = async (id: string) => {
-    if (id.startsWith("crm:")) {
-      toast.info("Compromissos do CRM devem ser cancelados diretamente no CRM.");
-      return;
+    const meeting = meetings.find((item) => item.id === id);
+    if (!meeting) return;
+    if (!window.confirm(`Excluir a reunião “${meeting.title}”? Esta ação também será aplicada no CRM.`)) return;
+
+    setSyncing(true);
+    const externalId = meeting.externalId || (id.startsWith("crm:") ? id.replace(/^crm:/, "") : "");
+    if (externalId) {
+      const { data: crmData, error: crmError } = await supabase.functions.invoke("crm-agenda", {
+        body: { action: "delete", meeting: { ...meeting, externalId } },
+      });
+      if (crmError || crmData?.error) {
+        setSyncing(false);
+        toast.error(crmData?.error || crmError?.message || "O CRM não confirmou a exclusão da reunião");
+        return;
+      }
     }
-    const { error } = await supabase.from("meetings" as any).delete().eq("id", id);
-    if (error) {
-      toast.error("Erro ao excluir reunião");
-    } else {
-      setMeetings((prev) => prev.filter((m) => m.id !== id));
-      toast.success("Reunião excluída!");
+
+    if (!id.startsWith("crm:")) {
+      const { error } = await supabase.from("meetings" as any).delete().eq("id", id);
+      if (error) {
+        setSyncing(false);
+        toast.error("Reunião excluída no CRM, mas não foi removida do dashboard");
+        return;
+      }
     }
+
+    setMeetings((prev) => prev.filter((item) => item.id !== id));
+    void notifyOtherAccounts();
+    setSyncing(false);
+    toast.success(externalId ? "Reunião excluída do dashboard e do CRM!" : "Reunião excluída!");
+    await fetchMeetings();
   };
 
   return { meetings, loading, syncing, refreshMeetings: fetchMeetings, addMeeting, updateMeeting, deleteMeeting };
