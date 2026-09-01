@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export interface FechamentoDiario {
   id: string;
+  venda_id: string | null;
   user_id: string;
   data: string;
   cliente: string;
@@ -26,7 +27,9 @@ export interface FechamentoDiario {
   updated_at: string;
 }
 
-export type FechamentoPayload = Omit<FechamentoDiario, "id" | "created_at" | "updated_at">;
+export type FechamentoPayload = Omit<FechamentoDiario, "id" | "created_at" | "updated_at" | "venda_id"> & {
+  venda_id?: string | null;
+};
 
 export function useFechamentosDiarios() {
   return useQuery({

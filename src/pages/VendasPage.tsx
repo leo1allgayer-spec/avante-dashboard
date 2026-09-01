@@ -773,9 +773,12 @@ const VendasPage = () => {
       const fechamento = fechamentos.find((item) =>
         !usedFechamentos.has(item.id) &&
         normalizeFechamentoStatus(item.status) !== "cancelado" &&
-        item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
-        item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
-        getFechamentoCategoria(item) === categoria
+        (item.venda_id === venda.id || (
+          !item.venda_id &&
+          item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+          item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
+          getFechamentoCategoria(item) === categoria
+        ))
       ) || null;
       if (fechamento) usedFechamentos.add(fechamento.id);
       return { venda, categoria, fechamento };
@@ -861,9 +864,10 @@ const VendasPage = () => {
             : (fechamento?.observacao || null),
         };
         if (fechamento) {
-          updates.push(updateFechamento.mutateAsync({ id: fechamento.id, ...fechamentoPayload }));
+          updates.push(updateFechamento.mutateAsync({ id: fechamento.id, venda_id: venda.id, ...fechamentoPayload }));
         } else if (session?.user?.id) {
           updates.push(createFechamento.mutateAsync({
+            venda_id: venda.id,
             user_id: session.user.id,
             vendedor: venda.vendedor,
             cliente: venda.cliente,
@@ -1218,9 +1222,12 @@ const VendasPage = () => {
         .filter((item) =>
           !usedFechamentos.has(item.id) &&
           normalizeFechamentoStatus(item.status) !== "cancelado" &&
-          item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
-          item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
-          getFechamentoCategoria(item) === categoria,
+          (item.venda_id === venda.id || (
+            !item.venda_id &&
+            item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+            item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
+            getFechamentoCategoria(item) === categoria
+          )),
         )
         .sort((a, b) => {
           const updatedDiff = new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
@@ -1372,17 +1379,21 @@ const VendasPage = () => {
         if (record) {
           updates.push(updateVenda.mutateAsync({ id: record.venda.id, ...buildPayload(item) }));
           updates.push(record.fechamento
-            ? updateFechamento.mutateAsync({ id: record.fechamento.id, ...buildFechamentoPayload(item, record.fechamento.observacao) })
-            : createFechamento.mutateAsync(buildFechamentoPayload(item)));
+            ? updateFechamento.mutateAsync({ id: record.fechamento.id, venda_id: record.venda.id, ...buildFechamentoPayload(item, record.fechamento.observacao) })
+            : createFechamento.mutateAsync({ ...buildFechamentoPayload(item), venda_id: record.venda.id }));
           if (item.criativo.trim()) {
             updates.push(record.criativo
               ? updateCriativoVenda.mutateAsync({ id: record.criativo.id, ...buildCriativoPayload(item) })
               : createCriativoVenda.mutateAsync(buildCriativoPayload(item)));
           }
         } else if (item.produto || item.servico || Number(item.valor || 0)) {
-          updates.push(createVenda.mutateAsync(buildPayload(item)));
-          updates.push(createFechamento.mutateAsync(buildFechamentoPayload(item)));
-          if (item.criativo.trim()) updates.push(createCriativoVenda.mutateAsync(buildCriativoPayload(item)));
+          updates.push((async () => {
+            const novaVenda = await createVenda.mutateAsync(buildPayload(item));
+            await Promise.all([
+              createFechamento.mutateAsync({ ...buildFechamentoPayload(item), venda_id: novaVenda.id }),
+              ...(item.criativo.trim() ? [createCriativoVenda.mutateAsync(buildCriativoPayload(item))] : []),
+            ]);
+          })());
         }
       });
       Promise.all(updates)
@@ -1407,11 +1418,13 @@ const VendasPage = () => {
         return;
       }
 
-      Promise.all(saleItems.flatMap((item) => [
-        createVenda.mutateAsync(buildPayload(item)),
-        createFechamento.mutateAsync(buildFechamentoPayload(item)),
-        ...(item.criativo ? [createCriativoVenda.mutateAsync(buildCriativoPayload(item))] : []),
-      ]))
+      Promise.all(saleItems.map(async (item) => {
+        const novaVenda = await createVenda.mutateAsync(buildPayload(item));
+        await Promise.all([
+          createFechamento.mutateAsync({ ...buildFechamentoPayload(item), venda_id: novaVenda.id }),
+          ...(item.criativo ? [createCriativoVenda.mutateAsync(buildCriativoPayload(item))] : []),
+        ]);
+      }))
         .then(() => {
           toast({ title: saleItems.length > 1 ? "Vendas registradas!" : "Venda registrada!" });
           setDialogOpen(false);
