@@ -169,12 +169,11 @@ const PagamentosPage = () => {
       return instrutoresValidos.some((i) => inst.startsWith(normalizeName(i)));
     });
 
-    // 1) TODAS as vendas (qualquer vendedor/produto/serviço), exceto Indicação Direta
+    // 1) Todas as vendas lançadas no período, independentemente da origem.
     const linhasVendas: LinhaCurso[] = vendas
       .filter((v) => {
         if (getMonthKey(v.data) !== mesFilter) return false;
         if (!filterByDateRange(v.data, dateFrom, dateTo)) return false;
-        if (normalizeName(v.origem || "") === "indicacao direta") return false;
         return true;
       })
       .map((v) => {
