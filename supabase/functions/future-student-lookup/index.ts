@@ -11,7 +11,7 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { cpf } = await request.json().catch(() => ({}));
+    const { cpf, course } = await request.json().catch(() => ({}));
     const cpfLimpo = cleanDigits(cpf);
     if (cpfLimpo.length !== 11) {
       return new Response(JSON.stringify({ error: "Informe um CPF com 11 dígitos." }), {
@@ -27,7 +27,7 @@ Deno.serve(async (request) => {
 
     const { data: student, error: studentError } = await supabase
       .from("alunos_futuros")
-      .select("id,nome,telefone,cpf,curso,itens,valor_sinal")
+      .select("id,nome,telefone,cpf,curso,itens,valor_sinal,data_nascimento,email,instagram,cep,cidade,endereco,nome_certificado")
       .eq("cpf_limpo", cpfLimpo)
       .maybeSingle();
     if (studentError) throw studentError;
@@ -41,7 +41,7 @@ Deno.serve(async (request) => {
     const [{ data: survey }, { data: bookings }] = await Promise.all([
       supabase
         .from("survey_responses")
-        .select("email,instagram,nome,whatsapp")
+        .select("email,instagram,nome,whatsapp,data_nascimento,cep,cidade,endereco")
         .eq("cpf", student.cpf)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -55,17 +55,26 @@ Deno.serve(async (request) => {
 
     const booking = (bookings || []).find((row) => cleanDigits(row.phone) === phone);
     const items = Array.isArray(student.itens) ? student.itens : [];
-    const signal = items.reduce((total: number, item: Record<string, unknown>) => total + Number(item.valor_sinal || 0), 0)
-      || Number(student.valor_sinal || 0);
+    const courseItem = course ? items.find((item: Record<string, unknown>) => item.nome === course) : null;
+    const registeredCourse = !course || Boolean(courseItem) || student.curso === course;
+    const signal = courseItem
+      ? Number((courseItem as Record<string, unknown>).valor_sinal || 0)
+      : items.reduce((total: number, item: Record<string, unknown>) => total + Number(item.valor_sinal || 0), 0)
+        || Number(student.valor_sinal || 0);
 
     return new Response(JSON.stringify({
       found: true,
       studentId: student.id,
+      registeredCourse,
       name: student.nome || booking?.student_name || survey?.nome || "",
       phone: phone || cleanDigits(booking?.phone || survey?.whatsapp),
-      email: booking?.email || survey?.email || "",
-      instagram: booking?.instagram || survey?.instagram || "",
-      certificateName: booking?.certificate_name || student.nome || "",
+      birthDate: student.data_nascimento || survey?.data_nascimento || "",
+      email: student.email || booking?.email || survey?.email || "",
+      instagram: student.instagram || booking?.instagram || survey?.instagram || "",
+      cep: student.cep || survey?.cep || "",
+      city: student.cidade || survey?.cidade || "",
+      address: student.endereco || survey?.endereco || "",
+      certificateName: student.nome_certificado || booking?.certificate_name || student.nome || "",
       signalValue: signal,
       course: student.curso || "",
     }), {

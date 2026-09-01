@@ -75,8 +75,8 @@ export default function BookingPublic() {
   const [availabilityError, setAvailabilityError] = useState("");
   const [availabilityReload, setAvailabilityReload] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "55", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
-  const [errors, setErrors] = useState({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+  const [form, setForm] = useState({ name: "", birthDate: "", email: "", phone: "55", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+  const [errors, setErrors] = useState({ name: "", birthDate: "", email: "", phone: "", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [intendedTime, setIntendedTime] = useState<"15_dias" | "30_dias">("15_dias");
@@ -267,16 +267,20 @@ export default function BookingPublic() {
   };
 
   const validate = () => {
-    const e = { name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" };
+    const e = { name: "", birthDate: "", email: "", phone: "", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" };
     if (!form.name.trim()) e.name = "Nome é obrigatório";
+    if (!form.birthDate) e.birthDate = "Data de nascimento é obrigatória";
     if (!form.email.trim()) e.email = "E-mail é obrigatório";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = "E-mail inválido";
     if (!form.phone.trim() || form.phone.length < 12) e.phone = "Telefone deve ter pelo menos 12 dígitos (55 + DDD + número)";
     const cleanCpf = form.cpf.replace(/\D/g, "");
     if (cleanCpf.length !== 11) e.cpf = "Informe um CPF com 11 dígitos";
+    if (form.cep.replace(/\D/g, "").length !== 8) e.cep = "Informe um CEP com 8 dígitos";
+    if (!form.city.trim()) e.city = "Cidade é obrigatória";
+    if (!form.address.trim()) e.address = "Endereço é obrigatório";
     if (parseMoney(form.signalValue) <= 0) e.signalValue = "Informe o valor do sinal pago";
     setErrors(e);
-    return !e.name && !e.email && !e.phone && !e.cpf && !e.signalValue;
+    return !e.name && !e.birthDate && !e.email && !e.phone && !e.cpf && !e.cep && !e.city && !e.address && !e.signalValue;
   };
 
   const lookupRegistration = async () => {
@@ -285,7 +289,7 @@ export default function BookingPublic() {
     setLookupLoading(true);
     setLookupMessage("");
     try {
-      const { data, error } = await supabase.functions.invoke("future-student-lookup", { body: { cpf } });
+      const { data, error } = await supabase.functions.invoke("future-student-lookup", { body: { cpf, course: selectedCourse } });
       if (error) throw error;
       if (!data?.found) {
         setExistingRegistration(false);
@@ -295,14 +299,18 @@ export default function BookingPublic() {
       setForm((current) => ({
         ...current,
         name: data.name || current.name,
+        birthDate: data.birthDate || current.birthDate,
         phone: data.phone || current.phone,
         email: data.email || current.email,
         instagram: data.instagram || current.instagram,
+        cep: data.cep || current.cep,
+        city: data.city || current.city,
+        address: data.address || current.address,
         certificateName: data.certificateName || data.name || current.certificateName,
         signalValue: Number(data.signalValue || 0) > 0 ? currencyFormatter.format(Number(data.signalValue)) : current.signalValue,
       }));
-      setExistingRegistration(true);
-      setErrors({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+      setExistingRegistration(data.registeredCourse !== false);
+      setErrors({ name: "", birthDate: "", email: "", phone: "", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
       setLookupMessage(data.email ? "Cadastro localizado. Seus dados foram preenchidos." : "Cadastro localizado. Confirme apenas o e-mail antes de escolher a data.");
     } catch (error) {
       setExistingRegistration(false);
@@ -319,6 +327,13 @@ export default function BookingPublic() {
       p_cpf: form.cpf.trim(),
       p_curso: selectedCourse,
       p_valor_sinal: parseMoney(form.signalValue),
+      p_data_nascimento: form.birthDate,
+      p_email: form.email.trim(),
+      p_instagram: form.instagram.trim(),
+      p_cep: form.cep.trim(),
+      p_cidade: form.city.trim(),
+      p_endereco: form.address.trim(),
+      p_nome_certificado: form.certificateName.trim() || form.name.trim(),
       p_prazo: prazo,
       p_observacao: [
         `Curso: ${selectedCourseInfo?.label || selectedCourse}`,
@@ -327,6 +342,8 @@ export default function BookingPublic() {
       ].filter(Boolean).join("\n"),
     } as any);
     if (error) throw error;
+
+    if (existingRegistration) return;
 
     const { error: notificationError } = await supabase.functions.invoke("notify-new-student", {
       body: { studentId, course: selectedCourse },
@@ -340,7 +357,7 @@ export default function BookingPublic() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      if (!existingRegistration) await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
       localStorage.setItem(SAVED_REGISTRATION_KEY, JSON.stringify({ course: selectedCourse, form }));
       setSubmitting(false);
       setStep(scheduleNow ? "date" : "registered");
@@ -496,8 +513,8 @@ export default function BookingPublic() {
   const reset = () => {
     setStep(lockedCourse ? "form" : "course"); setSelectedCourse(lockedCourse?.id || ""); setSelectedShift(null); setSelectedDate(null);
     if (!lockedCourse) setDateShifts([]);
-    setForm({ name: "", email: "", phone: "55", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
-    setErrors({ name: "", email: "", phone: "", cpf: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+    setForm({ name: "", birthDate: "", email: "", phone: "55", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
+    setErrors({ name: "", birthDate: "", email: "", phone: "", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
     setIntendedTime("15_dias");
   };
 
@@ -793,6 +810,11 @@ export default function BookingPublic() {
                   {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
                 </div>
                 <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Data de nascimento <span className="text-destructive">*</span></label>
+                  <Input type="date" value={form.birthDate} onChange={e => { setForm({ ...form, birthDate: e.target.value }); setErrors({ ...errors, birthDate: "" }); }} max={format(new Date(), "yyyy-MM-dd")} className={errors.birthDate ? "border-destructive" : ""} />
+                  {errors.birthDate && <p className="text-xs text-destructive mt-1">{errors.birthDate}</p>}
+                </div>
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium">E-mail <span className="text-destructive">*</span></label>
                   <Input
                     type="email"
@@ -819,6 +841,21 @@ export default function BookingPublic() {
                   />
                   <p className="text-xs text-muted-foreground mt-1">Formato: 55 + DDD + número (ex: 5551999999999)</p>
                   {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">CEP <span className="text-destructive">*</span></label>
+                  <Input value={form.cep} onChange={e => { const digits = e.target.value.replace(/\D/g, "").slice(0, 8); const masked = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits; setForm({ ...form, cep: masked }); setErrors({ ...errors, cep: "" }); }} inputMode="numeric" placeholder="00000-000" className={errors.cep ? "border-destructive" : ""} />
+                  {errors.cep && <p className="text-xs text-destructive mt-1">{errors.cep}</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Cidade <span className="text-destructive">*</span></label>
+                  <Input value={form.city} onChange={e => { setForm({ ...form, city: e.target.value }); setErrors({ ...errors, city: "" }); }} placeholder="Sua cidade" className={errors.city ? "border-destructive" : ""} />
+                  {errors.city && <p className="text-xs text-destructive mt-1">{errors.city}</p>}
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-sm font-medium">Endereço completo <span className="text-destructive">*</span></label>
+                  <Input value={form.address} onChange={e => { setForm({ ...form, address: e.target.value }); setErrors({ ...errors, address: "" }); }} placeholder="Rua, bairro, número e complemento" className={errors.address ? "border-destructive" : ""} />
+                  {errors.address && <p className="text-xs text-destructive mt-1">{errors.address}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Valor do sinal pago <span className="text-destructive">*</span></label>

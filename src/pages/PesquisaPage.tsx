@@ -89,6 +89,7 @@ type FormData = {
   nota_indicacao: number;
   nome: string;
   cpf: string;
+  data_nascimento: string;
   cep: string;
   cidade: string;
   email: string;
@@ -120,6 +121,7 @@ const initialForm: FormData = {
   nota_indicacao: 8,
   nome: "",
   cpf: "",
+  data_nascimento: "",
   cep: "",
   cidade: "",
   email: "",
@@ -207,12 +209,13 @@ const PesquisaPage = () => {
         ...current,
         cpf,
         nome: registration.name || current.nome,
+        data_nascimento: registration.birthDate || current.data_nascimento,
         whatsapp: registration.phone || current.whatsapp,
         cep: registration.cep || current.cep,
-        cidade: registration.cidade || current.cidade,
+        cidade: registration.city || current.cidade,
         email: registration.email || current.email,
         instagram: registration.instagram || current.instagram,
-        endereco: registration.endereco || current.endereco,
+        endereco: registration.address || current.endereco,
         curso_realizado: registration.cursoRealizado || registration.course || current.curso_realizado,
         data_curso: formatLocalDate(new Date()),
       }));
@@ -268,6 +271,7 @@ const PesquisaPage = () => {
     if (s === 0) {
       if (!form.nome.trim()) return "Preencha seu nome completo";
       if (!form.cpf.trim()) return "Preencha seu CPF";
+      if (!form.data_nascimento) return "Preencha sua data de nascimento";
       if (!form.cep.trim()) return "Preencha seu CEP";
       if (!form.cidade.trim()) return "Preencha sua cidade";
       if (!form.email.trim()) return "Preencha seu e-mail";
@@ -314,6 +318,7 @@ const PesquisaPage = () => {
       const { error } = await supabase.from("survey_responses").insert({
         nome: form.nome,
         cpf: form.cpf || null,
+        data_nascimento: form.data_nascimento || null,
         cep: form.cep || null,
         cidade: form.cidade || null,
         email: form.email || null,
@@ -408,6 +413,10 @@ const PesquisaPage = () => {
               <div>
                 <Label className="text-sm font-semibold text-foreground mb-1.5 block">Nome completo *</Label>
                 <Input value={form.nome} onChange={(e) => set("nome", e.target.value)} className="bg-secondary/30 border-border/40" />
+              </div>
+              <div>
+                <Label className="text-sm font-semibold text-foreground mb-1.5 block">Data de nascimento *</Label>
+                <Input type="date" value={form.data_nascimento} onChange={(e) => set("data_nascimento", e.target.value)} max={formatLocalDate(new Date())} className="bg-secondary/30 border-border/40" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
