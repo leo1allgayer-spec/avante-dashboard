@@ -18,6 +18,7 @@ const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat("p
 
 type StudentRecord = {
   key: string;
+  createdAt: string;
   student?: FutureStudent;
   survey?: SurveyResponse;
   name: string;
@@ -56,7 +57,9 @@ export default function StudentDataPage() {
         .map((item) => ({ tipo: item.tipo, nome: item.nome, valor_sinal: Number(item.valor_sinal || 0), valor_pendente: Number(item.valor_pendente || 0) }));
       const profile = student as FutureStudent & { data_nascimento?: string | null; email?: string | null; instagram?: string | null; cep?: string | null; cidade?: string | null; endereco?: string | null };
       return {
-        key: student.id, student, survey,
+        key: student.id,
+        createdAt: [student.created_at, survey?.created_at || ""].sort().at(-1) || student.created_at,
+        student, survey,
         name: student.nome || survey?.nome || "Aluno sem nome",
         cpf: student.cpf || survey?.cpf || "",
         phone: student.telefone || survey?.whatsapp || "",
@@ -78,9 +81,9 @@ export default function StudentDataPage() {
       const cpf = cleanCpf(survey.cpf);
       const name = normalizeName(survey.nome);
       if ((cpf && existingCpf.has(cpf)) || (!cpf && existingNames.has(name))) return;
-      result.push({ key: `survey-${survey.id}`, survey, name: survey.nome || "Aluno sem nome", cpf: survey.cpf || "", phone: survey.whatsapp || "", email: survey.email || "", birthDate: survey.data_nascimento || "", instagram: survey.instagram || "", cep: survey.cep || "", city: survey.cidade || "", address: survey.endereco || "", items: survey.curso_realizado ? [{ tipo: "curso", nome: survey.curso_realizado, valor_sinal: 0, valor_pendente: 0 }] : [], paid: 0, pending: 0 });
+      result.push({ key: `survey-${survey.id}`, createdAt: survey.created_at, survey, name: survey.nome || "Aluno sem nome", cpf: survey.cpf || "", phone: survey.whatsapp || "", email: survey.email || "", birthDate: survey.data_nascimento || "", instagram: survey.instagram || "", cep: survey.cep || "", city: survey.cidade || "", address: survey.endereco || "", items: survey.curso_realizado ? [{ tipo: "curso", nome: survey.curso_realizado, valor_sinal: 0, valor_pendente: 0 }] : [], paid: 0, pending: 0 });
     });
-    return result.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    return result.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [students, surveys]);
 
   const filtered = useMemo(() => {
