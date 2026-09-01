@@ -622,8 +622,12 @@ const VendasPage = () => {
         )
         .map((booking) => booking.date))]
         .sort();
-      const comissaoTotal = itens.reduce((total, item) => total + Number(item.comissao || 0), 0);
       const comissaoPaga = itens.reduce((total, item) => total + getPaidCommissionValue(item), 0);
+      const comissaoCalculadaSobreRecebido = itens.reduce((total, item) => {
+        const share = valorTotal > 0 ? Math.max(Number(item.valor || 0), 0) / valorTotal : 0;
+        return total + sinalBruto * share * getSalesCommissionRate(item.origem);
+      }, 0);
+      const comissaoTotal = Math.max(comissaoPaga, comissaoCalculadaSobreRecebido);
 
       return {
         chave,
@@ -691,19 +695,37 @@ const VendasPage = () => {
   const updateCommissionStatus = async (items: Venda[], status_comissao: string) => {
     try {
       const paidAt = new Date().toISOString().split("T")[0];
-      await Promise.all(items.map((item) => updateVenda.mutateAsync({
-        id: item.id,
-        status_comissao,
-        ...(status_comissao === "paga" ? {
-          comissao_paga_valor: Number(item.comissao || 0),
-          data_ultimo_pagamento_comissao: paidAt,
-        } : {
-          // Uma nova entrada pode gerar comissão pendente, mas nunca apaga o
-          // valor que já foi efetivamente pago sobre o sinal.
-          comissao_paga_valor: getPaidCommissionValue(item),
-          data_ultimo_pagamento_comissao: item.data_ultimo_pagamento_comissao || null,
-        }),
-      })));
+      const totalSold = items.reduce((sum, item) => sum + Math.max(Number(item.valor || 0), 0), 0);
+      const reference = items[0];
+      const totalCollected = Math.min(
+        totalSold,
+        fechamentos
+          .filter((closing) =>
+            normalizeFechamentoStatus(closing.status) !== "cancelado" &&
+            normalizeText(closing.cliente) === normalizeText(reference?.cliente) &&
+            normalizeText(closing.vendedor) === normalizeText(reference?.vendedor),
+          )
+          .reduce((sum, closing) => sum + Math.max(Number(closing.valor_sinal || 0), 0), 0),
+      );
+      await Promise.all(items.map((item) => {
+        const share = totalSold > 0 ? Math.max(Number(item.valor || 0), 0) / totalSold : 0;
+        const effectiveCommission = +(totalCollected * share * getSalesCommissionRate(item.origem)).toFixed(2);
+        const alreadyPaid = getPaidCommissionValue(item);
+        return updateVenda.mutateAsync({
+          id: item.id,
+          comissao: Math.max(effectiveCommission, alreadyPaid),
+          status_comissao,
+          ...(status_comissao === "paga" ? {
+            comissao_paga_valor: Math.max(effectiveCommission, alreadyPaid),
+            data_ultimo_pagamento_comissao: paidAt,
+          } : {
+            // Uma nova entrada pode gerar comissão pendente, mas nunca apaga o
+            // valor que já foi efetivamente pago sobre o sinal.
+            comissao_paga_valor: alreadyPaid,
+            data_ultimo_pagamento_comissao: item.data_ultimo_pagamento_comissao || null,
+          }),
+        });
+      }));
       toast({ title: status_comissao === "paga" ? "Comissão marcada como paga" : "Comissão marcada como pendente" });
     } catch (error) {
       toast({ title: "Erro ao atualizar comissão", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
