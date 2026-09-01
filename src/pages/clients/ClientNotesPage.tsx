@@ -330,7 +330,7 @@ export default function ClientNotesPage() {
               <Input className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente..." />
             </div>
           </CardHeader>
-          <CardContent className="max-h-[68vh] space-y-1 overflow-y-auto">
+          <CardContent data-lenis-prevent className="max-h-[68vh] touch-pan-y space-y-1 overflow-y-auto overscroll-contain">
             {loading && <p className="p-3 text-sm text-muted-foreground">Carregando clientes...</p>}
             {filteredClients.map((client) => (
               <button
