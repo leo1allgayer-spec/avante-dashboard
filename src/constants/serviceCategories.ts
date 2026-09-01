@@ -40,7 +40,7 @@ const normalizeCategoryText = (value?: string | null) =>
 const CATEGORY_ALIASES: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "Curso de Meta Ads", aliases: ["curso de meta ads", "meta ads", "curso meta ads"] },
   { canonical: "Curso Meta Ads Avançado", aliases: ["curso meta ads avancado", "curso de meta ads avancado", "meta ads avancado", "gestor pro", "curso de trafego gestor pro"] },
-  { canonical: "Curso Google Ads", aliases: ["curso google ads", "google ads"] },
+  { canonical: "Curso Google Ads", aliases: ["curso google ads", "curso de google ads", "google ads"] },
   { canonical: "Curso de Social Midia", aliases: ["curso de social midia", "curso de social media", "curso social midia", "curso social media", "social media", "social midia"] },
   { canonical: "Curso de IA", aliases: ["curso de ia", "curso ia", "ia"] },
   { canonical: "Curso Canva para Empreendedores", aliases: ["curso canva para empreendedores", "curso canva", "curso de canva", "canva"] },
