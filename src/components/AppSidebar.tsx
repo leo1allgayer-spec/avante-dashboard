@@ -95,6 +95,7 @@ export function AppSidebar() {
     ? [
         { title: "Cursos Google Ads", url: "/tasks", icon: GraduationCap },
         { title: "Clientes Google Ads", url: "/clientes-google-ads", icon: Users2 },
+        { title: "Dias disponíveis", url: "/admin/agendamentos", icon: Calendar },
         { title: "Kanban Social Media", url: "/kanban-social-media", icon: KanbanSquare },
         { title: "Kanban Sites", url: "/kanban-sites", icon: KanbanSquare },
         { title: "Kanban CRM", url: "/kanban-crm", icon: KanbanSquare },

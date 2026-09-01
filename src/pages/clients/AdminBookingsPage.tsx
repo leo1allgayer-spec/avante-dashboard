@@ -35,6 +35,7 @@ import { EditableCell } from "@/components/clients/EditableCell";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
+import { isGoogleTasksOnlyUser } from "@/lib/accessControl";
 
 const COURSES = [
   "Curso Meta Ads",
@@ -101,6 +102,9 @@ export default function AdminBookings() {
     "leonardowebster.ja@gmail.com",
   ];
   const isAdmin = !!session?.user?.email && BOOKINGS_ADMINS.includes(session.user.email);
+  const isHenrique = isGoogleTasksOnlyUser(session?.user?.email);
+  const canManageWeekdays = isAdmin || isHenrique;
+  const weekdayCourses = isHenrique ? ["Curso Google Ads"] : COURSES;
   const { blockedDates, loading: blockedLoading, blockDate, unblockDate, isDateBlocked, getBlocksForDate } = useBlockedDates();
   const { bookings, loading: bookingsLoading, updateBooking, deleteBooking, refetch: refetchBookings } = useCourseBookings();
   const { loading: disabledLoading, toggleDay, isDayDisabled, isShiftOnlyDisabled } = useDisabledDays();
@@ -334,6 +338,7 @@ export default function AdminBookings() {
       subtitle="Gerenciamento de disponibilidade, turmas e logs do WhatsApp"
     >
       <div className="space-y-6">
+        {!isHenrique && <>
         <div className="flex flex-wrap items-center gap-3">
           <Select value={filterCourse} onValueChange={v => setFilterCourse(v === "all" ? "" : v)}>
             <SelectTrigger className="w-[250px]"><SelectValue placeholder="Filtrar por curso" /></SelectTrigger>
@@ -386,14 +391,16 @@ export default function AdminBookings() {
           </Card>
         </div>
 
-        <Tabs defaultValue={isAdmin ? "availability" : "bookings"} className="space-y-4">
+        </>}
+
+        <Tabs defaultValue={isHenrique ? "weekdays" : isAdmin ? "availability" : "bookings"} className="space-y-4">
           <div className="w-full overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsList className="h-auto min-w-max flex-nowrap justify-start">
             {isAdmin && <TabsTrigger value="availability" className="shrink-0 gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Disponibilidade</TabsTrigger>}
-            {isAdmin && <TabsTrigger value="weekdays" className="shrink-0 gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Dias da Semana</TabsTrigger>}
-            <TabsTrigger value="bookings" className="shrink-0 gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Agendamentos</TabsTrigger>
+            {canManageWeekdays && <TabsTrigger value="weekdays" className="shrink-0 gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Dias da Semana</TabsTrigger>}
+            {!isHenrique && <TabsTrigger value="bookings" className="shrink-0 gap-1.5"><ClipboardList className="h-3.5 w-3.5" /> Agendamentos</TabsTrigger>}
             {isAdmin && <TabsTrigger value="whatsapp-templates" className="shrink-0 gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Mensagens</TabsTrigger>}
-            <TabsTrigger value="whatsapp-logs" className="shrink-0 gap-1.5"><Send className="h-3.5 w-3.5" /> Logs de Envio</TabsTrigger>
+            {!isHenrique && <TabsTrigger value="whatsapp-logs" className="shrink-0 gap-1.5"><Send className="h-3.5 w-3.5" /> Logs de Envio</TabsTrigger>}
             {isAdmin && <TabsTrigger value="settings" className="shrink-0 gap-1.5"><Settings className="h-3.5 w-3.5" /> Configurações</TabsTrigger>}
           </TabsList>
           </div>
@@ -583,7 +590,7 @@ export default function AdminBookings() {
                   Controle a disponibilidade por dia inteiro ou por turno individual. Itens desativados não aparecerão para os alunos.
                 </p>
                 <div className="space-y-4">
-                  {COURSES.map(course => (
+                  {weekdayCourses.map(course => (
                     <div key={course} className="border rounded-lg p-4">
                       <h3 className="text-sm font-semibold mb-3">{course}</h3>
                       <div className="overflow-x-auto">
