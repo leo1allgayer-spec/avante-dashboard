@@ -502,7 +502,7 @@ const VendasPage = () => {
       if (!dateInRange(v.data || getLocalCreatedDate(v.created_at)) && !hasRelatedFinancialActivity) return false;
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
-      if ((statusFilter === "paga" || statusFilter === "pendente") && v.status === "cancelada") return false;
+      if (statusFilter !== "cancelada" && v.status === "cancelada") return false;
       if (vendedorFilter !== "todos" && v.vendedor !== vendedorFilter) return false;
       if (pagamentoFilter !== "todos" && v.pagamento !== pagamentoFilter) return false;
       if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
@@ -575,12 +575,16 @@ const VendasPage = () => {
     });
 
     return [...grupos.entries()].map(([chave, itens]) => {
+      const vendaIdsDoGrupo = new Set(itens.map((item) => item.id));
       const itensOrdenados = [...itens].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       const itensConsolidados = new Map<string, Venda>();
       itensOrdenados.forEach((item) => {
         const categoryKey = normalizeText(getVendaCategoria(item));
         const previous = itensConsolidados.get(categoryKey);
-        const isLinkedDuplicate = previous && Boolean(previous.aluno_futuro_id) !== Boolean(item.aluno_futuro_id);
+        const isLinkedDuplicate = previous && (
+          Boolean(previous.aluno_futuro_id) !== Boolean(item.aluno_futuro_id) ||
+          (Boolean(previous.aluno_futuro_id) && previous.aluno_futuro_id === item.aluno_futuro_id)
+        );
         if (!previous) {
           itensConsolidados.set(categoryKey, item);
         } else if (isLinkedDuplicate) {
@@ -609,18 +613,15 @@ const VendasPage = () => {
       // os indicadores, não ao localizar o registro financeiro da venda.
       const fechamentosRelacionados = fechamentos.filter((item) =>
         normalizeFechamentoStatus(item.status) !== "cancelado" &&
-        item.cliente.trim().toLowerCase() === principal.cliente.trim().toLowerCase() &&
-        item.vendedor.trim().toLowerCase() === principal.vendedor.trim().toLowerCase() &&
-        categoriasGrupo.has(normalizeText(getFechamentoCategoria(item))),
+        (item.venda_id
+          ? vendaIdsDoGrupo.has(item.venda_id)
+          : normalizeText(item.cliente) === normalizeText(principal.cliente) &&
+            normalizeText(item.vendedor) === normalizeText(principal.vendedor) &&
+            categoriasGrupo.has(normalizeText(getFechamentoCategoria(item)))),
       );
-      // O histórico legado nem sempre possui a mesma grafia de categoria. Para
-      // valores já pagos, usamos a mesma consolidação por cliente/vendedor da
-      // tela de Pagamentos; a categoria exata continua valendo para previsões.
-      const fechamentosFinanceirosCliente = fechamentos.filter((item) =>
-        normalizeFechamentoStatus(item.status) !== "cancelado" &&
-        normalizeText(item.cliente) === normalizeText(principal.cliente) &&
-        normalizeText(item.vendedor) === normalizeText(principal.vendedor),
-      );
+      // Fechamentos novos pertencem ao grupo pelo ID da venda. Nome, vendedor e
+      // categoria ficam apenas como compatibilidade para registros antigos.
+      const fechamentosFinanceirosCliente = fechamentosRelacionados;
       const closingTotals = getConsolidatedClosingTotals(fechamentosFinanceirosCliente);
       const sinalBruto = Math.min(valorTotal, closingTotals.gross);
       const sinalLiquido = Math.min(sinalBruto, closingTotals.net);
@@ -638,7 +639,12 @@ const VendasPage = () => {
       const coletadoPeriodo = paymentHistory
         .filter((entry) => dateInRange(entry.date))
         .reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0);
-      const aReceberPeriodo = fechamentosRelacionados.reduce((total, item) => total + getAReceberNoPeriodo(item), 0);
+      const aReceberPorCategoria = new Map<string, number>();
+      fechamentosRelacionados.forEach((item) => {
+        const categoryKey = normalizeText(getFechamentoCategoria(item));
+        aReceberPorCategoria.set(categoryKey, Math.max(aReceberPorCategoria.get(categoryKey) || 0, getAReceberNoPeriodo(item)));
+      });
+      const aReceberPeriodo = [...aReceberPorCategoria.values()].reduce((total, valor) => total + valor, 0);
       const previsoesRecebimento = [...new Set(fechamentosRelacionados
         .flatMap((item) => getStoredParcelDates(item).length ? getStoredParcelDates(item) : [item.previsao_entrada])
         .filter((date): date is string => Boolean(date)))]
