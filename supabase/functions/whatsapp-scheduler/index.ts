@@ -61,7 +61,17 @@ function isReminderForCurrentBooking(msg: any, booking: any): boolean {
 
   const expected = courseDateTime.getTime() - offset;
   // Small tolerance for rows created with seconds/milliseconds differences.
-  return Math.abs(scheduledFor.getTime() - expected) <= 2 * 60 * 1000;
+  if (Math.abs(scheduledFor.getTime() - expected) <= 2 * 60 * 1000) return true;
+
+  // When a booking is created or rescheduled with less than 24 hours left,
+  // the 24h reminder is intentionally queued for immediate delivery.
+  if (msg.message_type === "reminder_24h" && scheduledFor.getTime() > expected && scheduledFor < courseDateTime) {
+    const createdAt = new Date(msg.created_at);
+    return !Number.isNaN(createdAt.getTime())
+      && Math.abs(createdAt.getTime() - scheduledFor.getTime()) <= 5 * 60 * 1000;
+  }
+
+  return false;
 }
 
 Deno.serve(async (req) => {
