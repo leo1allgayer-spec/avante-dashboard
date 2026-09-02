@@ -393,41 +393,6 @@ const PagamentosPage = () => {
             </CardContent>
           </Card>
 
-          {/* Comissão recorrente dos clientes ativos */}
-          {showClientCommissions && (
-            <Card className="bg-card/80 backdrop-blur border-border/40">
-              <CardHeader>
-                <CardTitle className="text-base">Comissão dos Clientes</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {clientsLoading ? (
-                  <div className="flex items-center justify-center py-12"><div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>
-                ) : clientCommissions.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">Nenhum cliente ativo com comissão cadastrada.</div>
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center justify-end gap-4 border-b border-border/30 bg-muted/30 px-4 py-2 text-xs">
-                      <span>Comissão individual: <span className="font-semibold text-emerald-400">{formatBRL(totalClientCommission)}</span></span>
-                      <span>Divisão: <span className="font-semibold">comissão cadastrada / {DIVISOR_COMISSAO_CLIENTES}</span></span>
-                    </div>
-                    <Table>
-                      <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Gestor</TableHead><TableHead>Dia do pagamento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Comissão cadastrada</TableHead><TableHead className="text-right">Comissão individual (÷ 3)</TableHead></TableRow></TableHeader>
-                      <TableBody>{clientCommissions.map((client) => (
-                        <TableRow key={client.id}>
-                          <TableCell className="text-sm font-medium">{client.cliente}</TableCell>
-                          <TableCell className="text-sm">{client.gestor || "—"}</TableCell>
-                          <TableCell className="text-sm">Dia {client.diaPagamento || "—"}</TableCell>
-                          <TableCell className="text-sm capitalize">{client.statusPagamento}</TableCell>
-                          <TableCell className="text-right text-sm font-semibold">{formatBRL(client.comissaoTotal)}</TableCell>
-                          <TableCell className="text-right text-sm font-semibold text-emerald-400">{formatBRL(client.comissaoIndividual)}</TableCell>
-                        </TableRow>
-                      ))}</TableBody>
-                    </Table>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
           {/* Comissão de Vendas */}
           {showCursosTable && (
             <Card className="bg-card/80 backdrop-blur border-border/40">
@@ -528,6 +493,41 @@ const PagamentosPage = () => {
             </Card>
           )}
 
+          {/* Comissão recorrente dos clientes ativos */}
+          {showClientCommissions && (
+            <Card className="bg-card/80 backdrop-blur border-border/40">
+              <CardHeader>
+                <CardTitle className="text-base">Comissão dos Clientes</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {clientsLoading ? (
+                  <div className="flex items-center justify-center py-12"><div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>
+                ) : clientCommissions.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">Nenhum cliente ativo com comissão cadastrada.</div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center justify-end gap-4 border-b border-border/30 bg-muted/30 px-4 py-2 text-xs">
+                      <span>Comissão individual: <span className="font-semibold text-emerald-400">{formatBRL(totalClientCommission)}</span></span>
+                      <span>Divisão: <span className="font-semibold">comissão cadastrada / {DIVISOR_COMISSAO_CLIENTES}</span></span>
+                    </div>
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Gestor</TableHead><TableHead>Dia do pagamento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Comissão cadastrada</TableHead><TableHead className="text-right">Comissão individual (÷ 3)</TableHead></TableRow></TableHeader>
+                      <TableBody>{clientCommissions.map((client) => (
+                        <TableRow key={client.id}>
+                          <TableCell className="text-sm font-medium">{client.cliente}</TableCell>
+                          <TableCell className="text-sm">{client.gestor || "—"}</TableCell>
+                          <TableCell className="text-sm">Dia {client.diaPagamento || "—"}</TableCell>
+                          <TableCell className="text-sm capitalize">{client.statusPagamento}</TableCell>
+                          <TableCell className="text-right text-sm font-semibold">{formatBRL(client.comissaoTotal)}</TableCell>
+                          <TableCell className="text-right text-sm font-semibold text-emerald-400">{formatBRL(client.comissaoIndividual)}</TableCell>
+                        </TableRow>
+                      ))}</TableBody>
+                    </Table>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
           {/* Pagamentos Variáveis */}
           <PagamentosVariaveis
             pessoa={pessoaFilter}
