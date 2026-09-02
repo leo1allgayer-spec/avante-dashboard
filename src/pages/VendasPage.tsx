@@ -654,12 +654,13 @@ const VendasPage = () => {
         )
         .map((booking) => booking.date))]
         .sort();
-      const comissaoPaga = itensPorLancamento.reduce((total, item) => total + getPaidCommissionValue(item), 0);
+      const comissaoPagaRegistrada = itensPorLancamento.reduce((total, item) => total + getPaidCommissionValue(item), 0);
       const comissaoCalculadaSobreRecebido = itensPorLancamento.reduce((total, item) => {
         const share = valorTotal > 0 ? Math.max(Number(item.valor || 0), 0) / valorTotal : 0;
-        return total + sinalBruto * share * getSalesCommissionRate(item.origem);
+        return total + sinalLiquido * share * getSalesCommissionRate(item.origem);
       }, 0);
-      const comissaoTotal = Math.max(comissaoPaga, comissaoCalculadaSobreRecebido);
+      const comissaoTotal = comissaoCalculadaSobreRecebido;
+      const comissaoPaga = Math.min(comissaoPagaRegistrada, comissaoTotal);
 
       return {
         chave,
@@ -2370,6 +2371,10 @@ const VendasPage = () => {
                 const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
                 const nomesTexto = nomes.join(" · ") || "Sem produto ou serviço";
                 const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
+                const ultimoPagamento = grupo.paymentHistory[0];
+                const formaSaldo = quickPayments[grupo.chave] || v.pagamento_saldo || "PIX";
+                const parcelasSaldo = Number(quickCardInstallments[grupo.chave] || getPaymentInstallments(formaSaldo));
+                const comissaoFuturaLiquida = +(getNetPaymentValue(grupo.saldo, formaSaldo, parcelasSaldo, taxProfile) * getSalesCommissionRate(v.origem)).toFixed(2);
                 return (
                   <TableRow
                     key={grupo.chave}
@@ -2407,7 +2412,7 @@ const VendasPage = () => {
                     </TableCell>
                     <TableCell className="px-2 py-3 text-right font-semibold text-amber-500">
                       <span className="block text-[15px]">{formatBRL(grupo.saldo)}</span>
-                      <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão futura {formatBRL(grupo.saldo * getSalesCommissionRate(v.origem))}</span>
+                      <span className="mt-1 block whitespace-nowrap text-[9px] font-normal text-muted-foreground">Comissão futura {formatBRL(comissaoFuturaLiquida)}</span>
                       {grupo.pendenciaMesAnterior && grupo.saldo > 0 && (
                         <span className="mt-1 block whitespace-nowrap text-[9px] font-semibold text-amber-400">Pendente do mês passado</span>
                       )}
@@ -2420,8 +2425,8 @@ const VendasPage = () => {
                       )}
                     </TableCell>
                     <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{getSalePaymentLabel(v)}</Badge></TableCell>
-                    <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-8 px-2 text-xs" /> : <span className="text-muted-foreground">—</span>}</TableCell>
-                    <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="date" value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]} onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))} className="h-8 px-1.5 text-[11px]" /> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-8 px-2 text-xs" /> : ultimoPagamento ? <span className="text-xs font-medium text-success" title={`${grupo.paymentHistory.length} pagamento(s) registrado(s)`}>{formatBRL(ultimoPagamento.amount)}</span> : <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="date" value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]} onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))} className="h-8 px-1.5 text-[11px]" /> : ultimoPagamento ? <span className="text-xs">{formatDate(ultimoPagamento.date)}</span> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">
                       {grupo.saldo > 0 ? (
                         <div className="flex items-center gap-1">
@@ -2436,7 +2441,7 @@ const VendasPage = () => {
                             </Select>
                           )}
                         </div>
-                      ) : <span className="text-muted-foreground">—</span>}
+                      ) : ultimoPagamento ? <Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]" title={ultimoPagamento.method}>{ultimoPagamento.method}</Badge> : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Button type="button" size="sm" className="h-8 w-full px-2 text-xs" disabled={settlingSaleKey === grupo.chave} onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}>{settlingSaleKey === grupo.chave ? "..." : "Registrar"}</Button> : <Badge variant="secondary" className="px-2 text-[10px]">Quitado</Badge>}</TableCell>
                     <TableCell className="px-2 py-3"><Badge className="max-w-full truncate px-1.5 text-[9px]" variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}>{statusVenda === "paga" ? "pago" : statusVenda}</Badge></TableCell>
