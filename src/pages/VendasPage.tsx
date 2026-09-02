@@ -491,15 +491,10 @@ const VendasPage = () => {
 
   const filtered = useMemo(() => {
     return vendas.filter((v) => {
-      const categoria = normalizeText(getVendaCategoria(v));
-      const hasRelatedFinancialActivity = fechamentos.some((item) =>
-        normalizeFechamentoStatus(item.status) !== "cancelado" &&
-        normalizeText(item.cliente) === normalizeText(v.cliente) &&
-        normalizeText(item.vendedor) === normalizeText(v.vendedor) &&
-        normalizeText(getFechamentoCategoria(item)) === categoria &&
-        (dateInRange(item.data || getLocalCreatedDate(item.created_at)) || hasPaymentInRange(item) || isCarriedOverReceivable(item))
-      );
-      if (!dateInRange(v.data || getLocalCreatedDate(v.created_at)) && !hasRelatedFinancialActivity) return false;
+      // A planilha de vendas representa lançamentos feitos no período. Uma
+      // movimentação financeira posterior continua nos totais, mas não deve
+      // fazer a venda antiga reaparecer como venda do mês selecionado.
+      if (!dateInRange(v.data || getLocalCreatedDate(v.created_at))) return false;
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
       if (statusFilter !== "cancelada" && v.status === "cancelada") return false;
@@ -508,7 +503,7 @@ const VendasPage = () => {
       if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
       return true;
     });
-  }, [vendas, fechamentos, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.range.start, dateFilter.range.end]);
+  }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.range.start, dateFilter.range.end]);
 
   const fechamentosFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
