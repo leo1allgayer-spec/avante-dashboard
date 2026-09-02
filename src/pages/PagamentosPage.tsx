@@ -10,6 +10,7 @@ import { useVendas } from "@/hooks/useVendas";
 import { useCursosDados } from "@/hooks/useCursosDados";
 import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { usePagamentosVariaveis } from "@/hooks/usePagamentosVariaveis";
+import { useClients } from "@/hooks/clients/useGestaoClients";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +33,8 @@ const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonard
 const PESSOAS_COM_TABELA_CURSOS_DADOS = ["Leonardo Allgayer", "Lucas Pilger", "Nicolas Patizlaff"];
 const PERCENTUAL_COMISSAO_CURSOS_VENDIDOS = 0.15;
 const DIVISOR_COMISSAO_CURSOS_VENDIDOS = 4;
+const PESSOAS_COM_COMISSAO_CLIENTES = ["Leonardo Allgayer", "Nicolas Patizlaff", "Lucas Pilger"];
+const DIVISOR_COMISSAO_CLIENTES = 3;
 const DIVISOR_COMISSAO_CURSOS_DADOS: Record<string, number> = {
   "Leonardo Allgayer": 3,
   "Lucas Pilger": 3,
@@ -76,6 +79,7 @@ const PagamentosPage = () => {
   const { data: cursosDados = [] } = useCursosDados();
   const { data: fechamentos = [] } = useFechamentosDiarios();
   const { data: pagVariaveis = [] } = usePagamentosVariaveis();
+  const { clients, loading: clientsLoading } = useClients("meta_ads");
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -267,7 +271,25 @@ const PagamentosPage = () => {
     return items.reduce((s, p) => s + p.valor, 0);
   }, [pagVariaveis, pessoaFilter, mesFilter, filterDiaPagamento]);
 
-  const totalComissao = totalComissaoCursos + totalComissaoCursosDados + totalPagVariaveis;
+  const clientCommissions = useMemo(() => clients
+    .filter((client) => client.status === "Ativo" && Number(client.commissionValue || 0) > 0)
+    .filter((client) => filterDiaPagamento === "todos" || Number(client.paymentDate) === Number(filterDiaPagamento))
+    .map((client) => ({
+      id: client.id,
+      cliente: client.name,
+      gestor: client.manager,
+      diaPagamento: client.paymentDate,
+      statusPagamento: client.paymentStatus,
+      comissaoTotal: Number(client.commissionValue || 0),
+      comissaoIndividual: Number((Number(client.commissionValue || 0) / DIVISOR_COMISSAO_CLIENTES).toFixed(2)),
+    }))
+    .sort((a, b) => a.cliente.localeCompare(b.cliente, "pt-BR")), [clients, filterDiaPagamento]);
+
+  const showClientCommissions = PESSOAS_COM_COMISSAO_CLIENTES.includes(pessoaFilter);
+  const totalClientCommission = showClientCommissions
+    ? clientCommissions.reduce((sum, client) => sum + client.comissaoIndividual, 0)
+    : 0;
+  const totalComissao = totalComissaoCursos + totalComissaoCursosDados + totalPagVariaveis + totalClientCommission;
 
   return (
     <DashboardLayout title="Pagamentos">
@@ -371,6 +393,41 @@ const PagamentosPage = () => {
             </CardContent>
           </Card>
 
+          {/* Comissão recorrente dos clientes ativos */}
+          {showClientCommissions && (
+            <Card className="bg-card/80 backdrop-blur border-border/40">
+              <CardHeader>
+                <CardTitle className="text-base">Comissão dos Clientes</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {clientsLoading ? (
+                  <div className="flex items-center justify-center py-12"><div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>
+                ) : clientCommissions.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">Nenhum cliente ativo com comissão cadastrada.</div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center justify-end gap-4 border-b border-border/30 bg-muted/30 px-4 py-2 text-xs">
+                      <span>Comissão individual: <span className="font-semibold text-emerald-400">{formatBRL(totalClientCommission)}</span></span>
+                      <span>Divisão: <span className="font-semibold">comissão cadastrada / {DIVISOR_COMISSAO_CLIENTES}</span></span>
+                    </div>
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Gestor</TableHead><TableHead>Dia do pagamento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Comissão cadastrada</TableHead><TableHead className="text-right">Comissão individual (÷ 3)</TableHead></TableRow></TableHeader>
+                      <TableBody>{clientCommissions.map((client) => (
+                        <TableRow key={client.id}>
+                          <TableCell className="text-sm font-medium">{client.cliente}</TableCell>
+                          <TableCell className="text-sm">{client.gestor || "—"}</TableCell>
+                          <TableCell className="text-sm">Dia {client.diaPagamento || "—"}</TableCell>
+                          <TableCell className="text-sm capitalize">{client.statusPagamento}</TableCell>
+                          <TableCell className="text-right text-sm font-semibold">{formatBRL(client.comissaoTotal)}</TableCell>
+                          <TableCell className="text-right text-sm font-semibold text-emerald-400">{formatBRL(client.comissaoIndividual)}</TableCell>
+                        </TableRow>
+                      ))}</TableBody>
+                    </Table>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
           {/* Comissão de Vendas */}
           {showCursosTable && (
             <Card className="bg-card/80 backdrop-blur border-border/40">
