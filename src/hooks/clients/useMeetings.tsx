@@ -54,16 +54,18 @@ export function useMeetings() {
     const today = new Date();
     const since = new Date(today.getFullYear(), today.getMonth() - 3, 1).toISOString().slice(0, 10);
     const until = new Date(today.getFullYear(), today.getMonth() + 7, 0).toISOString().slice(0, 10);
-    const { data: crmData, error: crmError } = await supabase.functions.invoke("crm-agenda", {
-      body: { since, until },
-    });
+    const [{ data: crmData, error: crmError }, { data: deletedRows }] = await Promise.all([
+      supabase.functions.invoke("crm-agenda", { body: { since, until } }),
+      supabase.from("deleted_crm_meetings" as any).select("external_id"),
+    ]);
     if (crmError || crmData?.error) {
       console.warn("Agenda do CRM indisponível:", crmError || crmData?.error);
       setMeetings(localMeetings);
     } else {
       const crmMeetings = Array.isArray(crmData?.appointments) ? crmData.appointments as Meeting[] : [];
       const localExternalIds = new Set(localMeetings.map((meeting) => meeting.externalId).filter(Boolean));
-      setMeetings([...localMeetings, ...crmMeetings.filter((meeting) => !localExternalIds.has(meeting.externalId))]);
+      const deletedExternalIds = new Set(((deletedRows || []) as Array<{ external_id: string }>).map((row) => row.external_id));
+      setMeetings([...localMeetings, ...crmMeetings.filter((meeting) => !localExternalIds.has(meeting.externalId) && !deletedExternalIds.has(String(meeting.externalId || "")))]);
     }
     setSyncing(false);
     setLoading(false);
@@ -227,6 +229,16 @@ export function useMeetings() {
       }
     }
 
+    if (externalId) {
+      const { error: tombstoneError } = await supabase
+        .from("deleted_crm_meetings" as any)
+        .upsert({ external_id: externalId, deleted_by: session?.user?.id || null } as any, { onConflict: "external_id" });
+      if (tombstoneError) {
+        setSyncing(false);
+        toast.error("O CRM confirmou a exclusão, mas não foi possível impedir a ressincronização");
+        return;
+      }
+    }
     if (!id.startsWith("crm:")) {
       const { error } = await supabase.from("meetings" as any).delete().eq("id", id);
       if (error) {
