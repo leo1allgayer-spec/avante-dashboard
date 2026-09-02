@@ -110,6 +110,28 @@ const PagamentosPage = () => {
   const [pagoDia30, setPagoDia30] = useState(false);
   const [filterDiaPagamento, setFilterDiaPagamento] = useState("todos");
 
+  useEffect(() => {
+    const storageKey = `avante-payment-status:${pessoaFilter}:${mesFilter}`;
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+      setPagoDia15(saved.day15 === true);
+      setPagoDia30(saved.day30 === true);
+    } catch {
+      setPagoDia15(false);
+      setPagoDia30(false);
+    }
+  }, [pessoaFilter, mesFilter]);
+
+  const updateLocalPaymentStatus = (day: 15 | 30, paid: boolean) => {
+    const nextDay15 = day === 15 ? paid : pagoDia15;
+    const nextDay30 = day === 30 ? paid : pagoDia30;
+    setPagoDia15(nextDay15);
+    setPagoDia30(nextDay30);
+    localStorage.setItem(
+      `avante-payment-status:${pessoaFilter}:${mesFilter}`,
+      JSON.stringify({ day15: nextDay15, day30: nextDay30 }),
+    );
+  };
   const showCursosTable = PESSOAS_COM_TABELA_CURSOS.includes(pessoaFilter);
   const showCursosDadosTable = PESSOAS_COM_TABELA_CURSOS_DADOS.includes(pessoaFilter);
 
@@ -374,11 +396,11 @@ const PagamentosPage = () => {
               <div className="h-5 w-px bg-border/50 mx-1" />
 
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox checked={pagoDia15} onCheckedChange={(v) => setPagoDia15(!!v)} />
+                <Checkbox checked={pagoDia15} onCheckedChange={(value) => updateLocalPaymentStatus(15, value === true)} />
                 Pago Dia 15
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox checked={pagoDia30} onCheckedChange={(v) => setPagoDia30(!!v)} />
+                <Checkbox checked={pagoDia30} onCheckedChange={(value) => updateLocalPaymentStatus(30, value === true)} />
                 Pago Dia 30
               </label>
             </div>
