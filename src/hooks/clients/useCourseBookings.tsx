@@ -63,8 +63,8 @@ export function useCourseBookings(courseName?: string) {
     return booking;
   };
 
-  const updateBooking = async (id: string, updates: Partial<{ status: string; courseStatus: string; studentName: string; email: string; phone: string; instagram: string; certificateName: string; date: string }>) => {
-    const wasRescheduled = updates.date !== undefined;
+  const updateBooking = async (id: string, updates: Partial<{ status: string; courseStatus: string; studentName: string; email: string; phone: string; instagram: string; certificateName: string; date: string; courseName: string; time: string }>) => {
+    const wasRescheduled = updates.date !== undefined || updates.courseName !== undefined || updates.time !== undefined;
     const mapped: any = {};
     if (updates.status !== undefined) mapped.status = updates.status;
     if (updates.courseStatus !== undefined) mapped.course_status = updates.courseStatus;
@@ -74,6 +74,8 @@ export function useCourseBookings(courseName?: string) {
     if (updates.instagram !== undefined) mapped.instagram = updates.instagram;
     if (updates.certificateName !== undefined) mapped.certificate_name = updates.certificateName;
     if (updates.date !== undefined) mapped.date = updates.date;
+    if (updates.courseName !== undefined) mapped.course_name = updates.courseName;
+    if (updates.time !== undefined) mapped.time = updates.time;
     const { error } = await (supabase as any).rpc("update_course_booking_admin", {
       p_booking_id: id,
       p_updates: mapped,

@@ -721,7 +721,18 @@ export default function AdminBookings() {
                               <TableBody>
                                 {list.map(b => (
                                   <TableRow key={b.id}>
-                                    <TableCell className="font-medium truncate" title={b.courseName}>{b.courseName.replace(/^Curso\s+/, "")}</TableCell>
+                                    <TableCell className="font-medium">
+                                      {isAdmin ? (
+                                        <Select value={b.courseName} onValueChange={(value) => updateBooking(b.id, { courseName: value })}>
+                                          <SelectTrigger className="h-7 w-full px-2 text-[11px]" aria-label="Alterar curso">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {COURSES.map((course) => <SelectItem key={course} value={course}>{course.replace(/^Curso\s+/, "")}</SelectItem>)}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : b.courseName.replace(/^Curso\s+/, "")}
+                                    </TableCell>
                                     <TableCell className="whitespace-nowrap">
                                       <EditableCell
                                         value={b.date}
