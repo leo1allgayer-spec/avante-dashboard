@@ -74,6 +74,14 @@ const filterByDateRange = (dataStr: string, dateFrom?: Date, dateTo?: Date) => {
   return true;
 };
 
+const filterByPaymentPeriod = (day: number, period: string) => {
+  if (period === "todos") return true;
+  if (!Number.isFinite(day) || day < 1) return false;
+  return period === "ate-15" ? day <= 15 : day > 15;
+};
+
+const getDayFromDate = (dataStr: string) => Number(dataStr.split("-")[2] || 0);
+
 const PagamentosPage = () => {
   const { data: vendas = [], isLoading } = useVendas();
   const { data: cursosDados = [] } = useCursosDados();
@@ -200,6 +208,7 @@ const PagamentosPage = () => {
       .filter((v) => {
         if (getMonthKey(v.data) !== mesFilter) return false;
         if (!filterByDateRange(v.data, dateFrom, dateTo)) return false;
+        if (!filterByPaymentPeriod(getDayFromDate(v.data), filterDiaPagamento)) return false;
         return true;
       })
       .map((v) => {
@@ -220,6 +229,7 @@ const PagamentosPage = () => {
       .filter((c) => {
         if (getMonthKey(c.data) !== mesFilter) return false;
         if (!filterByDateRange(c.data, dateFrom, dateTo)) return false;
+        if (!filterByPaymentPeriod(getDayFromDate(c.data), filterDiaPagamento)) return false;
         return !clientesComVenda.has(nameKey(c.nome_aluno));
       })
       .map((c) => ({
@@ -233,7 +243,7 @@ const PagamentosPage = () => {
       }));
 
     return [...linhasVendas, ...linhasSemVenda].sort((a, b) => a.data.localeCompare(b.data));
-  }, [vendas, cursosDados, showCursosTable, mesFilter, dateFrom, dateTo, collectedBySaleId]);
+  }, [vendas, cursosDados, showCursosTable, mesFilter, dateFrom, dateTo, filterDiaPagamento, collectedBySaleId]);
 
   const totalComissaoCursos = useMemo(
     () => vendasCursos.reduce((s, v) => s + v.comissao, 0),
@@ -259,6 +269,7 @@ const PagamentosPage = () => {
       .filter((c) => {
         if (getMonthKey(c.data) !== mesFilter) return false;
         if (!filterByDateRange(c.data, dateFrom, dateTo)) return false;
+        if (!filterByPaymentPeriod(getDayFromDate(c.data), filterDiaPagamento)) return false;
         return normalizeName(c.tipo_curso || "").includes("meta ads");
       })
       .map((c) => ({
@@ -271,7 +282,7 @@ const PagamentosPage = () => {
         comissao: +(VALOR_CURSO_META_ADS_DADO / divisor).toFixed(2),
       }))
       .sort((a, b) => a.data.localeCompare(b.data));
-  }, [cursosDados, showCursosDadosTable, pessoaFilter, mesFilter, dateFrom, dateTo]);
+  }, [cursosDados, showCursosDadosTable, pessoaFilter, mesFilter, dateFrom, dateTo, filterDiaPagamento]);
 
   const totalComissaoCursosDados = useMemo(
     () => cursosDadosPessoa.reduce((s, c) => s + c.comissao, 0),
@@ -287,15 +298,13 @@ const PagamentosPage = () => {
   // --- Pagamentos Variáveis total ---
   const totalPagVariaveis = useMemo(() => {
     let items = pagVariaveis.filter((p) => p.pessoa === pessoaFilter && p.mes_ano === mesFilter);
-    if (filterDiaPagamento !== "todos") {
-      items = items.filter((p) => p.dia_pagamento === Number(filterDiaPagamento));
-    }
+    items = items.filter((p) => filterByPaymentPeriod(Number(p.dia_pagamento), filterDiaPagamento));
     return items.reduce((s, p) => s + p.valor, 0);
   }, [pagVariaveis, pessoaFilter, mesFilter, filterDiaPagamento]);
 
   const clientCommissions = useMemo(() => clients
     .filter((client) => client.status === "Ativo" && Number(client.commissionValue || 0) > 0)
-    .filter((client) => filterDiaPagamento === "todos" || Number(client.paymentDate) === Number(filterDiaPagamento))
+    .filter((client) => filterByPaymentPeriod(Number(client.paymentDate), filterDiaPagamento))
     .map((client) => ({
       id: client.id,
       cliente: client.name,
@@ -387,8 +396,8 @@ const PagamentosPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos os dias</SelectItem>
-                    <SelectItem value="15">Dia 15</SelectItem>
-                    <SelectItem value="30">Dia 30</SelectItem>
+                    <SelectItem value="ate-15">Até dia 15</SelectItem>
+                    <SelectItem value="apos-15">Depois do dia 15</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

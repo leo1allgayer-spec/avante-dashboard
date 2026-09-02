@@ -67,8 +67,10 @@ const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) =
 
   const filtered = useMemo(() => {
     let items = todos.filter((p) => p.pessoa === pessoa && p.mes_ano === mesFilter);
-    if (filterDiaPagamento !== "todos") {
-      items = items.filter((p) => p.dia_pagamento === Number(filterDiaPagamento));
+    if (filterDiaPagamento === "ate-15") {
+      items = items.filter((p) => Number(p.dia_pagamento) <= 15);
+    } else if (filterDiaPagamento === "apos-15") {
+      items = items.filter((p) => Number(p.dia_pagamento) > 15);
     }
     return items;
   }, [todos, pessoa, mesFilter, filterDiaPagamento]);
