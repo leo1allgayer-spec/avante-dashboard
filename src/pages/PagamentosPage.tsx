@@ -203,19 +203,28 @@ const PagamentosPage = () => {
       return instrutoresValidos.some((i) => inst.startsWith(normalizeName(i)));
     });
 
-    // 1) Todas as vendas lançadas no período, independentemente da origem.
+    // 1) Vendas vinculadas ao curso pelo aluno. Quando o curso acontece em uma
+    // quinzena diferente da venda, a linha segue a data do curso sem perder os
+    // valores financeiros do lançamento original.
+    const getCourseDateForSale = (sale: (typeof vendas)[number]) =>
+      cursosFiltrados.find((course) =>
+        nameKey(course.nome_aluno) === nameKey(sale.cliente) &&
+        getMonthKey(course.data) === mesFilter
+      )?.data || sale.data;
+
     const linhasVendas: LinhaCurso[] = vendas
       .filter((v) => {
-        if (getMonthKey(v.data) !== mesFilter) return false;
-        if (!filterByDateRange(v.data, dateFrom, dateTo)) return false;
-        if (!filterByPaymentPeriod(getDayFromDate(v.data), filterDiaPagamento)) return false;
+        const displayDate = getCourseDateForSale(v);
+        if (getMonthKey(displayDate) !== mesFilter) return false;
+        if (!filterByDateRange(displayDate, dateFrom, dateTo)) return false;
+        if (!filterByPaymentPeriod(getDayFromDate(displayDate), filterDiaPagamento)) return false;
         return true;
       })
       .map((v) => {
         const coletado = collectedBySaleId.get(v.id) || 0;
         return {
           id: v.id,
-          data: v.data,
+          data: getCourseDateForSale(v),
           cliente: v.cliente,
           produto: [v.produto, v.servico].filter(Boolean).join(" / ") || "—",
           valor_liquido: coletado,
