@@ -1,17 +1,12 @@
 import { useState, useMemo } from "react";
 import {
   usePagamentosVariaveis,
-  useCreatePagamentosVariaveisRecorrente,
   useDeletePagamentoVariavel,
   useDeletePagamentoVariavelRecorrente,
 } from "@/hooks/usePagamentosVariaveis";
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const formatBRL = (v: number) =>
@@ -34,27 +29,11 @@ interface Props {
   filterDiaPagamento: string;
 }
 
-const RECURRENCE_MONTHS = 24;
-
-const addMonths = (mesAno: string, n: number) => {
-  const [y, m] = mesAno.split("-").map(Number);
-  const d = new Date(y, m - 1 + n, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
-
 const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) => {
-  const { session } = useAuth();
-  const user = session?.user;
   const { data: todos = [], isLoading } = usePagamentosVariaveis();
-  const createRecMut = useCreatePagamentosVariaveisRecorrente();
   const deleteMut = useDeletePagamentoVariavel();
   const deleteRecMut = useDeletePagamentoVariavelRecorrente();
 
-  const [tipo, setTipo] = useState<string>("cliente");
-  const [diaPag, setDiaPag] = useState<string>("15");
-  const [cliente, setCliente] = useState("");
-  const [valor, setValor] = useState("");
-  const [recorrente, setRecorrente] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<null | {
     id: string;
     pessoa: string;
@@ -77,43 +56,6 @@ const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) =
 
   const total = useMemo(() => filtered.reduce((s, p) => s + p.valor, 0), [filtered]);
 
-  const handleAdd = () => {
-    if (!cliente.trim() || !valor.trim() || !user) return;
-    const numVal = parseFloat(valor.replace(",", "."));
-    if (isNaN(numVal) || numVal <= 0) {
-      toast.error("Valor inválido");
-      return;
-    }
-    const meses = recorrente
-      ? Array.from({ length: RECURRENCE_MONTHS }, (_, i) => addMonths(mesFilter, i))
-      : [mesFilter];
-
-    createRecMut.mutate(
-      {
-        base: {
-          user_id: user.id,
-          pessoa,
-          tipo,
-          cliente: cliente.trim(),
-          valor: numVal,
-          dia_pagamento: Number(diaPag),
-        },
-        meses,
-      },
-      {
-        onSuccess: () => {
-          setCliente("");
-          setValor("");
-          toast.success(
-            recorrente
-              ? `Adicionado para ${RECURRENCE_MONTHS} meses`
-              : "Pagamento variável adicionado"
-          );
-        },
-        onError: () => toast.error("Erro ao adicionar"),
-      }
-    );
-  };
 
   const handleConfirmDelete = (scope: "single" | "future") => {
     if (!deleteTarget) return;
@@ -150,47 +92,6 @@ const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) =
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
-          <div className="w-32">
-            <Select value={tipo} onValueChange={setTipo}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cliente">Cliente</SelectItem>
-                <SelectItem value="servico">Serviço</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-24">
-            <Select value={diaPag} onValueChange={setDiaPag}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="15">Dia 15</SelectItem>
-                <SelectItem value="30">Dia 30</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Input
-            placeholder={tipo === "cliente" ? "Nome do cliente" : "Nome do serviço"}
-            value={cliente}
-            onChange={(e) => setCliente(e.target.value)}
-            className="flex-1"
-          />
-          <Input
-            placeholder="Valor (R$)"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-            className="w-32"
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          />
-          <Button size="icon" onClick={handleAdd} disabled={createRecMut.isPending}>
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-          <Checkbox checked={recorrente} onCheckedChange={(v) => setRecorrente(!!v)} />
-          Repetir nos próximos meses (gera {RECURRENCE_MONTHS} meses a partir do mês selecionado)
-        </label>
 
         {isLoading ? (
           <div className="flex justify-center py-4">
