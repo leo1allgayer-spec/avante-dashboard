@@ -47,7 +47,7 @@ const CATEGORY_ALIASES: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "Curso Google Ads", aliases: ["curso google ads", "curso de google ads", "curso trafego pago google ads", "curso de trafego pago google ads", "google ads"] },
   { canonical: "Curso de TikTok Ads", aliases: ["curso de tiktok ads", "curso tiktok ads", "tiktok ads"] },
   { canonical: "Curso de YouTube Ads", aliases: ["curso de youtube ads", "curso youtube ads", "youtube ads"] },
-  { canonical: "Curso de Social Midia", aliases: ["curso de social midia", "curso de social media", "curso social midia", "curso social media", "social media", "social midia"] },
+  { canonical: "Curso de Social Midia", aliases: ["curso de social midia", "curso de social media", "curso social midia", "curso social media"] },
   { canonical: "Curso de IA", aliases: ["curso de ia", "curso ia", "curso de inteligencia artificial", "curso inteligencia artificial", "inteligencia artificial", "ia"] },
   { canonical: "Curso Canva para Empreendedores", aliases: ["curso canva para empreendedores", "curso de canva para empreendedores", "curso canva", "curso de canva", "canva"] },
   { canonical: "Curso Captacao/Edicao", aliases: ["curso captacao/edicao", "curso captacao/edicao de conteudo", "captacao/edicao", "curso captacao e edicao de video", "curso de captacao e edicao de video", "curso de edicao e captacao de videos", "curso edicao e captacao de videos", "curso captacao edicao", "captacao e edicao de video"] },
