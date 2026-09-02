@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
     };
 
-    const sendMessageNow = async (messageType: string) => {
+    const sendMessageNow = async (messageType: string, phone = booking.phone, customText?: string) => {
       if (sentMessageTypes.has(messageType)) return true;
 
       try {
@@ -81,9 +81,10 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: sendHeaders,
           body: JSON.stringify({
-            phone: booking.phone,
+            phone,
             bookingId: booking.id,
             messageType,
+            customText,
             studentName: booking.student_name,
             courseName: booking.course_name,
           }),
@@ -103,6 +104,23 @@ Deno.serve(async (req) => {
       confirmationSent = await sendMessageNow("confirmation");
     }
 
+    // Notify the Google Ads instructor with operational schedule data only.
+    let googleManagerNotified = sentMessageTypes.has("google_manager_notification");
+    if (!googleManagerNotified && String(booking.course_name || "").toLowerCase().includes("google ads")) {
+      const [bookingYear, bookingMonth, bookingDay] = booking.date.split("-");
+      const bookingTime = booking.time === "Manhã" ? "08:30" : booking.time === "Tarde" ? "14:00" : booking.time;
+      const googleManagerText = [
+        "📢 Novo curso de Google Ads marcado",
+        `Data: ${bookingDay}/${bookingMonth}/${bookingYear}`,
+        `Horário: ${bookingTime}`,
+        "Consulte o dashboard para ver os detalhes do agendamento.",
+      ].join("\n");
+      googleManagerNotified = await sendMessageNow(
+        "google_manager_notification",
+        "555197152836",
+        googleManagerText,
+      );
+    }
     // 2. Schedule future messages
     // Parse course date and time, adjusting for BRT (UTC-3)
     const [year, month, day] = booking.date.split("-").map(Number);
@@ -201,6 +219,7 @@ Deno.serve(async (req) => {
       success: true,
       scheduled: validMessages.length,
       reminder24hSentImmediately,
+      googleManagerNotified,
     }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
