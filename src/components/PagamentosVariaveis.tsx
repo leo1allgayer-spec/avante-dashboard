@@ -54,7 +54,7 @@ const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) =
   const [diaPag, setDiaPag] = useState<string>("15");
   const [cliente, setCliente] = useState("");
   const [valor, setValor] = useState("");
-  const [recorrente, setRecorrente] = useState(true);
+  const [recorrente, setRecorrente] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<null | {
     id: string;
     pessoa: string;
@@ -78,9 +78,26 @@ const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) =
   const total = useMemo(() => filtered.reduce((s, p) => s + p.valor, 0), [filtered]);
 
   const handleAdd = () => {
-    if (!cliente.trim() || !valor.trim() || !user) return;
-    const numVal = parseFloat(valor.replace(",", "."));
-    if (isNaN(numVal) || numVal <= 0) {
+    if (!user) {
+      toast.error("Sua sessão expirou. Entre novamente para criar o lançamento.");
+      return;
+    }
+    if (!cliente.trim()) {
+      toast.error(tipo === "cliente" ? "Informe o nome do cliente" : "Informe o nome do serviço");
+      return;
+    }
+    if (!valor.trim()) {
+      toast.error("Informe o valor");
+      return;
+    }
+
+    const normalizedValue = valor
+      .replace(/R\$/gi, "")
+      .replace(/\s/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".");
+    const numVal = Number(normalizedValue);
+    if (!Number.isFinite(numVal) || numVal <= 0) {
       toast.error("Valor inválido");
       return;
     }
@@ -110,7 +127,12 @@ const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) =
               : "Pagamento variável adicionado"
           );
         },
-        onError: () => toast.error("Erro ao adicionar"),
+        onError: (error) => {
+          const message = error instanceof Error
+            ? error.message
+            : String((error as { message?: unknown })?.message || "Erro desconhecido");
+          toast.error("Não foi possível criar o lançamento: " + message);
+        },
       }
     );
   };
@@ -182,7 +204,7 @@ const PagamentosVariaveis = ({ pessoa, mesFilter, filterDiaPagamento }: Props) =
             className="w-32"
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           />
-          <Button size="icon" onClick={handleAdd} disabled={createRecMut.isPending}>
+          <Button type="button" size="icon" onClick={handleAdd} disabled={createRecMut.isPending} aria-label="Adicionar pagamento variável">
             <Plus className="h-4 w-4" />
           </Button>
         </div>
