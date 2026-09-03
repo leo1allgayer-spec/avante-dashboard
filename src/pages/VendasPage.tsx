@@ -430,9 +430,29 @@ const VendasPage = () => {
     items.forEach((closing) => {
       const key = normalizeText(getFechamentoCategoria(closing));
       const previous = byCategory.get(key) || { gross: 0, net: 0 };
+      const gross = Math.max(Number(closing.valor_sinal || 0), 0);
+      let net = Math.max(Number(closing.valor_sinal_liquido ?? gross), 0);
+      // Registros antigos frequentemente salvaram o líquido igual ao bruto. Nesses
+      // casos, reconstruímos a taxa pela forma de pagamento que já está registrada.
+      if (gross > 0 && Math.abs(net - gross) < 0.01) {
+        const initialSignal = getInitialSignalFromObservation(closing.observacao);
+        const linkedSale = allVendas.find((sale) => sale.id === closing.venda_id) || allVendas.find((sale) =>
+          normalizeText(sale.cliente) === normalizeText(closing.cliente) &&
+          normalizeText(sale.vendedor) === normalizeText(closing.vendedor) &&
+          normalizeText(getVendaCategoria(sale)) === key
+        );
+        if (initialSignal > 0 && initialSignal < gross && closing.pagamento_saldo) {
+          const signalMethod = closing.pagamento_sinal || linkedSale?.pagamento || "A definir";
+          net = getNetPaymentValue(initialSignal, getPaymentMethod(signalMethod), getPaymentInstallments(signalMethod), taxProfile) +
+            getNetPaymentValue(gross - initialSignal, getPaymentMethod(closing.pagamento_saldo), getPaymentInstallments(closing.pagamento_saldo), taxProfile);
+        } else {
+          const method = closing.pagamento_sinal || linkedSale?.pagamento;
+          if (method && method !== "A definir") net = getNetPaymentValue(gross, getPaymentMethod(method), getPaymentInstallments(method), taxProfile);
+        }
+      }
       byCategory.set(key, {
-        gross: Math.max(previous.gross, Math.max(Number(closing.valor_sinal || 0), 0)),
-        net: Math.max(previous.net, Math.max(Number(closing.valor_sinal_liquido ?? closing.valor_sinal ?? 0), 0)),
+        gross: Math.max(previous.gross, gross),
+        net: Math.max(previous.net, net),
       });
     });
     return [...byCategory.values()].reduce(
@@ -1377,7 +1397,7 @@ const VendasPage = () => {
         parcelas_datas: parcelasDatas,
         status: item.status === "cancelada" ? "cancelado" : pagoIntegralmente ? "recebido" : "a receber",
         observacao: mergeObservationWithPaymentHistory(item.observacao, previousObservation),
-        pagamento_sinal: ["sinal", "sinal_quitado", "boleto"].includes(item.condicao_pagamento) ? item.pagamento : null,
+        pagamento_sinal: ["pago", "sinal", "sinal_quitado", "boleto"].includes(item.condicao_pagamento) ? item.pagamento : null,
         pagamento_saldo: pagamentoSaldo || null,
       };
     };
