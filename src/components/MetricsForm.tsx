@@ -148,6 +148,46 @@ const countWorkingDaysInMonth = (date: string) => {
   return total;
 };
 
+const TARGET_VALUE_FIELDS = [
+  "valor_cursos",
+  "valor_servicos",
+  "valor_suporte_extra",
+  "valor_site",
+  "valor_negocio_local",
+  "valor_crm",
+  "valor_upsell",
+] as const;
+
+const SUPER_TARGET_VALUE_FIELDS = [
+  "super_valor_cursos",
+  "super_valor_servicos",
+  "super_valor_suporte_extra",
+  "super_valor_site",
+  "super_valor_negocio_local",
+  "super_valor_crm",
+  "super_valor_upsell",
+] as const;
+
+const AUTOMATIC_TARGET_FIELDS = new Set([
+  "meta_mensal_prevista",
+  "super_meta_mensal",
+  "meta_diaria_prevista",
+  "super_meta_diaria",
+]);
+
+const withAutomaticTargets = (form: ReturnType<typeof createEmptyForm>, date: string) => {
+  const workingDays = countWorkingDaysInMonth(date);
+  const metaMensal = TARGET_VALUE_FIELDS.reduce((total, field) => total + Number(form[field] || 0), 0);
+  const superMetaMensal = SUPER_TARGET_VALUE_FIELDS.reduce((total, field) => total + Number(form[field] || 0), 0);
+  return {
+    ...form,
+    meta_mensal_prevista: metaMensal,
+    super_meta_mensal: superMetaMensal,
+    meta_diaria_prevista: workingDays > 0 ? Number((metaMensal / workingDays).toFixed(2)) : 0,
+    super_meta_diaria: workingDays > 0 ? Number((superMetaMensal / workingDays).toFixed(2)) : 0,
+  };
+};
+
 const MetricsForm = ({ currentData }: MetricsFormProps) => {
   const today = formatLocalDate(new Date());
   const yesterday = formatLocalDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
@@ -160,25 +200,18 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
   const activeData = selectedDateData ?? (selectedDate === today ? currentData : null);
   const selectedDateLabel = formatDateLabel(selectedDate);
 
-  const [form, setForm] = useState(createEmptyForm(currentData));
+  const [form, setForm] = useState(withAutomaticTargets(createEmptyForm(currentData), today));
 
   useEffect(() => {
     if (!open) return;
-    setForm(createEmptyForm(activeData));
+    setForm(withAutomaticTargets(createEmptyForm(activeData), selectedDate));
   }, [activeData, open, selectedDate]);
 
   const handleChange = (field: string, value: string) => {
     const numericValue = Number(value) || 0;
     setForm((prev) => {
       const next = { ...prev, [field]: numericValue };
-      const workingDays = countWorkingDaysInMonth(selectedDate);
-      if (field === "meta_mensal_prevista") {
-        next.meta_diaria_prevista = workingDays > 0 ? Number((numericValue / workingDays).toFixed(2)) : 0;
-      }
-      if (field === "super_meta_mensal") {
-        next.super_meta_diaria = workingDays > 0 ? Number((numericValue / workingDays).toFixed(2)) : 0;
-      }
-      return next;
+      return withAutomaticTargets(next, selectedDate);
     });
   };
 
@@ -311,8 +344,9 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
                         type="number"
                         step="any"
                         value={form[key as keyof typeof form]}
+                        readOnly={AUTOMATIC_TARGET_FIELDS.has(key)}
                         onChange={(e) => handleChange(key, e.target.value)}
-                        className={`${prefix ? "pl-9" : ""} bg-secondary/30 border-border/30 text-sm h-9 focus:border-accent/40 transition-colors`}
+                        className={`${prefix ? "pl-9" : ""} bg-secondary/30 border-border/30 text-sm h-9 focus:border-accent/40 transition-colors ${AUTOMATIC_TARGET_FIELDS.has(key) ? "cursor-default text-accent" : ""}`}
                       />
                     </div>
                   </div>
