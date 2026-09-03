@@ -154,6 +154,12 @@ const getNetPaymentValue = (amount: number, payment: string, installments: numbe
   const fee = getTaxas(method, profile)[Math.max(1, installments)] || 0;
   return +(Number(amount || 0) * (1 - fee / 100)).toFixed(2);
 };
+const getCommissionAfterPaymentFees = (grossAmount: number, netAmount: number, origin?: string | null) => {
+  const gross = Math.max(0, Number(grossAmount || 0));
+  const net = Math.max(0, Math.min(gross, Number(netAmount || 0)));
+  const machineFee = gross - net;
+  return +Math.max(0, gross * getSalesCommissionRate(origin) - machineFee).toFixed(2);
+};
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -366,8 +372,9 @@ const VendasPage = () => {
     ? +(form.valor * (1 - taxa / 100)).toFixed(2)
     : null;
   const valorBase = valorComJuros ?? form.valor;
-  const valorRecebido = form.condicao_pagamento === "pago" ? valorBase : Number(form.valor_sinal || 0);
-  const comissao = +(valorRecebido * getSalesCommissionRate(form.origem)).toFixed(2);
+  const valorRecebidoBruto = form.condicao_pagamento === "pago" ? form.valor : Number(form.valor_sinal || 0);
+  const valorRecebido = form.condicao_pagamento === "pago" ? valorBase : getNetPaymentValue(valorRecebidoBruto, form.pagamento, form.parcelas, taxProfile);
+  const comissao = getCommissionAfterPaymentFees(valorRecebidoBruto, valorRecebido, form.origem);
 
   const vendedores = useMemo(() => [...new Set(vendas.map((v) => v.vendedor))].sort(), [vendas]);
 
@@ -538,7 +545,7 @@ const VendasPage = () => {
     const valorLiquido = +(Number(v.valor) * (1 - taxaVenda / 100)).toFixed(2);
     return {
       valorLiquido,
-      comissao: +(valorLiquido * getSalesCommissionRate(v.origem)).toFixed(2),
+      comissao: getCommissionAfterPaymentFees(Number(v.valor), valorLiquido, v.origem),
       taxa: taxaVenda,
     };
   };
@@ -657,7 +664,7 @@ const VendasPage = () => {
       const comissaoPagaRegistrada = itensPorLancamento.reduce((total, item) => total + getPaidCommissionValue(item), 0);
       const comissaoCalculadaSobreRecebido = itensPorLancamento.reduce((total, item) => {
         const share = valorTotal > 0 ? Math.max(Number(item.valor || 0), 0) / valorTotal : 0;
-        return total + sinalLiquido * share * getSalesCommissionRate(item.origem);
+        return total + getCommissionAfterPaymentFees(sinalBruto * share, sinalLiquido * share, item.origem);
       }, 0);
       const comissaoTotal = comissaoCalculadaSobreRecebido;
       const comissaoPaga = Math.min(comissaoPagaRegistrada, comissaoTotal);
@@ -720,7 +727,11 @@ const VendasPage = () => {
         item.parcelas,
         taxProfile,
       ),
-      comissao: +(getNetPaymentValue(item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0), item.pagamento, item.parcelas, taxProfile) * getSalesCommissionRate(item.origem)).toFixed(2),
+      comissao: getCommissionAfterPaymentFees(
+        item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0),
+        getNetPaymentValue(item.condicao_pagamento === "pago" ? Number(item.valor || 0) : Number(item.valor_sinal || 0), item.pagamento, item.parcelas, taxProfile),
+        item.origem,
+      ),
       parcelas: itemTemParcela ? `${item.parcelas}x (${itemTaxa}%)` : null,
     };
   };
@@ -735,10 +746,12 @@ const VendasPage = () => {
         normalizeText(closing.cliente) === normalizeText(reference?.cliente) &&
         normalizeText(closing.vendedor) === normalizeText(reference?.vendedor)
       );
-      const totalCollected = Math.min(totalSold, getConsolidatedClosingTotals(commissionClosings).gross);
+      const collectedTotals = getConsolidatedClosingTotals(commissionClosings);
+      const totalCollected = Math.min(totalSold, collectedTotals.gross);
+      const totalCollectedNet = Math.min(totalCollected, collectedTotals.net);
       await Promise.all(items.map((item) => {
         const share = totalSold > 0 ? Math.max(Number(item.valor || 0), 0) / totalSold : 0;
-        const effectiveCommission = +(totalCollected * share * getSalesCommissionRate(item.origem)).toFixed(2);
+        const effectiveCommission = getCommissionAfterPaymentFees(totalCollected * share, totalCollectedNet * share, item.origem);
         const alreadyPaid = getPaidCommissionValue(item);
         return updateVenda.mutateAsync({
           id: item.id,
@@ -839,7 +852,7 @@ const VendasPage = () => {
         const baixaLiquidaItem = paymentAmount > 0 ? +(netPaymentAmount * (baixaItem / paymentAmount)).toFixed(2) : 0;
         const novoColetadoLiquido = valorLiquidoJaColetado + baixaLiquidaItem;
         const novoSaldo = Math.max(0, valorTotal - novoColetado);
-        const novaComissao = +(novoColetadoLiquido * getSalesCommissionRate(venda.origem)).toFixed(2);
+        const novaComissao = getCommissionAfterPaymentFees(novoColetado, novoColetadoLiquido, venda.origem);
         const comissaoJaPaga = getPaidCommissionValue(venda);
         updates.push(updateVenda.mutateAsync({
           id: venda.id,
@@ -2374,7 +2387,8 @@ const VendasPage = () => {
                 const ultimoPagamento = grupo.paymentHistory[0];
                 const formaSaldo = quickPayments[grupo.chave] || v.pagamento_saldo || "PIX";
                 const parcelasSaldo = Number(quickCardInstallments[grupo.chave] || getPaymentInstallments(formaSaldo));
-                const comissaoFuturaLiquida = +(getNetPaymentValue(grupo.saldo, formaSaldo, parcelasSaldo, taxProfile) * getSalesCommissionRate(v.origem)).toFixed(2);
+                const saldoLiquido = getNetPaymentValue(grupo.saldo, formaSaldo, parcelasSaldo, taxProfile);
+                const comissaoFuturaLiquida = getCommissionAfterPaymentFees(grupo.saldo, saldoLiquido, v.origem);
                 return (
                   <TableRow
                     key={grupo.chave}
