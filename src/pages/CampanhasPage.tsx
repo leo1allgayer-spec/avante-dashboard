@@ -187,19 +187,10 @@ function getLeadsFromActions(actions?: Array<{ action_type: string; value: strin
 }
 
 function getConversationsFromActions(actions?: Array<{ action_type: string; value: string }>) {
-  const started = getFirstActionValue(actions, [
-    "onsite_conversion.messaging_conversation_started_7d",
-    "onsite_conversion.total_messaging_connection",
-    "onsite_conversion.messaging_first_reply",
-  ]);
-
-  if (started > 0) return started;
-
-  return getActionValue(actions, (actionType) =>
-    actionType.includes("conversation_started") ||
-    actionType.includes("whatsapp")
-  );
+  return getFirstActionValue(actions, ["onsite_conversion.messaging_conversation_started_7d"]);
 }
+
+const META_TAX_MULTIPLIER = 1.1225;
 
 const CampanhasPage = () => {
   const { toast } = useToast();
@@ -255,7 +246,7 @@ const CampanhasPage = () => {
           objective: details?.objective || "",
           dailyBudget: details?.dailyBudget || 0,
           lifetimeBudget: details?.lifetimeBudget || 0,
-          spend: numberValue(campaign.spend),
+          spend: numberValue(campaign.spend) * META_TAX_MULTIPLIER,
           impressions: numberValue(campaign.impressions),
           clicks: numberValue(campaign.clicks),
           ctr: numberValue(campaign.ctr),
@@ -302,9 +293,10 @@ const CampanhasPage = () => {
     const spend = eligibleCampaigns.reduce((total, campaign) => total + campaign.spend, 0);
     const leads = eligibleCampaigns.reduce((total, campaign) => total + campaign.leads, 0);
     const conversations = eligibleCampaigns.reduce((total, campaign) => total + campaign.conversations, 0);
-    return { spend, leads, conversations };
+    const contacts = eligibleCampaigns.reduce((total, campaign) => total + (campaign.conversations > 0 ? campaign.conversations : campaign.leads), 0);
+    return { spend, leads, conversations, contacts };
   }, [campaignRows]);
-  const totalManagerContacts = displayedMetaTotals.leads + displayedMetaTotals.conversations;
+  const totalManagerContacts = leadAcquisitionTotals.contacts;
   const costPerLead = totalManagerContacts > 0
     ? leadAcquisitionTotals.spend / totalManagerContacts
     : 0;
@@ -312,7 +304,7 @@ const CampanhasPage = () => {
 
   const dailyChart = (metaData?.dailyInsights || []).map((day) => ({
     date: new Date(`${day.date_start}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
-    gasto: numberValue(day.spend),
+    gasto: numberValue(day.spend) * META_TAX_MULTIPLIER,
     cliques: numberValue(day.clicks),
     impressoes: numberValue(day.impressions),
     ctr: numberValue(day.ctr),
@@ -553,7 +545,7 @@ const CampanhasPage = () => {
         {hasMetaData && (
           <>
             <StaggerContainer className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StaggerItem><MetricCard title="Gasto Total (Meta)" value={formatCurrency(displayedMetaTotals.spend)} icon={<DollarSign className="h-5 w-5" />} variant="warning" /></StaggerItem>
+              <StaggerItem><MetricCard title="Gasto Meta + 12,25% imposto" value={formatCurrency(displayedMetaTotals.spend)} icon={<DollarSign className="h-5 w-5" />} variant="warning" /></StaggerItem>
               <StaggerItem><MetricCard title="Impressoes" value={formatNumber(displayedMetaTotals.impressions)} icon={<Eye className="h-5 w-5" />} variant="primary" /></StaggerItem>
               <StaggerItem><MetricCard title="Cliques" value={formatNumber(displayedMetaTotals.clicks)} icon={<MousePointerClick className="h-5 w-5" />} variant="accent" /></StaggerItem>
               <StaggerItem><MetricCard title="CTR" value={`${displayedMetaTotals.ctr.toFixed(2)}%`} icon={<TrendingUp className="h-5 w-5" />} variant="success" /></StaggerItem>

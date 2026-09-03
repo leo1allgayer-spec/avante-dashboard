@@ -14,6 +14,7 @@ type PaymentEntry = { id?: string; date?: string; amount?: number; netAmount?: n
 
 const monthLabel = new Intl.DateTimeFormat("pt-BR", { month: "short", year: "2-digit" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const META_TAX_MULTIPLIER = 1.1225;
 const isCourseSale = (produto?: string | null, servico?: string | null) => isCourseCategory(produto) || isCourseCategory(servico);
 const localDateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const mondayKey = (value: string) => {
@@ -39,13 +40,11 @@ const getFirstAction = (actions: Array<{ action_type: string; value: string }> |
   return 0;
 };
 const getMetaLeads = (actions?: Array<{ action_type: string; value: string }>) => getFirstAction(actions, ["lead", "onsite_conversion.lead_grouped", "offsite_conversion.fb_pixel_lead", "offsite_complete_registration_add_meta_leads", "offsite_content_view_add_meta_leads"]);
-const getMetaConversations = (actions?: Array<{ action_type: string; value: string }>) => {
-  const preferred = getFirstAction(actions, ["onsite_conversion.messaging_conversation_started_7d", "onsite_conversion.total_messaging_connection", "onsite_conversion.messaging_first_reply"]);
-  if (preferred > 0) return preferred;
-  return (actions || []).reduce((total, item) => {
-    const type = item.action_type.toLowerCase();
-    return type.includes("conversation_started") || type.includes("whatsapp") ? total + Number(item.value || 0) : total;
-  }, 0);
+const getMetaConversations = (actions?: Array<{ action_type: string; value: string }>) =>
+  getFirstAction(actions, ["onsite_conversion.messaging_conversation_started_7d"]);
+const getMetaContacts = (actions?: Array<{ action_type: string; value: string }>) => {
+  const conversations = getMetaConversations(actions);
+  return conversations > 0 ? conversations : getMetaLeads(actions);
 };
 const getPaymentHistory = (observation?: string | null): PaymentEntry[] => {
   if (!observation) return [];
@@ -119,12 +118,12 @@ export default function MonthlyMetricsTimeline() {
       if (Number(item.meta_mensal_prevista || 0) > 0 || Number(item.super_meta_mensal || 0) > 0) return;
       const row = rows.get(rowKey(item.date));
       if (!row) return;
-      if (!metaDates.has(item.date)) { row.leads += Number(item.leads || 0); row.ads += Number(item.ads || 0); }
+      if (!metaDates.has(item.date)) { row.leads += Number(item.leads || 0); row.ads += Number(item.ads || 0) * META_TAX_MULTIPLIER; }
       row.cursosFeitos += Number(item.curso_feito || 0);
     });
     data?.meta?.dailyInsights?.forEach((item) => {
       const row = rows.get(rowKey(item.date_start));
-      if (row) { row.leads += getMetaLeads(item.actions) + getMetaConversations(item.actions); row.ads += Number(item.spend || 0); }
+      if (row) { row.leads += getMetaContacts(item.actions); row.ads += Number(item.spend || 0) * META_TAX_MULTIPLIER; }
     });
     data?.vendas.forEach((item) => {
       if (item.status === "recusada" || item.status === "cancelada") return;
@@ -212,7 +211,7 @@ export default function MonthlyMetricsTimeline() {
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Vendas</span><strong className="text-accent">{row.vendas}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Leads</span><strong>{row.leads}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">MQL</span><strong className="text-accent">{row.mql} <span className="ml-1 text-[10px] font-medium text-violet-400">({row.leads ? `${((row.mql / row.leads) * 100).toFixed(1).replace(".", ",")}%` : "—"})</span></strong></div>
-        <div className="flex justify-between gap-3"><span className="text-muted-foreground">Anúncios</span><strong className="text-amber-400">{money.format(row.ads)}</strong></div>
+        <div className="flex justify-between gap-3"><span className="text-muted-foreground" title="Gasto da Meta acrescido de 12,25% de imposto">Anúncios + imposto</span><strong className="text-amber-400">{money.format(row.ads)}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Custo por lead</span><strong className="text-cyan-400">{row.leads ? money.format(row.ads / row.leads) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Custo por lead MQL</span><strong className="text-violet-400">{row.mql ? money.format(row.ads / row.mql) : "—"}</strong></div>
         <div className="flex justify-between gap-3"><span className="text-muted-foreground">Taxa de conversão</span><strong className="text-emerald-400">{row.leads ? `${((row.mql / row.leads) * 100).toFixed(1).replace(".", ",")}%` : "—"}</strong></div>
