@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, ChevronLeft, ChevronRight, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatLocalDate } from "@/hooks/useMetrics";
+import { useAuth } from "@/hooks/useAuth";
 
 const STEPS = ["Sobre Você", "Jornada de Compra", "Atendimento"];
 
@@ -79,14 +80,14 @@ type FormData = {
   consultor: string;
   tempo_atendimento: string;
   atendimento_rapido: string;
-  nota_whatsapp: number;
-  nota_curso: number;
+  nota_whatsapp: number | null;
+  nota_curso: number | null;
   forma_atendimento: string;
   motivacao_fechar: string;
   valor_curso_opiniao: string;
   sugestao_atendimento: string;
   indicaria_alguem: string;
-  nota_indicacao: number;
+  nota_indicacao: number | null;
   nome: string;
   cpf: string;
   data_nascimento: string;
@@ -111,14 +112,14 @@ const initialForm: FormData = {
   consultor: "",
   tempo_atendimento: "",
   atendimento_rapido: "",
-  nota_whatsapp: 8,
-  nota_curso: 8,
+  nota_whatsapp: null,
+  nota_curso: null,
   forma_atendimento: "",
   motivacao_fechar: "",
   valor_curso_opiniao: "",
   sugestao_atendimento: "",
   indicaria_alguem: "",
-  nota_indicacao: 8,
+  nota_indicacao: null,
   nome: "",
   cpf: "",
   data_nascimento: "",
@@ -151,7 +152,7 @@ const RadioGroup = ({ options, value, onChange, name }: { options: string[]; val
   </div>
 );
 
-const SliderScore = ({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) => (
+const SliderScore = ({ value, onChange, label }: { value: number | null; onChange: (v: number) => void; label: string }) => (
   <div>
     <div className="flex justify-between mb-2">
       <span className="text-xs text-muted-foreground">Ruim</span>
@@ -181,6 +182,8 @@ const PesquisaPage = () => {
   const [loadingCpf, setLoadingCpf] = useState(false);
   const [cpfLookupMessage, setCpfLookupMessage] = useState("");
   const { toast } = useToast();
+  const { session } = useAuth();
+  const isDashboardUser = Boolean(session);
 
   const set = (key: keyof FormData, val: string | number) => setForm((p) => ({ ...p, [key]: val }));
 
@@ -290,6 +293,8 @@ const PesquisaPage = () => {
     if (s === 2) {
       if (!form.tempo_atendimento) return "Selecione o tempo de atendimento";
       if (!form.atendimento_rapido) return "Selecione se o atendimento foi rápido";
+      if (form.nota_whatsapp === null) return "Dê uma nota para o atendimento no WhatsApp";
+      if (form.nota_curso === null) return "Dê uma nota para o curso";
       if (!form.forma_atendimento) return "Selecione sobre a forma de atendimento";
       if (!form.motivacao_fechar.trim()) return "Preencha o que te motivou a fechar";
       if (!form.valor_curso_opiniao) return "Selecione sua opinião sobre o valor";
@@ -299,10 +304,12 @@ const PesquisaPage = () => {
   };
 
   const handleNext = () => {
-    const err = validateStep(step);
-    if (err) {
-      toast({ title: "Campo obrigatório", description: err, variant: "destructive" });
-      return;
+    if (!isDashboardUser) {
+      const err = validateStep(step);
+      if (err) {
+        toast({ title: "Campo obrigatório", description: err, variant: "destructive" });
+        return;
+      }
     }
     setStep((s) => s + 1);
   };
@@ -388,10 +395,17 @@ const PesquisaPage = () => {
           {/* Progress */}
           <div className="flex gap-2 mt-3">
             {STEPS.map((s, i) => (
-              <div key={s} className="flex-1">
+              <button
+                key={s}
+                type="button"
+                onClick={() => isDashboardUser && setStep(i)}
+                disabled={!isDashboardUser}
+                className={`flex-1 text-left ${isDashboardUser ? "cursor-pointer" : "cursor-default"}`}
+                title={isDashboardUser ? `Ir para ${s}` : undefined}
+              >
                 <div className={`h-1.5 rounded-full transition-all ${i <= step ? "bg-accent" : "bg-secondary/60"}`} />
                 <p className={`text-[10px] mt-1 ${i === step ? "text-accent font-medium" : "text-muted-foreground/50"}`}>{s}</p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
