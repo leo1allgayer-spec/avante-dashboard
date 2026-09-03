@@ -2036,7 +2036,7 @@ const VendasPage = () => {
 
         <DateFilterBar mode={dateFilter.mode} onModeChange={dateFilter.setMode} label={dateFilter.label} onBack={dateFilter.goBack} onForward={dateFilter.goForward} />
 
-        <div className="grid gap-4 mb-4 md:grid-cols-3">
+        <div className="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card className="border-border/50 bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -2076,6 +2076,17 @@ const VendasPage = () => {
             <CardContent>
               <div className="font-display text-2xl font-bold">{formatBRL(recurringContractsTotal)}</div>
               <p className="mt-1 text-xs text-muted-foreground">Contratos dos clientes ativos</p>
+            </CardContent>
+          </Card>          <Card className="border-border/50 bg-card/70">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                <TrendingUp className="h-4 w-4 text-cyan-400" /> Coletado + recorrente
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.coletado + recurringContractsTotal)}</div>
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Coletado: {formatBRL(salesTotalsBreakdown.total.coletado)} · Recorrente: {formatBRL(recurringContractsTotal)}</p>
             </CardContent>
           </Card>
         </div>
