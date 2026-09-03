@@ -11,12 +11,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { useCreateSupportRule, useDeleteSupportRule, useSupportBookings, useSupportRules, useUpdateSupportBooking, useUpdateSupportRule } from "@/hooks/useSupportSchedule";
+import { useCreateSupportBooking, useCreateSupportRule, useDeleteSupportRule, useSupportBookings, useSupportRules, useSupportSlots, useUpdateSupportBooking, useUpdateSupportRule } from "@/hooks/useSupportSchedule";
+import { supabase } from "@/integrations/supabase/client";
 
 const WEEKDAYS = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
 const formatDate = (value: string) => new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${value}T12:00:00`));
 const formatTime = (value: string) => value.slice(0, 5);
+const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const addDays = (date: Date, days: number) => { const next = new Date(date); next.setDate(next.getDate() + days); return next; };
+const formatCpf = (value: string) => value.replace(/\D/g, "").slice(0, 11).replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 
 export default function SupportSchedulePage() {
   const { data: rules = [], isLoading: loadingRules } = useSupportRules();
@@ -25,13 +30,23 @@ export default function SupportSchedulePage() {
   const updateRule = useUpdateSupportRule();
   const deleteRule = useDeleteSupportRule();
   const updateBooking = useUpdateSupportBooking();
+  const createBooking = useCreateSupportBooking();
   const { toast } = useToast();
   const [weekday, setWeekday] = useState("1");
   const [startTime, setStartTime] = useState("14:00");
   const [capacity, setCapacity] = useState("1");
   const [bookingView, setBookingView] = useState<"agendado" | "concluido" | "cancelado">("agendado");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualCpf, setManualCpf] = useState("");
+  const [manualName, setManualName] = useState("");
+  const [manualPhone, setManualPhone] = useState("");
+  const [manualModality, setManualModality] = useState<"presencial" | "online">("presencial");
+  const [manualSlot, setManualSlot] = useState("");
   const publicLink = `${window.location.origin}/agendar-suporte`;
   const today = new Date().toISOString().slice(0, 10);
+  const slotFrom = localDate(new Date());
+  const slotTo = localDate(addDays(new Date(), 60));
+  const { data: availableSlots = [], isLoading: loadingSlots } = useSupportSlots(slotFrom, slotTo);
 
   const activeBookings = useMemo(() => bookings.filter((booking) => booking.status === "agendado"), [bookings]);
   const upcoming = useMemo(() => [...activeBookings].filter((booking) => booking.booking_date >= today).sort((a, b) => `${a.booking_date}${a.start_time}`.localeCompare(`${b.booking_date}${b.start_time}`)), [activeBookings, today]);
@@ -70,6 +85,24 @@ export default function SupportSchedulePage() {
     }
   };
 
+  const addManualBooking = async () => {
+    const cpfDigits = manualCpf.replace(/\D/g, "");
+    const phoneDigits = manualPhone.replace(/\D/g, "");
+    const [date, time] = manualSlot.split("|");
+    if (cpfDigits.length !== 11 || !manualName.trim() || phoneDigits.length < 10 || !date || !time) {
+      toast({ title: "Preencha os dados obrigatórios", description: "Informe CPF, nome, WhatsApp e um horário disponível.", variant: "destructive" });
+      return;
+    }
+    try {
+      const result = await createBooking.mutateAsync({ cpf: manualCpf, date, time, modality: manualModality, name: manualName.trim(), phone: manualPhone.trim() });
+      const { error: notificationError } = await supabase.functions.invoke("support-booking-notifications", { body: { bookingId: result.id } });
+      setManualOpen(false);
+      setManualCpf(""); setManualName(""); setManualPhone(""); setManualSlot(""); setManualModality("presencial");
+      toast({ title: "Reunião adicionada", description: notificationError ? "O agendamento foi salvo, mas o aviso não pôde ser enviado." : "Agendamento salvo e confirmação enviada ao aluno." });
+    } catch (error) {
+      toast({ title: "Não foi possível agendar", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
   return <PageTransition><DashboardLayout title="Agenda de Suporte" subtitle="Aulas, disponibilidade e limite de três atendimentos por aluno" actions={<Button onClick={copyLink} className="gap-2"><Copy className="h-4 w-4" /> Copiar link dos alunos</Button>}>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <MetricCard title="Próximas aulas" value={upcoming.length} icon={<CalendarCheck2 className="h-5 w-5" />} variant="primary" countUp />
@@ -88,6 +121,7 @@ export default function SupportSchedulePage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div><h2 className="font-display text-lg font-bold">Agendamentos de suporte</h2><p className="text-xs text-muted-foreground">Os atendimentos ativos aparecem pela data mais próxima.</p></div>
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" className="gap-1" onClick={() => setManualOpen(true)}><Plus className="h-4 w-4" /> Novo agendamento</Button>
                 <Button size="sm" variant={bookingView === "agendado" ? "default" : "outline"} onClick={() => setBookingView("agendado")}>Ativos ({bookings.filter((item) => item.status === "agendado").length})</Button>
                 <Button size="sm" variant={bookingView === "concluido" ? "default" : "outline"} onClick={() => setBookingView("concluido")}>Realizados ({bookings.filter((item) => item.status === "concluido").length})</Button>
                 <Button size="sm" variant={bookingView === "cancelado" ? "destructive" : "outline"} onClick={() => setBookingView("cancelado")}>Cancelados ({bookings.filter((item) => item.status === "cancelado").length})</Button>
@@ -105,5 +139,19 @@ export default function SupportSchedulePage() {
         <div className="overflow-hidden rounded-xl border border-border/40 bg-card/70"><div className="border-b border-border/40 p-4"><h2 className="font-display text-lg font-bold">Horários configurados</h2></div><Table><TableHeader><TableRow><TableHead>Dia</TableHead><TableHead>Horário</TableHead><TableHead>Vagas</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader><TableBody>{loadingRules ? <TableRow><TableCell colSpan={5} className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow> : rules.length === 0 ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">Nenhum horário configurado.</TableCell></TableRow> : rules.map((rule) => <TableRow key={rule.id}><TableCell className="font-semibold">{WEEKDAYS[rule.weekday]}</TableCell><TableCell>{formatTime(rule.start_time)}</TableCell><TableCell><Input type="number" min="1" max="50" value={rule.capacity} className="h-8 w-20" onChange={(event) => void updateRule.mutateAsync({ id: rule.id, capacity: Math.max(1, Number(event.target.value)) })} /></TableCell><TableCell><Select value={rule.active ? "active" : "inactive"} onValueChange={(value) => void updateRule.mutateAsync({ id: rule.id, active: value === "active" })}><SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Ativo</SelectItem><SelectItem value="inactive">Pausado</SelectItem></SelectContent></Select></TableCell><TableCell className="text-right"><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remover este horário?</AlertDialogTitle><AlertDialogDescription>Agendamentos já feitos serão preservados, mas novas datas deixarão de aparecer aos alunos.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => void deleteRule.mutateAsync(rule.id)}>Remover</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>)}</TableBody></Table></div>
       </TabsContent>
     </Tabs>
+
+    <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader><DialogTitle>Adicionar reunião manualmente</DialogTitle><DialogDescription>Use um horário disponível da agenda. O limite de três atendimentos e a capacidade do horário serão validados automaticamente.</DialogDescription></DialogHeader>
+        <div className="grid gap-4 py-2 sm:grid-cols-2">
+          <div><Label htmlFor="manual-support-cpf">CPF *</Label><Input id="manual-support-cpf" className="mt-1.5" value={manualCpf} onChange={(event) => setManualCpf(formatCpf(event.target.value))} placeholder="000.000.000-00" /></div>
+          <div><Label htmlFor="manual-support-name">Nome do aluno *</Label><Input id="manual-support-name" className="mt-1.5" value={manualName} onChange={(event) => setManualName(event.target.value)} /></div>
+          <div><Label htmlFor="manual-support-phone">WhatsApp *</Label><Input id="manual-support-phone" className="mt-1.5" value={manualPhone} onChange={(event) => setManualPhone(event.target.value)} placeholder="55 + DDD + número" inputMode="tel" /></div>
+          <div><Label>Modalidade *</Label><Select value={manualModality} onValueChange={(value: "presencial" | "online") => setManualModality(value)}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="presencial">Presencial</SelectItem><SelectItem value="online">Online</SelectItem></SelectContent></Select></div>
+          <div className="sm:col-span-2"><Label>Data e horário *</Label><Select value={manualSlot} onValueChange={setManualSlot} disabled={loadingSlots || availableSlots.length === 0}><SelectTrigger className="mt-1.5"><SelectValue placeholder={loadingSlots ? "Carregando horários..." : availableSlots.length === 0 ? "Nenhum horário disponível" : "Selecione um horário disponível"} /></SelectTrigger><SelectContent>{availableSlots.map((slot) => <SelectItem key={`${slot.slot_date}-${slot.start_time}`} value={`${slot.slot_date}|${slot.start_time}`}><span className="capitalize">{formatDate(slot.slot_date)} às {formatTime(slot.start_time)} — {slot.capacity - slot.booked} vaga(s)</span></SelectItem>)}</SelectContent></Select></div>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={() => setManualOpen(false)}>Cancelar</Button><Button onClick={() => void addManualBooking()} disabled={createBooking.isPending || loadingSlots}>{createBooking.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Adicionar reunião</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   </DashboardLayout></PageTransition>;
 }
