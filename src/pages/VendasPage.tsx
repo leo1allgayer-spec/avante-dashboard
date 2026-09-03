@@ -2391,12 +2391,14 @@ const VendasPage = () => {
         </div>
 
         {/* Flat spreadsheet-style sales table: one piece of information per column. */}
-        <div className="overflow-hidden rounded-lg border border-border/30">
-          <Table className="table-fixed text-sm">
+        <div className="overflow-x-auto rounded-lg border border-border/30">
+          <Table className="min-w-[1680px] table-fixed text-sm">
             <TableHeader>
               <TableRow className="border-border/30 bg-secondary/30">
                 <TableHead className="w-[10%] px-2 text-xs">Cliente</TableHead>
                 <TableHead className="w-[12%] px-2 text-xs">{salesTableSection === "todos" ? "Produto / serviço" : salesTableSection === "cursos" ? "Curso" : "Serviço"}</TableHead>
+                <TableHead className="w-[7%] px-2 text-xs">Origem</TableHead>
+                <TableHead className="w-[10%] px-2 text-xs">Criativo de vendas</TableHead>
                 <TableHead className="w-[6%] px-2 text-right text-xs">Total</TableHead>
                 <TableHead className="w-[11%] px-2 text-right text-xs">Coletado / comissão paga</TableHead>
                 <TableHead className="w-[9%] px-2 text-right">A receber / comissão</TableHead>
@@ -2411,13 +2413,18 @@ const VendasPage = () => {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={12} className="py-8 text-center text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : vendasAgrupadas.length === 0 ? (
-                <TableRow><TableCell colSpan={12} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
               ) : vendasAgrupadas.map((grupo, index) => {
                 const v = grupo.principal;
                 const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
                 const nomesTexto = nomes.join(" · ") || "Sem produto ou serviço";
+                const origensTexto = [...new Set(grupo.itens.map((item) => item.origem).filter(Boolean))].join(" · ") || "Sem origem";
+                const criativosTexto = [...new Set(grupo.itens.flatMap((sale) => criativosVendas
+                  .filter((creative) => creative.data === sale.data && normalizeText(creative.nome_aluno) === normalizeText(sale.cliente) && Number(creative.valor_curso || 0) === Number(sale.valor || 0))
+                  .map((creative) => creative.criativo)
+                  .filter(Boolean)))].join(" · ") || "Sem criativo";
                 const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
                 const ultimoPagamento = grupo.paymentHistory[0];
                 const formaSaldo = quickPayments[grupo.chave] || v.pagamento_saldo || "PIX";
@@ -2439,7 +2446,7 @@ const VendasPage = () => {
                     }}
                   >
                     <TableCell className="px-2 py-4" title={`${v.cliente} · ${formatDate(v.data)} · ${v.origem || "Sem origem"}`}>
-                      <p className="truncate font-semibold">{v.cliente}</p><p className="truncate text-[11px] text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
+                      <p className="truncate font-semibold">{v.cliente}</p><p className="truncate text-[11px] text-muted-foreground">{formatDate(v.data)}</p>
                     </TableCell>
                     <TableCell className="px-2 py-3" title={nomesTexto}>
                       <p className="truncate font-semibold">{nomesTexto}</p>
@@ -2447,6 +2454,12 @@ const VendasPage = () => {
                         {grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}
                         {grupo.datasPrevistasCurso.length > 0 ? ` · Curso: ${grupo.datasPrevistasCurso.map(formatDate).join(", ")}` : ""}
                       </p>
+                    </TableCell>
+                    <TableCell className="px-2 py-3" title={origensTexto}>
+                      <p className="truncate text-xs font-medium">{origensTexto}</p>
+                    </TableCell>
+                    <TableCell className="px-2 py-3" title={criativosTexto}>
+                      <p className="line-clamp-2 text-xs font-medium">{criativosTexto}</p>
                     </TableCell>
                     <TableCell className="px-2 py-3 text-right text-[15px] font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
                     <TableCell className="px-2 py-3 text-right" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>
