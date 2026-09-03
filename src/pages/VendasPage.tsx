@@ -1118,7 +1118,7 @@ const VendasPage = () => {
 
   const metasPrincipais = useMemo(() => {
     const rows = monthMetrics || [];
-    const lastWithTarget = (keys: Array<"meta_cursos" | "super_meta_cursos" | "meta_servicos" | "super_meta_servicos" | "meta_suporte_extra" | "super_meta_suporte_extra" | "meta_site" | "super_meta_site" | "meta_negocio_local" | "super_meta_negocio_local" | "meta_crm" | "super_meta_crm" | "meta_upsell" | "super_meta_upsell">) => {
+    const lastWithTarget = (keys: Array<"meta_cursos" | "super_meta_cursos" | "meta_servicos" | "super_meta_servicos" | "meta_social_media" | "super_meta_social_media" | "meta_suporte_extra" | "super_meta_suporte_extra" | "meta_site" | "super_meta_site" | "meta_negocio_local" | "super_meta_negocio_local" | "meta_crm" | "super_meta_crm" | "meta_upsell" | "super_meta_upsell">) => {
       for (const key of keys) {
         const found = [...rows].reverse().find((item) => Number(item?.[key] || 0) > 0);
         if (found) return Number(found[key] || 0);
@@ -1130,6 +1130,7 @@ const VendasPage = () => {
       cursosMarcados: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
       cursosFeitos: lastWithTarget(["meta_cursos", "super_meta_cursos"]),
       servicos: lastWithTarget(["meta_servicos", "super_meta_servicos"]),
+      socialMedia: lastWithTarget(["meta_social_media", "super_meta_social_media"]),
       suporteExtra: lastWithTarget(["meta_suporte_extra", "super_meta_suporte_extra"]),
       site: lastWithTarget(["meta_site", "super_meta_site"]),
       negocioLocal: lastWithTarget(["meta_negocio_local", "super_meta_negocio_local"]),
@@ -1164,7 +1165,8 @@ const VendasPage = () => {
     const counts = {
       cursosMarcados: vendasRegistradasNoMes.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
       cursosFeitos: cursosFeitosNoMes.filter((item) => !!item.survey_response_id).length,
-      servicos: vendasRegistradasNoMes.filter((venda) => GENERAL_SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
+      servicos: vendasRegistradasNoMes.filter((venda) => ["Gestão de Tráfego Pago - Meta Ads", "Gestão de Tráfego Pago - Google Ads"].some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
+      socialMedia: countRegisteredSales("Social Media"),
       suporteExtra: countRegisteredSales("Suporte Extra"),
       site: countRegisteredSales("Desenvolvimento de Site"),
       negocioLocal: countRegisteredSales("Captacao/Edicao de Conteudo"),
@@ -1175,7 +1177,8 @@ const VendasPage = () => {
     const periodCounts = {
       cursosMarcados: vendasRegistradasNoPeriodo.filter((venda) => COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getVendaCategoria(venda)))).length,
       cursosFeitos: cursosFeitosNoPeriodo.filter((item) => !!item.survey_response_id).length,
-      servicos: vendasRegistradasNoPeriodo.filter((venda) => GENERAL_SERVICE_OPTIONS.some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
+      servicos: vendasRegistradasNoPeriodo.filter((venda) => ["Gestão de Tráfego Pago - Meta Ads", "Gestão de Tráfego Pago - Google Ads"].some((servico) => normalizeText(servico) === normalizeText(getVendaCategoria(venda)))).length,
+      socialMedia: countPeriodSales("Social Media"),
       suporteExtra: countPeriodSales("Suporte Extra"),
       site: countPeriodSales("Desenvolvimento de Site"),
       negocioLocal: countPeriodSales("Captacao/Edicao de Conteudo"),
@@ -1195,7 +1198,8 @@ const VendasPage = () => {
     return [
       withPeriodGoals("Cursos marcados", counts.cursosMarcados, periodCounts.cursosMarcados, metas.cursosMarcados),
       withPeriodGoals("Cursos feitos", counts.cursosFeitos, periodCounts.cursosFeitos, metas.cursosFeitos),
-      withPeriodGoals("Serviços", counts.servicos, periodCounts.servicos, metas.servicos),
+      withPeriodGoals("Negócio Local", counts.servicos, periodCounts.servicos, metas.servicos),
+      withPeriodGoals("Social Media", counts.socialMedia, periodCounts.socialMedia, metas.socialMedia),
       withPeriodGoals("Suporte Extra", counts.suporteExtra, periodCounts.suporteExtra, metas.suporteExtra),
       withPeriodGoals("Site", counts.site, periodCounts.site, metas.site),
       withPeriodGoals("Captação", counts.negocioLocal, periodCounts.negocioLocal, metas.negocioLocal),

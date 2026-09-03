@@ -22,6 +22,7 @@ export interface DailyMetrics {
   curso_feito: number;
   meta_cursos: number;
   meta_servicos: number;
+  meta_social_media: number;
   meta_suporte_extra: number;
   meta_site: number;
   meta_negocio_local: number;
@@ -30,6 +31,7 @@ export interface DailyMetrics {
   meta_upsell: number;
   super_meta_cursos: number;
   super_meta_servicos: number;
+  super_meta_social_media: number;
   super_meta_suporte_extra: number;
   super_meta_site: number;
   super_meta_negocio_local: number;
@@ -38,6 +40,7 @@ export interface DailyMetrics {
   super_meta_upsell: number;
   valor_cursos: number;
   valor_servicos: number;
+  valor_social_media: number;
   valor_suporte_extra: number;
   valor_site: number;
   valor_negocio_local: number;
@@ -46,6 +49,7 @@ export interface DailyMetrics {
   valor_upsell: number;
   super_valor_cursos: number;
   super_valor_servicos: number;
+  super_valor_social_media: number;
   super_valor_suporte_extra: number;
   super_valor_site: number;
   super_valor_negocio_local: number;
