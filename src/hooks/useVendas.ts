@@ -73,10 +73,14 @@ export function useUpdateVenda() {
       if (error) throw error;
       return data;
     },
-    onSuccess: async () => {
+    onSuccess: async (updated) => {
+      qc.setQueryData<Venda[]>(["vendas"], (current = []) =>
+        current.map((sale) => sale.id === updated.id ? { ...sale, ...updated } as Venda : sale),
+      );
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ["vendas"] }),
+        qc.refetchQueries({ queryKey: ["vendas"] }),
         qc.invalidateQueries({ queryKey: ["future-students"] }),
+        qc.invalidateQueries({ queryKey: ["student-data"] }),
       ]);
     },
   });

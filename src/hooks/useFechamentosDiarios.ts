@@ -78,7 +78,12 @@ export function useUpdateFechamentoDiario() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["fechamentos_diarios"] }),
+    onSuccess: async (updated) => {
+      qc.setQueryData<FechamentoDiario[]>(["fechamentos_diarios"], (current = []) =>
+        current.map((closing) => closing.id === updated.id ? { ...closing, ...updated } as FechamentoDiario : closing),
+      );
+      await qc.refetchQueries({ queryKey: ["fechamentos_diarios"] });
+    },
   });
 }
 
