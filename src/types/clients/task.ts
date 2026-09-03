@@ -40,6 +40,8 @@ export interface Meeting {
   service: string;
   modality: "presencial" | "online";
   hasClosed: boolean;
+  closingStatus?: "pending" | "closed" | "not_closed";
+  objection?: string;
   source?: "local" | "crm";
   externalId?: string;
 }

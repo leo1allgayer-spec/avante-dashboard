@@ -44,7 +44,9 @@ export function useMeetings() {
           origin: r.origin || "",
           service: r.service || "",
           modality: r.modality || "presencial",
-          hasClosed: r.has_closing || false,
+          hasClosed: r.has_closing || r.closing_status === "closed" || false,
+          closingStatus: r.closing_status || (r.has_closing ? "closed" : "pending"),
+          objection: r.objection || "",
           source: "local",
           externalId: r.external_id || undefined,
         }));
@@ -123,6 +125,8 @@ export function useMeetings() {
       service: meeting.service,
       modality: meeting.modality,
       has_closing: hasClosed,
+      closing_status: meeting.closingStatus || (hasClosed ? "closed" : "pending"),
+      objection: meeting.objection || "",
       user_id: session.user.id,
     };
     const { data: localData, error: localError } = await supabase
@@ -190,6 +194,8 @@ export function useMeetings() {
         service: meeting.service,
         modality: meeting.modality,
         has_closing: hasClosed,
+        closing_status: meeting.closingStatus || (hasClosed ? "closed" : "pending"),
+        objection: meeting.objection || "",
       } as any)
       .eq("id", id);
 

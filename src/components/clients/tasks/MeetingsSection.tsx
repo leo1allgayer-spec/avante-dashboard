@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw } from "lucide-react";
 import { format, parseISO, startOfWeek, endOfWeek, addWeeks, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -119,6 +118,8 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
             <Handshake className="h-2 w-2" /> Fechou
           </Badge>
         )}
+        {m.closingStatus === "not_closed" && <Badge variant="destructive" className="text-[9px] h-4">Não fechou</Badge>}
+
       </div>
       {m.participants.length > 0 && (
         <div className="text-muted-foreground truncate">
@@ -126,6 +127,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
           {m.participants.join(", ")}
         </div>
       )}
+      {m.closingStatus === "not_closed" && m.objection && !compact && <p className="text-amber-500 line-clamp-2"><strong>Objeção:</strong> {m.objection}</p>}
       {m.description && !compact && (
         <p className="text-muted-foreground line-clamp-2">{m.description}</p>
       )}
@@ -149,7 +151,8 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
   const [origin, setOrigin] = useState("");
   const [service, setService] = useState("");
   const [modality, setModality] = useState<"presencial" | "online">("presencial");
-  const [hasClosed, setHasClosed] = useState(false);
+  const [closingStatus, setClosingStatus] = useState<"pending" | "closed" | "not_closed">("pending");
+  const [objection, setObjection] = useState("");
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
 
   // Filters
@@ -174,6 +177,9 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
       if (filterParticipant && !m.participants.includes(filterParticipant)) return false;
       if (filterOutcome === "positive" && m.outcome !== "positive") return false;
       if (filterOutcome === "negative" && m.outcome !== "negative") return false;
+      if (filterOutcome === "closed" && m.closingStatus !== "closed" && !m.hasClosed) return false;
+      if (filterOutcome === "not_closed" && m.closingStatus !== "not_closed") return false;
+      if (filterOutcome === "pending_closing" && (m.closingStatus || (m.hasClosed ? "closed" : "pending")) !== "pending") return false;
       if (filterMonth) {
         try {
           const mMonth = format(parseISO(m.date), "yyyy-MM");
@@ -224,7 +230,8 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
     setEditingMeeting(null);
     setTitle(""); setMeetingType("reuniao"); setClientName(""); setDate(""); setTime(""); setDurationMinutes(60);
     setResponsible(""); setProfessional(""); setDescription("");
-    setSelectedParticipants([]); setOrigin(""); setService(""); setModality("presencial"); setHasClosed(false);
+    setSelectedParticipants([]); setOrigin(""); setService(""); setModality("presencial");
+    setClosingStatus("pending"); setObjection("");
     setConflictMsg(null);
     setShowDialog(true);
   };
@@ -235,7 +242,8 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
     setDate(m.date); setTime(m.time); setDurationMinutes(m.durationMinutes || 60);
     setResponsible(m.responsible || ""); setProfessional(m.professional || "");
     setDescription(m.description); setSelectedParticipants(m.participants);
-    setOrigin(m.origin); setService(m.service || ""); setModality(m.modality); setHasClosed(m.hasClosed);
+    setOrigin(m.origin); setService(m.service || ""); setModality(m.modality);
+    setClosingStatus(m.closingStatus || (m.hasClosed ? "closed" : "pending")); setObjection(m.objection || "");
     setConflictMsg(null);
     setShowDialog(true);
   };
@@ -269,13 +277,14 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
 
   const handleSubmit = () => {
     if (!title.trim() || !date) return;
+    if (closingStatus === "not_closed" && !objection.trim()) { setConflictMsg("Informe a objeção ou o motivo pelo qual a venda não fechou."); return; }
     const conflict = checkConflict();
     if (conflict) { setConflictMsg(conflict); return; }
     setConflictMsg(null);
     if (editingMeeting) {
-      onUpdate({ ...editingMeeting, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed });
+      onUpdate({ ...editingMeeting, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     } else {
-      onAdd({ title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed });
+      onAdd({ title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     }
     setShowDialog(false);
   };
@@ -340,6 +349,9 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="positive">Positiva</SelectItem>
               <SelectItem value="negative">Negativa</SelectItem>
+              <SelectItem value="closed">Fechou na call</SelectItem>
+              <SelectItem value="not_closed">Não fechou</SelectItem>
+              <SelectItem value="pending_closing">A verificar</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterMonth} onValueChange={(v) => setFilterMonth(v === "all" ? "" : v)}>
@@ -611,10 +623,23 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
               <Label>Observação</Label>
               <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} />
             </div>
-            <div className="sm:col-span-2 flex items-center gap-3">
-              <Label htmlFor="has-closing" className="cursor-pointer">Houve fechamento?</Label>
-              <Switch id="has-closing" checked={hasClosed} onCheckedChange={setHasClosed} />
+            <div className="sm:col-span-2">
+              <Label>Fechou na call?</Label>
+              <Select value={closingStatus} onValueChange={(value) => { const next = value as "pending" | "closed" | "not_closed"; setClosingStatus(next); if (next !== "not_closed") setObjection(""); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">A verificar</SelectItem>
+                  <SelectItem value="closed">Sim, fechou</SelectItem>
+                  <SelectItem value="not_closed">Não fechou</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+            {closingStatus === "not_closed" && (
+              <div className="sm:col-span-2">
+                <Label>Objeção / motivo de não fechar *</Label>
+                <Textarea value={objection} onChange={(event) => setObjection(event.target.value)} rows={3} placeholder="Registre a objeção para mapear no fechamento do mês" />
+              </div>
+            )}
             {conflictMsg && <p className="sm:col-span-2 rounded-md bg-destructive/10 p-2 text-sm text-destructive">{conflictMsg}</p>}
           </div>
           <DialogFooter>

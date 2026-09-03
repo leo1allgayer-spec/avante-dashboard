@@ -218,7 +218,9 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
     origin: firstString(row, ["origin", "source"]) || "CRM",
     service: firstString(row, ["service_name", "service"]) || firstString(serviceRecord, ["name", "title"]),
     modality: firstString(row, ["modality", "type", "location_type"]).toLowerCase().includes("online") ? "online" : "presencial",
-    hasClosed: false,
+    hasClosed: Boolean(row.has_closing) || firstString(row, ["closing_status"]) === "closed",
+    closingStatus: firstString(row, ["closing_status"]) || (Boolean(row.has_closing) ? "closed" : "pending"),
+    objection: firstString(row, ["objection", "objection_reason", "lost_reason"]),
     source: "crm",
   };
 };
@@ -322,6 +324,9 @@ Deno.serve(async (request) => {
         participants: Array.isArray(meeting.participants) ? meeting.participants : [],
         modality: firstString(meeting, ["modality"]) || "presencial",
         status: firstString(meeting, ["status"]) || "pending",
+        has_closing: Boolean(meeting.hasClosed) || firstString(meeting, ["closingStatus"]) === "closed",
+        closing_status: firstString(meeting, ["closingStatus", "closing_status"]) || "pending",
+        objection: firstString(meeting, ["objection"]),
       };
       const isCreate = action === "create";
       if (!isCreate && !externalId) throw new Error("Identificador do compromisso não informado.");
