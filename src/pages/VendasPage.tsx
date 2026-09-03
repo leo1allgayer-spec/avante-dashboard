@@ -2432,10 +2432,12 @@ const VendasPage = () => {
                 const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
                 const nomesTexto = nomes.join(" · ") || "Sem produto ou serviço";
                 const origensTexto = [...new Set(grupo.itens.map((item) => item.origem).filter(Boolean))].join(" · ") || "Sem origem";
-                const criativosTexto = [...new Set(grupo.itens.flatMap((sale) => criativosVendas
-                  .filter((creative) => creative.data === sale.data && normalizeText(creative.nome_aluno) === normalizeText(sale.cliente) && Number(creative.valor_curso || 0) === Number(sale.valor || 0))
-                  .map((creative) => creative.criativo)
-                  .filter(Boolean)))].join(" · ") || "Sem criativo";
+                const criativosDoGrupo = grupo.itens.flatMap((sale) => criativosVendas
+                  .filter((creative) => creative.data === sale.data && normalizeText(creative.nome_aluno) === normalizeText(sale.cliente) && Number(creative.valor_curso || 0) === Number(sale.valor || 0)));
+                const criativosTexto = [...new Set(criativosDoGrupo.map((creative) => creative.criativo).filter(Boolean))].join(" · ") || "Sem criativo";
+                const roasCriativosTexto = criativosDoGrupo.length > 0
+                  ? [...new Set(criativosDoGrupo.map((creative) => Number(creative.roas || 0).toFixed(2)))].map((roas) => `${roas}x`).join(" · ")
+                  : "";
                 const statusVenda = grupo.saldo <= 0 ? "paga" : v.status;
                 const ultimoPagamento = grupo.paymentHistory[0];
                 const formaSaldo = quickPayments[grupo.chave] || v.pagamento_saldo || "PIX";
@@ -2469,8 +2471,9 @@ const VendasPage = () => {
                     <TableCell className="px-2 py-3" title={origensTexto}>
                       <p className="truncate text-xs font-medium">{origensTexto}</p>
                     </TableCell>
-                    <TableCell className="px-2 py-3" title={criativosTexto}>
+                    <TableCell className="px-2 py-3" title={roasCriativosTexto ? `${criativosTexto} · ROAS ${roasCriativosTexto}` : criativosTexto}>
                       <p className="line-clamp-2 text-xs font-medium">{criativosTexto}</p>
+                      {roasCriativosTexto && <p className="mt-1 text-[10px] font-semibold text-violet-400">ROAS {roasCriativosTexto}</p>}
                     </TableCell>
                     <TableCell className="px-2 py-3 text-right text-[15px] font-semibold">{formatBRL(grupo.valorTotal)}</TableCell>
                     <TableCell className="px-2 py-3 text-right" title={grupo.paymentHistory.length ? `${grupo.paymentHistory.length} pagamento(s) registrado(s)` : ""}>
