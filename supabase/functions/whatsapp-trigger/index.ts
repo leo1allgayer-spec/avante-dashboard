@@ -61,9 +61,16 @@ Deno.serve(async (req) => {
     const sentMessageTypes = new Set(
       (existingLogs || [])
         .map((log) => log.message_type)
-        // A reminder already sent belongs to the old date after a reschedule.
-        // It must not prevent the reminders for the new course date.
-        .filter((messageType) => !rescheduled || !["reminder_24h", "reminder_1h", "post_course"].includes(messageType))
+        // Every schedule-dependent message already sent belongs to the old
+        // date after a reschedule. It must not prevent confirmation, instructor
+        // notice or reminders from being sent again with the updated details.
+        .filter((messageType) => !rescheduled || ![
+          "confirmation",
+          "google_manager_notification",
+          "reminder_24h",
+          "reminder_1h",
+          "post_course",
+        ].includes(messageType))
     );
 
     // 1. Send immediate confirmation
