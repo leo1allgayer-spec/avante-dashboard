@@ -27,8 +27,6 @@ export const SERVICE_OPTIONS = [
 export const GENERAL_SERVICE_OPTIONS = [
   "Assessoria 360",
   "Social Media",
-  "Gestão de Tráfego Pago - Meta Ads",
-  "Gestão de Tráfego Pago - Google Ads",
   "Mentoria Meta Ads",
 ];
 

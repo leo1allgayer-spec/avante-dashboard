@@ -57,6 +57,19 @@ const getSaleCategory = (sale: { servico?: string | null; produto?: string | nul
   return raw;
 };
 
+const LOCAL_BUSINESS_SERVICES = new Set([
+  "Gestão de Tráfego Pago - Meta Ads",
+  "Gestão de Tráfego Pago - Google Ads",
+]);
+const OVERVIEW_SERVICE_CATEGORIES = [
+  ...SERVICE_CATEGORIES.filter((category) => !LOCAL_BUSINESS_SERVICES.has(category)),
+  "Negócio Local",
+];
+const getOverviewCategory = (value?: string | null) => {
+  const category = canonicalizeSaleCategory(value);
+  return LOCAL_BUSINESS_SERVICES.has(category) ? "Negócio Local" : category;
+};
+
 const getCollectedNet = (item: { valor_sinal?: number | null; valor_sinal_liquido?: number | null }) =>
   Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
 
@@ -249,9 +262,9 @@ const Dashboard = () => {
   }, [registeredVendas, fechamentosMes, filter.range.start, filter.range.end]);
 
   const salesCategoryStats = useMemo(() => {
-    const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, { count: 0, valor: 0 }]));
+    const stats = new Map(OVERVIEW_SERVICE_CATEGORIES.map((category) => [category, { count: 0, valor: 0 }]));
     for (const venda of registeredVendas) {
-      const category = canonicalizeSaleCategory(venda.servico || venda.produto);
+      const category = getOverviewCategory(venda.servico || venda.produto);
       const current = stats.get(category);
       if (current) {
         current.count += 1;
@@ -262,10 +275,10 @@ const Dashboard = () => {
   }, [registeredVendas]);
 
   const collectedCategoryStats = useMemo(() => {
-    const stats = new Map(SERVICE_CATEGORIES.map((category) => [category, 0]));
+    const stats = new Map(OVERVIEW_SERVICE_CATEGORIES.map((category) => [category, 0]));
     for (const fechamento of fechamentosMes) {
       if (normalizeText(fechamento.status) === "cancelado" || fechamento.data < filter.range.start || fechamento.data > filter.range.end) continue;
-      const category = canonicalizeSaleCategory(fechamento.categoria || fechamento.produto_servico);
+      const category = getOverviewCategory(fechamento.categoria || fechamento.produto_servico);
       stats.set(category, (stats.get(category) || 0) + getCollectedNet(fechamento));
     }
     return stats;
@@ -728,7 +741,7 @@ const Dashboard = () => {
               </div>
               <p className="text-xs text-muted-foreground/40 mt-1">{registeredVendas.length} vendas</p>
             </motion.div>
-            {SERVICE_CATEGORIES.map((category) => {
+            {OVERVIEW_SERVICE_CATEGORIES.map((category) => {
               const st = salesCategoryStats.get(category) || { count: 0, valor: 0 };
               const collected = collectedCategoryStats.get(category) || 0;
               return (

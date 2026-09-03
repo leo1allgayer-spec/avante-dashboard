@@ -25,6 +25,7 @@ export interface DailyMetrics {
   meta_suporte_extra: number;
   meta_site: number;
   meta_negocio_local: number;
+  meta_captacao_edicao: number;
   meta_crm: number;
   meta_upsell: number;
   super_meta_cursos: number;
@@ -32,6 +33,7 @@ export interface DailyMetrics {
   super_meta_suporte_extra: number;
   super_meta_site: number;
   super_meta_negocio_local: number;
+  super_meta_captacao_edicao: number;
   super_meta_crm: number;
   super_meta_upsell: number;
   valor_cursos: number;
@@ -39,6 +41,7 @@ export interface DailyMetrics {
   valor_suporte_extra: number;
   valor_site: number;
   valor_negocio_local: number;
+  valor_captacao_edicao: number;
   valor_crm: number;
   valor_upsell: number;
   super_valor_cursos: number;
@@ -46,6 +49,7 @@ export interface DailyMetrics {
   super_valor_suporte_extra: number;
   super_valor_site: number;
   super_valor_negocio_local: number;
+  super_valor_captacao_edicao: number;
   super_valor_crm: number;
   super_valor_upsell: number;
   super_meta_mensal: number;

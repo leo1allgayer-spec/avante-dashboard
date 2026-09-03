@@ -327,6 +327,7 @@ export type Database = {
           meta_mensal_prevista: number | null
           meta_mensal_realizada: number | null
           meta_negocio_local: number | null
+          meta_captacao_edicao: number | null
           meta_site: number | null
           meta_upsell: number | null
           roas: number | null
@@ -337,6 +338,7 @@ export type Database = {
           super_meta_diaria: number | null
           super_meta_mensal: number | null
           super_meta_negocio_local: number | null
+          super_meta_captacao_edicao: number | null
           super_meta_site: number | null
           super_meta_upsell: number | null
           super_valor_crm: number | null
@@ -344,6 +346,7 @@ export type Database = {
           super_valor_servicos: number | null
           super_valor_suporte_extra: number | null
           super_valor_negocio_local: number | null
+          super_valor_captacao_edicao: number | null
           super_valor_site: number | null
           super_valor_upsell: number | null
           updated_at: string
@@ -353,6 +356,7 @@ export type Database = {
           valor_servicos: number | null
           valor_suporte_extra: number | null
           valor_negocio_local: number | null
+          valor_captacao_edicao: number | null
           valor_site: number | null
           valor_upsell: number | null
         }
@@ -380,6 +384,7 @@ export type Database = {
           meta_mensal_prevista?: number | null
           meta_mensal_realizada?: number | null
           meta_negocio_local?: number | null
+          meta_captacao_edicao?: number | null
           meta_site?: number | null
           meta_upsell?: number | null
           roas?: number | null
@@ -390,6 +395,7 @@ export type Database = {
           super_meta_diaria?: number | null
           super_meta_mensal?: number | null
           super_meta_negocio_local?: number | null
+          super_meta_captacao_edicao?: number | null
           super_meta_site?: number | null
           super_meta_upsell?: number | null
           super_valor_crm?: number | null
@@ -397,6 +403,7 @@ export type Database = {
           super_valor_servicos?: number | null
           super_valor_suporte_extra?: number | null
           super_valor_negocio_local?: number | null
+          super_valor_captacao_edicao?: number | null
           super_valor_site?: number | null
           super_valor_upsell?: number | null
           updated_at?: string
@@ -406,6 +413,7 @@ export type Database = {
           valor_servicos?: number | null
           valor_suporte_extra?: number | null
           valor_negocio_local?: number | null
+          valor_captacao_edicao?: number | null
           valor_site?: number | null
           valor_upsell?: number | null
         }
@@ -433,6 +441,7 @@ export type Database = {
           meta_mensal_prevista?: number | null
           meta_mensal_realizada?: number | null
           meta_negocio_local?: number | null
+          meta_captacao_edicao?: number | null
           meta_site?: number | null
           meta_upsell?: number | null
           roas?: number | null
@@ -443,6 +452,7 @@ export type Database = {
           super_meta_diaria?: number | null
           super_meta_mensal?: number | null
           super_meta_negocio_local?: number | null
+          super_meta_captacao_edicao?: number | null
           super_meta_site?: number | null
           super_meta_upsell?: number | null
           super_valor_crm?: number | null
@@ -450,6 +460,7 @@ export type Database = {
           super_valor_servicos?: number | null
           super_valor_suporte_extra?: number | null
           super_valor_negocio_local?: number | null
+          super_valor_captacao_edicao?: number | null
           super_valor_site?: number | null
           super_valor_upsell?: number | null
           updated_at?: string
@@ -459,6 +470,7 @@ export type Database = {
           valor_servicos?: number | null
           valor_suporte_extra?: number | null
           valor_negocio_local?: number | null
+          valor_captacao_edicao?: number | null
           valor_site?: number | null
           valor_upsell?: number | null
         }
