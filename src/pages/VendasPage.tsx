@@ -661,8 +661,11 @@ const VendasPage = () => {
       });
       const paymentHistory = [...historyById.values()].sort((a, b) => b.date.localeCompare(a.date));
       const historyTotal = paymentHistory.reduce((total, entry) => total + entry.amount, 0);
+      const legacyPaymentMethod = fechamentosFinanceirosCliente
+        .map((closing) => closing.pagamento_saldo || closing.pagamento_sinal)
+        .find((method) => method && method !== "A definir") || getSalePaymentLabel(principal);
       if (sinalBruto > historyTotal + 0.01) {
-        paymentHistory.push({ id: `legacy-${chave}`, date: getLocalCreatedDate(principal.created_at) || principal.data, amount: sinalBruto - historyTotal, netAmount: Math.max(0, sinalLiquido - paymentHistory.reduce((total, entry) => total + Number(entry.netAmount ?? entry.amount), 0)), method: getSalePaymentLabel(principal) });
+        paymentHistory.push({ id: `legacy-${chave}`, date: getLocalCreatedDate(principal.created_at) || principal.data, amount: sinalBruto - historyTotal, netAmount: Math.max(0, sinalLiquido - paymentHistory.reduce((total, entry) => total + Number(entry.netAmount ?? entry.amount), 0)), method: legacyPaymentMethod });
       }
 
       const coletadoPeriodo = paymentHistory
@@ -2500,7 +2503,7 @@ const VendasPage = () => {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{getSalePaymentLabel(v)}</Badge></TableCell>
+                    <TableCell className="px-2 py-3"><Badge variant="outline" className="max-w-full truncate px-1.5 text-[9px]">{v.pagamento && v.pagamento !== "A definir" ? getSalePaymentLabel(v) : ultimoPagamento?.method || "A definir"}</Badge></TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="number" min="0.01" max={grupo.saldo} step="0.01" value={quickPaymentAmounts[grupo.chave] || ""} onChange={(event) => setQuickPaymentAmounts((current) => ({ ...current, [grupo.chave]: event.target.value }))} placeholder={`Até ${formatBRL(grupo.saldo)}`} className="h-8 px-2 text-xs" /> : ultimoPagamento ? <span className="text-xs font-medium text-success" title={`${grupo.paymentHistory.length} pagamento(s) registrado(s)`}>{formatBRL(ultimoPagamento.amount)}</span> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Input type="date" value={quickPaymentDates[grupo.chave] || new Date().toISOString().split("T")[0]} onChange={(event) => setQuickPaymentDates((current) => ({ ...current, [grupo.chave]: event.target.value }))} className="h-8 px-1.5 text-[11px]" /> : ultimoPagamento ? <span className="text-xs">{formatDate(ultimoPagamento.date)}</span> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className="px-2 py-4">
