@@ -14,7 +14,7 @@ export interface Task {
   assigneeId: string | null;
   dueDate: string;
   priority: "Baixa" | "Média" | "Alta";
-  status: "Pendente" | "Em andamento" | "Concluída";
+  status: "Pendente" | "Em andamento" | "Revisão" | "Concluída";
   isDaily: boolean;
   createdAt: string;
   startedAt: string | null;

@@ -11,21 +11,22 @@ interface Props {
   currentUserId?: string;
 }
 
-const statusOrder: Record<string, number> = { "Pendente": 0, "Em andamento": 1, "Concluída": 2 };
+const statusOrder: Record<string, number> = { "Pendente": 0, "Em andamento": 1, "Revisão": 2, "Concluída": 3 };
 const priorityColors: Record<string, string> = {
   Alta: "bg-destructive/20 text-destructive border-destructive/30",
   Média: "bg-status-warn text-foreground border-status-warn",
   Baixa: "bg-status-ok text-foreground border-status-ok",
 };
 
-const columns = ["Pendente", "Em andamento", "Concluída"] as const;
+const columns = ["Pendente", "Em andamento", "Revisão", "Concluída"] as const;
 
 export function TaskKanban({ tasks, members, onUpdateTask, onDeleteTask, currentUserId }: Props) {
   const getMemberName = (id: string | null) => members.find((m) => m.id === id)?.name || "—";
 
   const nextStatus = (status: string): Task["status"] => {
     if (status === "Pendente") return "Em andamento";
-    if (status === "Em andamento") return "Concluída";
+    if (status === "Em andamento") return "Revisão";
+    if (status === "Revisão") return "Concluída";
     return "Pendente";
   };
 
@@ -34,7 +35,7 @@ export function TaskKanban({ tasks, members, onUpdateTask, onDeleteTask, current
       {columns.map((col) => (
         <div key={col} className="bg-card rounded-lg border border-border p-4">
           <div className="flex items-center gap-2 mb-4">
-            <div className={`w-2 h-2 rounded-full ${col === "Pendente" ? "bg-muted-foreground" : col === "Em andamento" ? "bg-primary" : "bg-[hsl(var(--status-ok))]"}`} />
+            <div className={`w-2 h-2 rounded-full ${col === "Pendente" ? "bg-muted-foreground" : col === "Em andamento" ? "bg-primary" : col === "Revisão" ? "bg-amber-500" : "bg-[hsl(var(--status-ok))]"}`} />
             <h3 className="font-semibold text-sm">{col}</h3>
             <span className="text-xs text-muted-foreground ml-auto">
               {tasks.filter((t) => t.status === col).length}
@@ -73,7 +74,7 @@ export function TaskKanban({ tasks, members, onUpdateTask, onDeleteTask, current
                     className="w-full text-xs h-7 mt-1"
                     onClick={() => onUpdateTask({ ...task, status: nextStatus(task.status) })}
                   >
-                    {task.status === "Pendente" ? "▶ Iniciar" : task.status === "Em andamento" ? "✓ Concluir" : "↩ Reabrir"}
+                    {task.status === "Pendente" ? "▶ Iniciar" : task.status === "Em andamento" ? "→ Revisão" : task.status === "Revisão" ? "✓ Concluir" : "↩ Reabrir"}
                   </Button>
                 </div>
               ))}

@@ -30,7 +30,6 @@ const priorityColors: Record<string, string> = {
 const speedEmoji: Record<string, string> = { fast: "🟢", normal: "🟡", slow: "🔴" };
 
 export function TaskListView({ tasks, members, onUpdateTask, onDeleteTask, filterAssignee, filterStatus, filterPriority, search, currentUserId }: Props) {
-  const getMemberName = (id: string | null) => members.find((m) => m.id === id)?.name || "—";
 
   const filtered = tasks.filter((t) => {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
@@ -81,7 +80,7 @@ export function TaskListView({ tasks, members, onUpdateTask, onDeleteTask, filte
                       {task.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.description}</p>}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{getMemberName(task.assigneeId)}</TableCell>
+                  <TableCell><Select value={task.assigneeId || "__none"} onValueChange={(value) => onUpdateTask({ ...task, assigneeId: value === "__none" ? null : value })}><SelectTrigger className="h-8 min-w-[150px] text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none">Sem responsável</SelectItem>{members.map((member) => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select></TableCell>
                   <TableCell>
                     <Badge variant="outline" className={`text-xs ${priorityColors[task.priority]}`}>
                       {task.priority}
@@ -96,9 +95,10 @@ export function TaskListView({ tasks, members, onUpdateTask, onDeleteTask, filte
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Pendente">Pendente</SelectItem>
-                        <SelectItem value="Em andamento">Em andamento</SelectItem>
-                        <SelectItem value="Concluída">Concluída</SelectItem>
+                        <SelectItem value="Pendente">A Fazer</SelectItem>
+                        <SelectItem value="Em andamento">Em Andamento</SelectItem>
+                        <SelectItem value="Revisão">Revisão</SelectItem>
+                        <SelectItem value="Concluída">Concluído</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>

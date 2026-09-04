@@ -106,7 +106,7 @@ export function useTasks() {
     };
 
     // Auto-track started_at and completed_at
-    if (task.status === "Em andamento" && !task.startedAt) {
+    if ((task.status === "Em andamento" || task.status === "Revisão") && !task.startedAt) {
       updates.started_at = now;
       task = { ...task, startedAt: now };
     }
@@ -114,6 +114,10 @@ export function useTasks() {
       updates.completed_at = now;
       if (!task.startedAt) updates.started_at = now;
       task = { ...task, completedAt: now, startedAt: task.startedAt || now };
+    }
+    if (task.status === "Revisão") {
+      updates.completed_at = null;
+      task = { ...task, completedAt: null };
     }
     // Reset if going back to Pendente
     if (task.status === "Pendente") {

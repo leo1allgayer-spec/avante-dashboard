@@ -145,6 +145,7 @@ const FullTasks = () => {
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="Pendente">Pendente</SelectItem>
                   <SelectItem value="Em andamento">Em andamento</SelectItem>
+                  <SelectItem value="Revisão">Revisão</SelectItem>
                   <SelectItem value="Concluída">Concluída</SelectItem>
                 </SelectContent>
               </Select>

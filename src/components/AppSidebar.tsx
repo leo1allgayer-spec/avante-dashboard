@@ -57,6 +57,7 @@ const metricsItems = [
   { title: "Boletos", url: "/boletos", icon: ReceiptText },
   { title: "Criativos", url: "/criativos", icon: Palette },
   { title: "Cursos Dados", url: "/cursos-dados", icon: GraduationCap },
+  { title: "Gestor de Tarefas", url: "/gestor-tarefas", icon: ClipboardList },
   { title: "Campanhas", url: "/campanhas", icon: Megaphone },
   { title: "Análise de Alunos", url: "/analise-alunos", icon: Brain },
   { title: "Alunos Futuros", url: "/alunos-futuros", icon: UserRoundPlus },
