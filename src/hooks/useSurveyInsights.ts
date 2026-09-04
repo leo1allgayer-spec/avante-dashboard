@@ -34,6 +34,8 @@ export interface SurveyResponse {
   sugestao_atendimento: string | null;
   indicaria_alguem: string | null;
   nota_indicacao: number | null;
+  roleta_girada: boolean | null;
+  bonus_roleta: string | null;
   created_at: string;
 }
 

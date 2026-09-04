@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import CountUp from "react-countup";
@@ -30,6 +31,15 @@ const COLORS = [
 ];
 
 const cardStyle = { background: "hsl(260, 22%, 9%)", border: "1px solid hsl(260, 18%, 14%)" };
+
+const BONUS_ROLETA = [
+  "2 meses de suporte",
+  "20% de desconto no próximo curso",
+  "50% de desconto na captação de vídeos",
+  "50% de desconto na confecção de site",
+  "1 mês de suporte",
+  "50% de desconto no próximo curso",
+] as const;
 
 const container = {
   hidden: { opacity: 0 },
@@ -103,6 +113,7 @@ const AlunoExpandRow = ({
   onEdit,
   onDelete,
   onRate,
+  onWheelUpdate,
   isDeleting,
 }: {
   r: SurveyResponse;
@@ -110,6 +121,7 @@ const AlunoExpandRow = ({
   onEdit: (r: SurveyResponse) => void;
   onDelete: (r: SurveyResponse) => void;
   onRate: (r: SurveyResponse, nota: number | null) => void;
+  onWheelUpdate: (r: SurveyResponse, updates: Pick<SurveyResponse, "roleta_girada" | "bonus_roleta">) => void;
   isDeleting: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -125,6 +137,11 @@ const AlunoExpandRow = ({
           <span className="text-xs text-muted-foreground/60 hidden sm:inline">{r.whatsapp || r.email || ""}</span>
           {r.consultor && <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full hidden md:inline">{r.consultor}</span>}
           {r.nota_whatsapp != null && <span className="text-[10px] text-warning hidden md:inline">⭐ {r.nota_whatsapp}/10</span>}
+          {r.roleta_girada === true && (
+            <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded-full hidden lg:inline">
+              🎁 {r.bonus_roleta || "Roleta girada"}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <div className="hidden sm:flex items-center gap-0.5 rounded-full border border-border/40 bg-secondary/20 px-2 py-1" onClick={(e) => e.stopPropagation()}>
@@ -182,6 +199,46 @@ const AlunoExpandRow = ({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
+            <div className="px-4 pt-3 pb-4 border-b border-border/20 grid grid-cols-1 md:grid-cols-2 gap-4 bg-secondary/10">
+              <div className="space-y-1.5">
+                <Label>Girou a roleta?</Label>
+                <Select
+                  value={r.roleta_girada == null ? "nao_informado" : r.roleta_girada ? "sim" : "nao"}
+                  onValueChange={(value) =>
+                    onWheelUpdate(r, {
+                      roleta_girada: value === "nao_informado" ? null : value === "sim",
+                      bonus_roleta: value === "sim" ? r.bonus_roleta : null,
+                    })
+                  }
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nao_informado">Não informado</SelectItem>
+                    <SelectItem value="sim">Sim</SelectItem>
+                    <SelectItem value="nao">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>O que ganhou?</Label>
+                <Select
+                  value={r.bonus_roleta || "sem_bonus"}
+                  disabled={r.roleta_girada !== true}
+                  onValueChange={(value) =>
+                    onWheelUpdate(r, {
+                      roleta_girada: true,
+                      bonus_roleta: value === "sem_bonus" ? null : value,
+                    })
+                  }
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecione o bônus" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sem_bonus">Selecione o bônus</SelectItem>
+                    {BONUS_ROLETA.map((bonus) => <SelectItem key={bonus} value={bonus}>{bonus}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="px-4 pb-4 pt-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
               {fieldOrder.map((key) => {
                 const val = r[key];
@@ -260,6 +317,18 @@ const AnaliseAlunosPage = () => {
     });
     setEditingResponse(response);
     setEditForm(nextForm);
+  };
+
+  const handleWheelUpdate = (
+    response: SurveyResponse,
+    updates: Pick<SurveyResponse, "roleta_girada" | "bonus_roleta">,
+  ) => {
+    updateSurveyResponse.mutate(
+      { id: response.id, ...updates },
+      {
+        onError: (err) => toast({ title: "Erro ao atualizar a roleta", description: err.message, variant: "destructive" }),
+      },
+    );
   };
 
   const handleSaveResponse = () => {
@@ -736,6 +805,7 @@ const AnaliseAlunosPage = () => {
                     onEdit={openEditResponse}
                     onDelete={handleDeleteResponse}
                     onRate={handleRateResponse}
+                    onWheelUpdate={handleWheelUpdate}
                     isDeleting={deleteSurveyResponse.isPending}
                   />
                 ))}
