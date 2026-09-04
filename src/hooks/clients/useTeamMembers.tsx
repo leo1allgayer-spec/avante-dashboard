@@ -14,24 +14,43 @@ export function useTeamMembers() {
       setLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from("team_members" as any)
-      .select("*")
-      .order("created_at", { ascending: true });
+    const [{ data: ownData, error: ownError }, { data: directoryData, error: directoryError }] = await Promise.all([
+      supabase.from("team_members" as any).select("*").order("created_at", { ascending: true }),
+      (supabase as any).rpc("list_team_members_for_assignment"),
+    ]);
 
-    if (error) {
+    if (ownError || directoryError) {
       toast.error("Erro ao carregar equipe");
-      console.error(error);
+      console.error(ownError || directoryError);
     } else {
-      setMembers(
-        (data as any[]).map((r) => ({
+      const ownMembers = new Map<string, TeamMember>(
+        ((ownData || []) as any[]).map((r) => [
+          r.id,
+          {
+            id: r.id,
+            name: r.name,
+            phone: r.phone || "",
+            dailyTaskGoal: r.daily_task_goal,
+            weeklyTaskGoal: r.weekly_task_goal,
+            maxTaskMinutes: r.max_task_minutes,
+          },
+        ])
+      );
+      const uniqueMembers = new Map<string, TeamMember>();
+      ((directoryData || []) as any[]).forEach((r) => {
+        const member = ownMembers.get(r.id) || {
           id: r.id,
           name: r.name,
-          phone: r.phone || "",
-          dailyTaskGoal: r.daily_task_goal,
-          weeklyTaskGoal: r.weekly_task_goal,
-          maxTaskMinutes: r.max_task_minutes,
-        }))
+          phone: "",
+          dailyTaskGoal: 0,
+          weeklyTaskGoal: 0,
+          maxTaskMinutes: 120,
+        };
+        const key = member.name.trim().toLocaleLowerCase("pt-BR");
+        if (key && !uniqueMembers.has(key)) uniqueMembers.set(key, member);
+      });
+      setMembers(
+        [...uniqueMembers.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
       );
     }
     setLoading(false);
