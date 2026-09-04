@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Meeting, TeamMember } from "@/types/clients/task";
+import { useMeetingMonthlyMetrics, useSaveMeetingMonthlyMetrics } from "@/hooks/clients/useMeetingMetrics";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw, BarChart3, Loader2 } from "lucide-react";
 import { format, parseISO, startOfWeek, endOfWeek, addWeeks, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -159,6 +161,35 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
   const [filterParticipant, setFilterParticipant] = useState("");
   const [filterOutcome, setFilterOutcome] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
+  const metricsMonth = filterMonth || format(new Date(), "yyyy-MM");
+  const { data: monthlyMetrics } = useMeetingMonthlyMetrics(metricsMonth);
+  const saveMonthlyMetrics = useSaveMeetingMonthlyMetrics();
+  const [showMetricsDialog, setShowMetricsDialog] = useState(false);
+  const [metricsForm, setMetricsForm] = useState({ scheduling_goal: 0, cost_per_scheduling: 0, meetings_scheduled: 0, meetings_held: 0 });
+
+  useEffect(() => {
+    if (!monthlyMetrics) return;
+    setMetricsForm({
+      scheduling_goal: Number(monthlyMetrics.scheduling_goal || 0),
+      cost_per_scheduling: Number(monthlyMetrics.cost_per_scheduling || 0),
+      meetings_scheduled: Number(monthlyMetrics.meetings_scheduled || 0),
+      meetings_held: Number(monthlyMetrics.meetings_held || 0),
+    });
+  }, [monthlyMetrics]);
+
+  const attendanceRate = Number(monthlyMetrics?.meetings_scheduled || 0) > 0
+    ? (Number(monthlyMetrics?.meetings_held || 0) / Number(monthlyMetrics?.meetings_scheduled || 0)) * 100
+    : 0;
+
+  const saveMetrics = async () => {
+    try {
+      await saveMonthlyMetrics.mutateAsync({ month: metricsMonth, ...metricsForm });
+      setShowMetricsDialog(false);
+      toast.success("Métricas de reuniões atualizadas");
+    } catch (error) {
+      toast.error("Não foi possível salvar as métricas", { description: error instanceof Error ? error.message : String(error) });
+    }
+  };
 
   // Week navigation
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
@@ -365,6 +396,7 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" onClick={() => setShowMetricsDialog(true)}><BarChart3 className="h-4 w-4 mr-1" /> Lançar métricas</Button>
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4 mr-1" /> Agendar
           </Button>
@@ -374,6 +406,15 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
         </div>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {[
+          ["Meta de agendamentos", Number(monthlyMetrics?.scheduling_goal || 0).toLocaleString("pt-BR")],
+          ["Custo por agendamento", Number(monthlyMetrics?.cost_per_scheduling || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })],
+          ["Reuniões marcadas", Number(monthlyMetrics?.meetings_scheduled || 0).toLocaleString("pt-BR")],
+          ["Reuniões realizadas", Number(monthlyMetrics?.meetings_held || 0).toLocaleString("pt-BR")],
+          ["Comparecimento em call", `${attendanceRate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`],
+        ].map(([label, value]) => <Card key={label}><CardContent className="p-4"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 text-xl font-bold">{value}</p><p className="mt-1 text-[10px] capitalize text-muted-foreground">{formatMonthLabel(metricsMonth)}</p></CardContent></Card>)}
+      </div>
       <Tabs defaultValue="calendar" className="space-y-4">
         <TabsList>
           <TabsTrigger value="calendar" className="gap-1.5">
@@ -509,6 +550,19 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
         </TabsContent>
       </Tabs>
 
+      <Dialog open={showMetricsDialog} onOpenChange={setShowMetricsDialog}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader><DialogTitle>Métricas de reuniões — <span className="capitalize">{formatMonthLabel(metricsMonth)}</span></DialogTitle></DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><Label>Meta de agendamentos</Label><Input type="number" min="0" value={metricsForm.scheduling_goal} onChange={(event) => setMetricsForm((current) => ({ ...current, scheduling_goal: Math.max(0, Number(event.target.value) || 0) }))} /></div>
+            <div><Label>Custo por agendamento (R$)</Label><Input type="number" min="0" step="0.01" value={metricsForm.cost_per_scheduling} onChange={(event) => setMetricsForm((current) => ({ ...current, cost_per_scheduling: Math.max(0, Number(event.target.value) || 0) }))} /></div>
+            <div><Label>Reuniões marcadas no mês</Label><Input type="number" min="0" value={metricsForm.meetings_scheduled} onChange={(event) => setMetricsForm((current) => ({ ...current, meetings_scheduled: Math.max(0, Number(event.target.value) || 0) }))} /></div>
+            <div><Label>Reuniões realizadas no mês</Label><Input type="number" min="0" value={metricsForm.meetings_held} onChange={(event) => setMetricsForm((current) => ({ ...current, meetings_held: Math.max(0, Number(event.target.value) || 0) }))} /></div>
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 sm:col-span-2"><p className="text-xs text-muted-foreground">Taxa de comparecimento em call</p><p className="mt-1 text-2xl font-bold text-primary">{metricsForm.meetings_scheduled > 0 ? ((metricsForm.meetings_held / metricsForm.meetings_scheduled) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "0"}%</p><p className="mt-1 text-xs text-muted-foreground">Calculada automaticamente: realizadas ÷ marcadas.</p></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setShowMetricsDialog(false)}>Cancelar</Button><Button onClick={() => void saveMetrics()} disabled={saveMonthlyMetrics.isPending}>{saveMonthlyMetrics.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Salvar métricas</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
