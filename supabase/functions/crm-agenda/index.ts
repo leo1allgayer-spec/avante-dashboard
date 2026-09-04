@@ -305,6 +305,10 @@ Deno.serve(async (request) => {
       const date = firstString(meeting, ["date"]);
       const time = firstString(meeting, ["time"]);
       const startsAt = date ? `${date}T${time || "00:00"}:00-03:00` : "";
+      const durationMinutes = Number(meeting.durationMinutes ?? meeting.duration_minutes ?? 60) || 60;
+      const [startHour, startMinute] = (time || "00:00").split(":").map(Number);
+      const endTotalMinutes = (startHour * 60 + startMinute + durationMinutes) % (24 * 60);
+      const endTime = `${String(Math.floor(endTotalMinutes / 60)).padStart(2, "0")}:${String(endTotalMinutes % 60).padStart(2, "0")}`;
       const crmPayload = {
         title: firstString(meeting, ["title"]) || "Reunião",
         type: firstString(meeting, ["meetingType", "meeting_type"]) || "reuniao",
@@ -313,7 +317,13 @@ Deno.serve(async (request) => {
         description: firstString(meeting, ["description"]),
         date,
         time,
-        duration_minutes: Number(meeting.durationMinutes ?? meeting.duration_minutes ?? 60) || 60,
+        duration_minutes: durationMinutes,
+        start_time: time,
+        end_time: endTime,
+        scheduled_date: date,
+        scheduled_time: time,
+        appointment_date: date,
+        appointment_time: time,
         responsible: firstString(meeting, ["responsible"]),
         professional: firstString(meeting, ["professional"]),
         service: firstString(meeting, ["service"]),
@@ -332,20 +342,58 @@ Deno.serve(async (request) => {
       if (!isCreate && !externalId) throw new Error("Identificador do compromisso não informado.");
       const target = `${CRM_BASE_URL}/${selectedEndpoint}${isCreate ? "" : `/${encodeURIComponent(externalId)}`}`;
       const isDelete = action === "delete";
-      const method = isDelete ? "DELETE" : isCreate ? "POST" : "PATCH";
-      const response = await fetch(target, {
-        method,
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: isDelete ? undefined : JSON.stringify(crmPayload),
-      });
-      const result = await response.json().catch(() => null);
+      const headers = {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+      let result: unknown = null;
+      let response: Response;
+      if (isDelete || isCreate) {
+        response = await fetch(target, {
+          method: isDelete ? "DELETE" : "POST",
+          headers,
+          body: isDelete ? undefined : JSON.stringify(crmPayload),
+        });
+        result = await response.json().catch(() => null);
+      } else {
+        const schedulePayload = {
+          date,
+          time,
+          start_time: time,
+          end_time: endTime,
+          starts_at: startsAt,
+          start_at: startsAt,
+          scheduled_at: startsAt,
+          scheduled_date: date,
+          scheduled_time: time,
+          appointment_date: date,
+          appointment_time: time,
+          duration_minutes: durationMinutes,
+        };
+        const updateAttempts = [
+          { method: "PATCH", payload: crmPayload },
+          { method: "PATCH", payload: schedulePayload },
+          { method: "PUT", payload: crmPayload },
+          { method: "PUT", payload: schedulePayload },
+        ];
+        let lastResponse: Response | null = null;
+        let lastResult: unknown = null;
+        for (const attempt of updateAttempts) {
+          const candidateResponse = await fetch(target, { method: attempt.method, headers, body: JSON.stringify(attempt.payload) });
+          const candidateResult = await candidateResponse.json().catch(() => null);
+          lastResponse = candidateResponse;
+          lastResult = candidateResult;
+          if (candidateResponse.ok) break;
+        }
+        response = lastResponse!;
+        result = lastResult;
+      }
       if (!response.ok) {
         const resultObject = asObject(result);
-        const apiMessage = firstString(resultObject, ["message", "error", "detail"]);
+        const nestedErrors = asObject(resultObject.errors);
+        const apiMessage = firstString(resultObject, ["message", "error", "detail"])
+          || Object.values(nestedErrors).flat().filter((value) => typeof value === "string").join("; ");
         throw new Error(apiMessage || `CRM HTTP ${response.status} ao ${isDelete ? "excluir" : isCreate ? "criar" : "editar"} compromisso.`);
       }
       return new Response(JSON.stringify({ ok: true, appointment: result }), {
