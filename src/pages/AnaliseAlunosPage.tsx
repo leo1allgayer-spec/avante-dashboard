@@ -136,7 +136,7 @@ const AlunoExpandRow = ({
           <span className="font-medium text-foreground truncate">{r.nome}</span>
           <span className="text-xs text-muted-foreground/60 hidden sm:inline">{r.whatsapp || r.email || ""}</span>
           {r.consultor && <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full hidden md:inline">{r.consultor}</span>}
-          {r.nota_whatsapp != null && <span className="text-[10px] text-warning hidden md:inline">⭐ {r.nota_whatsapp}/10</span>}
+          {r.nota_curso != null && <span className="text-[10px] text-warning hidden md:inline">⭐ {r.nota_curso}/10 curso</span>}
           {r.roleta_girada === true && (
             <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded-full hidden lg:inline">
               🎁 {r.bonus_roleta || "Roleta girada"}
@@ -383,8 +383,8 @@ const AnaliseAlunosPage = () => {
   const ticketMedio = totalClientes > 0 ? totalFaturamento / totalClientes : 0;
 
   // Notas
-  const notasWhatsapp = data.filter((r: any) => r.nota_whatsapp != null).map((r: any) => r.nota_whatsapp);
-  const notaMedia = notasWhatsapp.length > 0 ? notasWhatsapp.reduce((a: number, b: number) => a + b, 0) / notasWhatsapp.length : 0;
+  const notasCurso = data.filter((r: any) => r.nota_curso != null).map((r: any) => Number(r.nota_curso));
+  const notaMedia = notasCurso.length > 0 ? notasCurso.reduce((a: number, b: number) => a + b, 0) / notasCurso.length : 0;
 
   const notasIndicacao = data.filter((r: any) => r.nota_indicacao != null).map((r: any) => r.nota_indicacao);
   const npsMedia = notasIndicacao.length > 0 ? notasIndicacao.reduce((a: number, b: number) => a + b, 0) / notasIndicacao.length : 0;
@@ -420,7 +420,7 @@ const AnaliseAlunosPage = () => {
 
   // Nota distribution
   const notasDist: Record<number, number> = {};
-  notasWhatsapp.forEach((n: number) => { notasDist[n] = (notasDist[n] || 0) + 1; });
+  notasCurso.forEach((n: number) => { notasDist[n] = (notasDist[n] || 0) + 1; });
   const notasChartData = Object.entries(notasDist).map(([nota, count]) => ({ nota: `${nota}⭐`, count: Number(count) })).sort((a, b) => parseInt(a.nota) - parseInt(b.nota));
 
   return (
@@ -564,7 +564,7 @@ const AnaliseAlunosPage = () => {
                 <p className="font-display text-xl sm:text-2xl font-bold text-foreground tabular-nums">
                   <CountUp end={notaMedia} duration={1.5} decimals={2} />
                 </p>
-                <p className="text-[10px] text-muted-foreground/40 mt-1">Satisfação (0-10)</p>
+                <p className="text-[10px] text-muted-foreground/40 mt-1">Avaliação do curso (0-10)</p>
               </motion.div>
 
               <motion.div variants={item} className="rounded-2xl p-4" style={cardStyle}>
@@ -657,7 +657,7 @@ const AnaliseAlunosPage = () => {
 
               <motion.div variants={item} className="rounded-2xl p-5" style={cardStyle}>
                 <h3 className="font-display text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                  ⭐ Distribuição de Notas
+                  ⭐ Distribuição das Notas do Curso
                 </h3>
                 {notasChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={220}>
@@ -758,7 +758,7 @@ const AnaliseAlunosPage = () => {
                   <p className="font-display text-xl font-bold text-foreground">{formatCurrency(ticketMedio)}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">Nota Média</p>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">Nota Média do Curso</p>
                   <p className="font-display text-xl font-bold text-foreground">{notaMedia.toFixed(2)} ⭐</p>
                 </div>
               </div>
