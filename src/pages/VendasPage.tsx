@@ -554,10 +554,28 @@ const VendasPage = () => {
 
   const filtered = useMemo(() => {
     return vendas.filter((v) => {
-      // A planilha de vendas representa lançamentos feitos no período. Uma
-      // movimentação financeira posterior continua nos totais, mas não deve
-      // fazer a venda antiga reaparecer como venda do mês selecionado.
-      if (!dateInRange(v.data || getLocalCreatedDate(v.created_at))) return false;
+      const saleDate = v.data || getLocalCreatedDate(v.created_at);
+      const categoryKey = normalizeText(getVendaCategoria(v));
+      const relatedClosings = fechamentos.filter((closing) =>
+        normalizeFechamentoStatus(closing.status) !== "cancelado" &&
+        (closing.venda_id === v.id || (
+          !closing.venda_id &&
+          normalizeText(closing.cliente) === normalizeText(v.cliente) &&
+          normalizeText(closing.vendedor) === normalizeText(v.vendedor) &&
+          normalizeText(getFechamentoCategoria(closing)) === categoryKey
+        ))
+      );
+      const receivedInPeriod = relatedClosings.some((closing) => hasPaymentInRange(closing));
+      const scheduledInPeriod = relatedClosings.some((closing) =>
+        dateInRange(closing.previsao_entrada) || getStoredParcelDates(closing).some(dateInRange)
+      );
+      const pendingFromPreviousMonth = dateFilter.mode === "mes" && saleDate < dateFilter.range.start && relatedClosings.some((closing) =>
+        Number(closing.valor_a_entrar || 0) > 0 && !["cancelado", "recebido"].includes(normalizeFechamentoStatus(closing.status))
+      );
+
+      // A venda permanece no mês original, mas também entra na visão financeira
+      // do mês seguinte enquanto estiver pendente ou quando houver recebimento.
+      if (!dateInRange(saleDate) && !receivedInPeriod && !scheduledInPeriod && !pendingFromPreviousMonth) return false;
       if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
       if (statusFilter !== "cancelada" && v.status === "cancelada") return false;
@@ -566,7 +584,7 @@ const VendasPage = () => {
       if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
       return true;
     });
-  }, [vendas, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.range.start, dateFilter.range.end]);
+  }, [vendas, fechamentos, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.mode, dateFilter.range.start, dateFilter.range.end]);
 
   const fechamentosFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
