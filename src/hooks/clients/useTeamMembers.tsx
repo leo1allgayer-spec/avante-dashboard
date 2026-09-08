@@ -19,9 +19,9 @@ export function useTeamMembers() {
       (supabase as any).rpc("list_team_members_for_assignment"),
     ]);
 
-    if (ownError || directoryError) {
+    if (ownError && directoryError) {
       toast.error("Erro ao carregar equipe");
-      console.error(ownError || directoryError);
+      console.error(ownError, directoryError);
     } else {
       const ownMembers = new Map<string, TeamMember>(
         ((ownData || []) as any[]).map((r) => [
@@ -37,6 +37,10 @@ export function useTeamMembers() {
         ])
       );
       const uniqueMembers = new Map<string, TeamMember>();
+      ownMembers.forEach((member) => {
+        const key = member.name.trim().toLocaleLowerCase("pt-BR");
+        if (key && !uniqueMembers.has(key)) uniqueMembers.set(key, member);
+      });
       ((directoryData || []) as any[]).forEach((r) => {
         const member = ownMembers.get(r.id) || {
           id: r.id,
@@ -52,6 +56,8 @@ export function useTeamMembers() {
       setMembers(
         [...uniqueMembers.values()].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
       );
+      if (ownError) console.error("Erro ao carregar membros editáveis:", ownError);
+      if (directoryError) console.error("Erro ao carregar diretório da equipe:", directoryError);
     }
     setLoading(false);
   }, [session?.user?.id]);
