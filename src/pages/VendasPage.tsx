@@ -390,6 +390,51 @@ const VendasPage = () => {
   const hasPaymentInRange = (item: FechamentoDiario) =>
     getUniquePaymentHistory(item.observacao).some((entry) => dateInRange(entry.date));
 
+  const findSaleForClosing = (fechamento: FechamentoDiario) => {
+    const categoryKey = normalizeText(getFechamentoCategoria(fechamento));
+    return allVendas.find((item) => item.id === fechamento.venda_id) || allVendas.find((item) =>
+      normalizeText(item.cliente) === normalizeText(fechamento.cliente) &&
+      normalizeText(item.vendedor) === normalizeText(fechamento.vendedor) &&
+      normalizeText(getVendaCategoria(item)) === categoryKey
+    );
+  };
+  const getFechamentoCollectedNet = (fechamento: FechamentoDiario, linkedSale?: Venda) => {
+    const gross = Math.max(0, Number(fechamento.valor_sinal || 0));
+    const storedNet = Math.max(0, Number(fechamento.valor_sinal_liquido ?? gross));
+    if (gross <= 0 || Math.abs(storedNet - gross) >= 0.01) return Math.min(gross, storedNet);
+
+    const sale = linkedSale || findSaleForClosing(fechamento);
+    const saleInstallments = Math.max(1, Number.parseInt(String(sale?.parcelas || ""), 10) || 1);
+    const history = getUniquePaymentHistory(fechamento.observacao);
+    if (history.length > 0) {
+      const historyGross = Math.min(gross, history.reduce((sum, entry) => sum + entry.amount, 0));
+      const historyNet = history.reduce((sum, entry) => {
+        const installments = getPaymentInstallments(entry.method, saleInstallments);
+        return sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, installments, taxProfile));
+      }, 0);
+      const legacyGross = Math.max(0, gross - historyGross);
+      const legacyMethod = fechamento.pagamento_sinal || sale?.pagamento || "A definir";
+      const legacyInstallments = getPaymentInstallments(legacyMethod, saleInstallments);
+      return +Math.min(gross, historyNet + getNetPaymentValue(legacyGross, legacyMethod, legacyInstallments, taxProfile)).toFixed(2);
+    }
+
+    const initialSignal = getInitialSignalFromObservation(fechamento.observacao);
+    if (initialSignal > 0 && initialSignal < gross && (fechamento.pagamento_saldo || sale?.pagamento_saldo)) {
+      const signalMethod = fechamento.pagamento_sinal || sale?.pagamento || "A definir";
+      const balanceMethod = fechamento.pagamento_saldo || sale?.pagamento_saldo || "A definir";
+      const signalInstallments = getPaymentInstallments(signalMethod, saleInstallments);
+      const balanceInstallments = getPaymentInstallments(balanceMethod, getPaymentInstallments(sale?.pagamento_saldo || "", 1));
+      return +(
+        getNetPaymentValue(initialSignal, signalMethod, signalInstallments, taxProfile) +
+        getNetPaymentValue(gross - initialSignal, balanceMethod, balanceInstallments, taxProfile)
+      ).toFixed(2);
+    }
+
+    const method = fechamento.pagamento_sinal || sale?.pagamento || "A definir";
+    const installments = getPaymentInstallments(method, saleInstallments);
+    return getNetPaymentValue(gross, method, installments, taxProfile);
+  };
+
   const getCollectedGrossInPeriod = (item: FechamentoDiario) => {
     const history = getUniquePaymentHistory(item.observacao);
     if (history.length > 0) {
@@ -408,15 +453,17 @@ const VendasPage = () => {
   const getCollectedNetInPeriod = (item: FechamentoDiario) => {
     const history = getUniquePaymentHistory(item.observacao);
     if (history.length > 0) {
+      const linkedSale = findSaleForClosing(item);
+      const saleInstallments = Math.max(1, Number.parseInt(String(linkedSale?.parcelas || ""), 10) || 1);
       const historyNetTotal = history.reduce(
-        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)),
+        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, saleInstallments), taxProfile)),
         0,
       );
       const legacyNetAmount = Math.max(0, getFechamentoCollectedNet(item) - historyNetTotal);
       const legacyDate = item.data || getLocalCreatedDate(item.created_at);
       const collectedInPeriod = history
         .filter((entry) => dateInRange(entry.date))
-        .reduce((sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0) +
+        .reduce((sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, saleInstallments), taxProfile)), 0) +
         (dateInRange(legacyDate) ? legacyNetAmount : 0);
       return collectedInPeriod;
     }
@@ -431,25 +478,7 @@ const VendasPage = () => {
       const key = normalizeText(getFechamentoCategoria(closing));
       const previous = byCategory.get(key) || { gross: 0, net: 0 };
       const gross = Math.max(Number(closing.valor_sinal || 0), 0);
-      let net = Math.max(Number(closing.valor_sinal_liquido ?? gross), 0);
-      // Registros antigos frequentemente salvaram o líquido igual ao bruto. Nesses
-      // casos, reconstruímos a taxa pela forma de pagamento que já está registrada.
-      if (gross > 0 && Math.abs(net - gross) < 0.01) {
-        const initialSignal = getInitialSignalFromObservation(closing.observacao);
-        const linkedSale = allVendas.find((sale) => sale.id === closing.venda_id) || allVendas.find((sale) =>
-          normalizeText(sale.cliente) === normalizeText(closing.cliente) &&
-          normalizeText(sale.vendedor) === normalizeText(closing.vendedor) &&
-          normalizeText(getVendaCategoria(sale)) === key
-        );
-        if (initialSignal > 0 && initialSignal < gross && closing.pagamento_saldo) {
-          const signalMethod = closing.pagamento_sinal || linkedSale?.pagamento || "A definir";
-          net = getNetPaymentValue(initialSignal, getPaymentMethod(signalMethod), getPaymentInstallments(signalMethod), taxProfile) +
-            getNetPaymentValue(gross - initialSignal, getPaymentMethod(closing.pagamento_saldo), getPaymentInstallments(closing.pagamento_saldo), taxProfile);
-        } else {
-          const method = closing.pagamento_sinal || linkedSale?.pagamento;
-          if (method && method !== "A definir") net = getNetPaymentValue(gross, getPaymentMethod(method), getPaymentInstallments(method), taxProfile);
-        }
-      }
+      const net = getFechamentoCollectedNet(closing);
       byCategory.set(key, {
         gross: Math.max(previous.gross, gross),
         net: Math.max(previous.net, net),
@@ -556,8 +585,9 @@ const VendasPage = () => {
   }, [fechamentosPeriodo, search, origemFilter, statusFilter]);
 
   const getVendaValores = (v: Venda) => {
-    const parcelasNum = v.parcelas ? parseInt(v.parcelas) : 1;
-    const temParcelaVenda = PAGAMENTOS_COM_PARCELA.includes(v.pagamento) && !!v.parcelas && !isNaN(parcelasNum);
+    const metodoPagamento = getPaymentMethod(v.pagamento);
+    const parcelasNum = Number.parseInt(String(v.parcelas || ""), 10) || getPaymentInstallments(v.pagamento, 1);
+    const temParcelaVenda = PAGAMENTOS_COM_PARCELA.includes(metodoPagamento);
 
     if (!temParcelaVenda) {
       const valorLiquido = v.valor_com_juros ?? v.valor;
@@ -568,7 +598,7 @@ const VendasPage = () => {
       };
     }
 
-    const taxaVenda = getTaxas(v.pagamento, taxProfile)[parcelasNum] || 0;
+    const taxaVenda = getTaxas(metodoPagamento, taxProfile)[parcelasNum] || 0;
     const valorLiquido = +(Number(v.valor) * (1 - taxaVenda / 100)).toFixed(2);
     return {
       valorLiquido,
@@ -589,12 +619,7 @@ const VendasPage = () => {
     [filtered, salesTableSection],
   );
 
-  const getFechamentoCollectedNet = (fechamento: FechamentoDiario) => {
-    // Fonte única para todos os painéis: o valor líquido consolidado salvo no
-    // fechamento. O histórico continua disponível para auditoria, mas não é
-    // reprocessado aqui porque edições antigas podem conter eventos repetidos.
-    return Number(fechamento.valor_sinal_liquido ?? fechamento.valor_sinal ?? 0);
-  };
+
 
   const vendasAgrupadas = useMemo(() => {
     const grupos = new Map<string, Venda[]>();
@@ -668,9 +693,10 @@ const VendasPage = () => {
         paymentHistory.push({ id: `legacy-${chave}`, date: getLocalCreatedDate(principal.created_at) || principal.data, amount: sinalBruto - historyTotal, netAmount: Math.max(0, sinalLiquido - paymentHistory.reduce((total, entry) => total + Number(entry.netAmount ?? entry.amount), 0)), method: legacyPaymentMethod });
       }
 
+      const principalInstallments = Math.max(1, Number.parseInt(String(principal.parcelas || ""), 10) || 1);
       const coletadoPeriodo = paymentHistory
         .filter((entry) => dateInRange(entry.date))
-        .reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)), 0);
+        .reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, principalInstallments), taxProfile)), 0);
       const aReceberPorCategoria = new Map<string, number>();
       fechamentosRelacionados.forEach((item) => {
         const categoryKey = normalizeText(getFechamentoCategoria(item));
@@ -881,7 +907,7 @@ const VendasPage = () => {
         const valorJaColetado = Math.min(valorTotal, Number(fechamento?.valor_sinal || 0));
         const baixaItem = allocations.get(venda.id) || 0;
         const novoColetado = valorJaColetado + baixaItem;
-        const valorLiquidoJaColetado = fechamento ? getFechamentoCollectedNet(fechamento) : 0;
+        const valorLiquidoJaColetado = fechamento ? getFechamentoCollectedNet(fechamento, venda) : 0;
         const baixaLiquidaItem = paymentAmount > 0 ? +(netPaymentAmount * (baixaItem / paymentAmount)).toFixed(2) : 0;
         const novoColetadoLiquido = valorLiquidoJaColetado + baixaLiquidaItem;
         const novoSaldo = Math.max(0, valorTotal - novoColetado);
@@ -1093,8 +1119,10 @@ const VendasPage = () => {
     .reduce((totals, item) => {
       const isCourse = COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(getFechamentoCategoria(item)));
       const target = isCourse ? totals.cursos : totals.servicos;
+      const linkedSale = findSaleForClosing(item);
+      const itemInstallments = Math.max(1, Number.parseInt(String(linkedSale?.parcelas || ""), 10) || 1);
       const historyNetTotal = getUniquePaymentHistory(item.observacao).reduce(
-        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method), taxProfile)),
+        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, itemInstallments), taxProfile)),
         0,
       );
       const coletado = Math.max(getFechamentoCollectedNet(item), historyNetTotal);
