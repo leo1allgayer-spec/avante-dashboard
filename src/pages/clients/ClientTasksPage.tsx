@@ -293,7 +293,9 @@ const GoogleTasksOnly = () => (
 
 const Tasks = () => {
   const { session } = useMainAuth();
-  return isGoogleTasksOnlyUser(session?.user?.email) ? <GoogleTasksOnly /> : <FullTasks />;
+  const location = useLocation();
+  const agendaAccess = location.pathname === "/reunioes";
+  return isGoogleTasksOnlyUser(session?.user?.email) && !agendaAccess ? <GoogleTasksOnly /> : <FullTasks />;
 };
 
 export default Tasks;

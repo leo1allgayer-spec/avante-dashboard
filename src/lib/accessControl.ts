@@ -12,6 +12,10 @@ export const GOOGLE_MANAGER_PATHS = new Set([
   "/tasks",
   "/clientes-google-ads",
   "/admin/agendamentos",
+  "/agenda-geral",
+  "/reunioes",
+  "/agenda-captacao",
+  "/agenda-social-media",
 ]);
 
 export function isGoogleManagerPath(pathname: string) {
