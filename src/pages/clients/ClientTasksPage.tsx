@@ -225,7 +225,7 @@ const FullTasks = () => {
 
           <TabsContent value="meetings">
             <MeetingsSection
-              meetings={meetings}
+              meetings={meetings.filter((meeting) => !meeting.agendaCategory || meeting.agendaCategory === "reunioes")}
               members={members}
               clientNames={meetingClientNames}
               onAdd={addMeeting}

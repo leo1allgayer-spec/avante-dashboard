@@ -24,6 +24,7 @@ export interface Task {
 
 export interface Meeting {
   id: string;
+  agendaCategory?: "reunioes" | "captacao" | "social_media";
   title: string;
   meetingType?: string;
   clientName?: string;

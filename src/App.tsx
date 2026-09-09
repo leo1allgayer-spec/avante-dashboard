@@ -40,6 +40,7 @@ import FutureStudentsPage from "./pages/FutureStudentsPage";
 import SupportSchedulePage from "./pages/SupportSchedulePage";
 import SupportBookingPublicPage from "./pages/SupportBookingPublicPage";
 import SocialMediaKanbanPage from "./pages/SocialMediaKanbanPage";
+import OperationalAgendaPage from "./pages/OperationalAgendaPage";
 import NotFound from "./pages/NotFound";
 
 // Imports das Novas Páginas e Integrações
@@ -183,6 +184,8 @@ const AnimatedRoutes = () => {
         <Route path="/tasks" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
         <Route path="/gestor-tarefas" element={<ProtectedRoute><TaskManagerPage /></ProtectedRoute>} />
         <Route path="/reunioes" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
+        <Route path="/agenda-captacao" element={<ProtectedRoute><OperationalAgendaPage category="captacao" /></ProtectedRoute>} />
+        <Route path="/agenda-social-media" element={<ProtectedRoute><OperationalAgendaPage category="social_media" /></ProtectedRoute>} />
         <Route path="/admin-settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/agendamentos" element={<ProtectedRoute><AdminBookingsPage /></ProtectedRoute>} />
         <Route path="/agendar" element={<BookingPublicPage />} />

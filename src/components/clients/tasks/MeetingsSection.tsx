@@ -20,6 +20,8 @@ import { ptBR } from "date-fns/locale";
 interface Props {
   meetings: Meeting[];
   members: TeamMember[];
+  agendaTitle?: string;
+  agendaCategory?: "reunioes" | "captacao" | "social_media";
   clientNames?: string[];
   onAdd: (meeting: Omit<Meeting, "id">) => void;
   onUpdate: (meeting: Meeting) => void;
@@ -137,7 +139,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
   );
 }
 
-export function MeetingsSection({ meetings, members, clientNames = [], onAdd, onUpdate, onDelete, onRefresh, syncing }: Props) {
+export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuniões", agendaCategory = "reunioes", clientNames = [], onAdd, onUpdate, onDelete, onRefresh, syncing }: Props) {
   const [showDialog, setShowDialog] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
   const [title, setTitle] = useState("");
@@ -313,9 +315,9 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
     if (conflict) { setConflictMsg(conflict); return; }
     setConflictMsg(null);
     if (editingMeeting) {
-      onUpdate({ ...editingMeeting, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
+      onUpdate({ ...editingMeeting, agendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     } else {
-      onAdd({ title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
+      onAdd({ agendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     }
     setShowDialog(false);
   };
@@ -356,7 +358,7 @@ export function MeetingsSection({ meetings, members, clientNames = [], onAdd, on
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h3 className="font-semibold">Agenda Reuniões</h3>
+        <h3 className="font-semibold">{agendaTitle}</h3>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1 text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />

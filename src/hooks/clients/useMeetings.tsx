@@ -29,6 +29,7 @@ export function useMeetings() {
     } else {
       localMeetings = (data as any[]).map((r) => ({
           id: r.id,
+          agendaCategory: r.agenda_category || "reunioes",
           title: r.title,
           meetingType: r.meeting_type || "reuniao",
           clientName: r.client_name || r.title || "",
@@ -110,6 +111,7 @@ export function useMeetings() {
     const { hasClosed } = meeting;
     const localPayload = {
       title: meeting.title,
+      agenda_category: meeting.agendaCategory || "reunioes",
       meeting_type: meeting.meetingType || "reuniao",
       client_name: meeting.clientName || meeting.title,
       date: meeting.date,
@@ -179,6 +181,7 @@ export function useMeetings() {
       .from("meetings" as any)
       .update({
         title: meeting.title,
+        agenda_category: meeting.agendaCategory || "reunioes",
         meeting_type: meeting.meetingType || "reuniao",
         client_name: meeting.clientName || meeting.title,
         date: meeting.date,
