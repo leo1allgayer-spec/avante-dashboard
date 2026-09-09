@@ -32,6 +32,21 @@ interface Props {
 
 const WEEKDAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 
+const normalizePersonName = (value: string) => value
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .trim()
+  .toLowerCase();
+
+const matchesPersonName = (candidate: string, selected: string) => {
+  const candidateName = normalizePersonName(candidate);
+  const selectedName = normalizePersonName(selected);
+  if (!candidateName || !selectedName) return false;
+  return candidateName === selectedName
+    || candidateName.startsWith(`${selectedName} `)
+    || selectedName.startsWith(`${candidateName} `);
+};
+
 function formatDateShort(dateStr: string): string {
   try {
     return format(parseISO(dateStr), "dd/MM", { locale: ptBR });
@@ -213,7 +228,10 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
 
   const applyFilters = (list: Meeting[]) => {
     return list.filter((m) => {
-      if (filterParticipant && !m.participants.includes(filterParticipant)) return false;
+      if (filterParticipant) {
+        const assignedPeople = [m.responsible || "", m.professional || "", ...m.participants];
+        if (!assignedPeople.some((person) => matchesPersonName(person, filterParticipant))) return false;
+      }
       if (filterOutcome === "positive" && m.outcome !== "positive") return false;
       if (filterOutcome === "negative" && m.outcome !== "negative") return false;
       if (filterOutcome === "closed" && m.closingStatus !== "closed" && !m.hasClosed) return false;

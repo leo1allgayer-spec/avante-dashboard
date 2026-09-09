@@ -404,9 +404,17 @@ Deno.serve(async (request) => {
 
     const allRows = [...extractRows(payload)];
     const root = asObject(payload);
-    const meta = asObject(root.meta ?? root.pagination);
-    const totalPagesRaw = Number(meta.last_page ?? meta.total_pages ?? root.last_page ?? root.total_pages ?? 1);
-    const totalPages = Number.isFinite(totalPagesRaw) ? Math.min(Math.max(totalPagesRaw, 1), 100) : 1;
+    const rootData = asObject(root.data);
+    const paginationCandidates = [root.meta, root.pagination, rootData.meta, rootData.pagination]
+      .map(asObject)
+      .filter((candidate) => Object.keys(candidate).length > 0);
+    const meta = paginationCandidates[0] || {};
+    const totalPagesRaw = Number(meta.last_page ?? meta.total_pages ?? root.last_page ?? root.total_pages ?? rootData.last_page ?? rootData.total_pages ?? 0);
+    const hasDeclaredTotal = Number.isFinite(totalPagesRaw) && totalPagesRaw > 0;
+    const totalPages = hasDeclaredTotal
+      ? Math.min(Math.max(totalPagesRaw, 1), 100)
+      : bestRowCount >= 100 ? 100 : 1;
+    let previousPageSignature = JSON.stringify(allRows.slice(0, 3).map((row) => firstIdentifier(row, ["id", "appointment_id", "commitment_id", "uuid"])));
     for (let page = 2; page <= totalPages; page += 1) {
       const response = await fetch(`${CRM_BASE_URL}/${selectedEndpoint}?${buildQuery(page, selectedDateStyle).toString()}`, {
         headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
@@ -415,7 +423,11 @@ Deno.serve(async (request) => {
       const nextPayload = await response.json().catch(() => null);
       const rows = extractRows(nextPayload);
       if (!rows.length) break;
+      const pageSignature = JSON.stringify(rows.slice(0, 3).map((row) => firstIdentifier(row, ["id", "appointment_id", "commitment_id", "uuid"])));
+      if (pageSignature === previousPageSignature) break;
+      previousPageSignature = pageSignature;
       allRows.push(...rows);
+      if (!hasDeclaredTotal && rows.length < 100) break;
     }
 
     const leadIds = [...new Set(allRows.map(linkedLeadIdentifier).filter(Boolean))];
