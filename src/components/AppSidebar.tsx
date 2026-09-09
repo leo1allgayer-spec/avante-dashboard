@@ -16,6 +16,7 @@ import {
   Wallet,
   Users2,
   Calendar,
+  CalendarDays,
   Settings2,
   Cpu,
   UserRoundPlus,
