@@ -66,11 +66,7 @@ export function useMeetings() {
       setMeetings(localMeetings);
     } else {
       const crmMeetings = Array.isArray(crmData?.appointments)
-        ? (crmData.appointments as Meeting[]).map((meeting) => ({
-            ...meeting,
-            agendaCategory: "reunioes" as const,
-            responsible: "Leonardo Webster",
-          }))
+        ? (crmData.appointments as Meeting[])
         : [];
       const localExternalIds = new Set(localMeetings.map((meeting) => meeting.externalId).filter(Boolean));
       const deletedExternalIds = new Set(((deletedRows || []) as Array<{ external_id: string }>).map((row) => row.external_id));

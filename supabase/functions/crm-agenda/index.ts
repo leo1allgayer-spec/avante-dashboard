@@ -73,6 +73,34 @@ const collectKeyPaths = (value: unknown, prefix = "", depth = 0): string[] => {
   });
 };
 
+const normalizeText = (value: string) => value
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .trim()
+  .toLowerCase();
+
+const teamMemberFromCrmAccount = (row: JsonObject) => {
+  const accountKeys = [
+    "owner", "user", "assignee", "responsible", "professional", "agent", "attendant",
+    "created_by", "createdBy", "creator", "created_user", "createdUser", "author",
+  ];
+  const values: string[] = [];
+  for (const key of accountKeys) {
+    const value = row[key];
+    if (typeof value === "string") values.push(value);
+    const record = asObject(value);
+    values.push(firstString(record, ["name", "full_name", "email", "username", "login"]));
+  }
+  values.push(firstString(row, [
+    "owner_name", "owner_email", "user_name", "user_email", "assignee_name", "assignee_email",
+    "responsible_name", "responsible_email", "created_by_name", "created_by_email", "creator_name", "creator_email",
+  ]));
+  const accountIdentity = normalizeText(values.filter(Boolean).join(" "));
+  if (accountIdentity.includes("nicolas") || accountIdentity.includes("nicolaspatzlaff02")) return "Nicolas";
+  if (accountIdentity.includes("leonardo webster") || accountIdentity.includes("leonardowebster")) return "Leonardo Webster";
+  return "";
+};
+
 const linkedLeadIdentifier = (row: JsonObject) => {
   const direct = firstIdentifier(row, [
     "lead_id", "leadId", "contact_id", "contactId", "customer_id", "customerId",
@@ -196,6 +224,7 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
     });
   }
   const id = firstIdentifier(row, ["id", "appointment_id", "commitment_id", "uuid"]) || `${date}-${time}-${index}`;
+  const crmAccountMember = teamMemberFromCrmAccount(row);
   return {
     id: `crm:${id}`,
     externalId: id,
@@ -205,8 +234,8 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
     date,
     time,
     durationMinutes: Number(row.duration_minutes ?? row.duration ?? 60) || 60,
-    agendaCategory: "reunioes",
-    responsible: "Leonardo Webster",
+    agendaCategory: crmAccountMember === "Nicolas" ? "captacao" : "reunioes",
+    responsible: crmAccountMember || "Leonardo Webster",
     professional: firstString(professional, ["name", "full_name"]),
     participants: [...new Set(participantNames)],
     description: firstString(row, ["description", "notes", "note", "details"]),
