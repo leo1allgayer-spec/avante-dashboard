@@ -22,9 +22,11 @@ export interface Task {
   userId: string;
 }
 
+export type AgendaCategory = "reunioes" | "captacao" | "social_media";
+
 export interface Meeting {
   id: string;
-  agendaCategory?: "reunioes" | "captacao" | "social_media";
+  agendaCategory?: AgendaCategory;
   title: string;
   meetingType?: string;
   clientName?: string;

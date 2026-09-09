@@ -60,6 +60,7 @@ const metricsItems = [
   { title: "Campanhas", url: "/campanhas", icon: Megaphone },
   { title: "Análise de Alunos", url: "/analise-alunos", icon: Brain },
   { title: "Alunos Futuros", url: "/alunos-futuros", icon: UserRoundPlus },
+  { title: "Agenda Geral", url: "/agenda-geral", icon: CalendarDays },
   { title: "Agenda Reuniões", url: "/reunioes", icon: CalendarCheck2 },
   { title: "Agenda de Captação", url: "/agenda-captacao", icon: CalendarCheck2 },
   { title: "Agenda Social Media", url: "/agenda-social-media", icon: CalendarCheck2 },

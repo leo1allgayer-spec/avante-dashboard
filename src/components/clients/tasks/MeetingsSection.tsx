@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Meeting, TeamMember } from "@/types/clients/task";
+import { AgendaCategory, Meeting, TeamMember } from "@/types/clients/task";
 import { useMeetingMonthlyMetrics, useSaveMeetingMonthlyMetrics } from "@/hooks/clients/useMeetingMetrics";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ interface Props {
   meetings: Meeting[];
   members: TeamMember[];
   agendaTitle?: string;
-  agendaCategory?: "reunioes" | "captacao" | "social_media";
+  agendaCategory?: AgendaCategory | "all";
   clientNames?: string[];
   onAdd: (meeting: Omit<Meeting, "id">) => void;
   onUpdate: (meeting: Meeting) => void;
@@ -104,6 +104,11 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
         <Badge variant="destructive" className="text-[9px] h-4">Cancelada</Badge>
       )}
       <div className="flex flex-wrap gap-1">
+        {m.agendaCategory && (
+          <Badge className="text-[9px] h-4 bg-primary/80">
+            {m.agendaCategory === "reunioes" ? "Reuniões" : m.agendaCategory === "captacao" ? "Captação" : "Social Media"}
+          </Badge>
+        )}
         {m.modality && (
           <Badge variant="outline" className="text-[9px] h-4 gap-0.5">
             {m.modality === "online" ? <Video className="h-2 w-2" /> : <MapPin className="h-2 w-2" />}
@@ -142,6 +147,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
 export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuniões", agendaCategory = "reunioes", clientNames = [], onAdd, onUpdate, onDelete, onRefresh, syncing }: Props) {
   const [showDialog, setShowDialog] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
+  const [selectedAgendaCategory, setSelectedAgendaCategory] = useState<AgendaCategory>(agendaCategory === "all" ? "reunioes" : agendaCategory);
   const [title, setTitle] = useState("");
   const [meetingType, setMeetingType] = useState("reuniao");
   const [clientName, setClientName] = useState("");
@@ -265,6 +271,7 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
     setResponsible(""); setProfessional(""); setDescription("");
     setSelectedParticipants([]); setOrigin(""); setService(""); setModality("presencial");
     setClosingStatus("pending"); setObjection("");
+    setSelectedAgendaCategory(agendaCategory === "all" ? "reunioes" : agendaCategory);
     setConflictMsg(null);
     setShowDialog(true);
   };
@@ -277,6 +284,7 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
     setDescription(m.description); setSelectedParticipants(m.participants);
     setOrigin(m.origin); setService(m.service || ""); setModality(m.modality);
     setClosingStatus(m.closingStatus || (m.hasClosed ? "closed" : "pending")); setObjection(m.objection || "");
+    setSelectedAgendaCategory(m.agendaCategory || "reunioes");
     setConflictMsg(null);
     setShowDialog(true);
   };
@@ -315,9 +323,9 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
     if (conflict) { setConflictMsg(conflict); return; }
     setConflictMsg(null);
     if (editingMeeting) {
-      onUpdate({ ...editingMeeting, agendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
+      onUpdate({ ...editingMeeting, agendaCategory: selectedAgendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     } else {
-      onAdd({ agendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
+      onAdd({ agendaCategory: selectedAgendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     }
     setShowDialog(false);
   };
@@ -571,6 +579,19 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
             <DialogTitle>{editingMeeting ? "Editar horário" : "Novo horário"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
+            {agendaCategory === "all" && (
+              <div className="sm:col-span-2">
+                <Label>Agenda</Label>
+                <Select value={selectedAgendaCategory} onValueChange={(value) => setSelectedAgendaCategory(value as AgendaCategory)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reunioes">Reuniões</SelectItem>
+                    <SelectItem value="captacao">Captação</SelectItem>
+                    <SelectItem value="social_media">Social Media</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <Label>Tipo</Label>
               <Select value={meetingType} onValueChange={setMeetingType}>

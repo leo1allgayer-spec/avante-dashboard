@@ -184,6 +184,7 @@ const AnimatedRoutes = () => {
         <Route path="/tasks" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
         <Route path="/gestor-tarefas" element={<ProtectedRoute><TaskManagerPage /></ProtectedRoute>} />
         <Route path="/reunioes" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
+        <Route path="/agenda-geral" element={<ProtectedRoute><OperationalAgendaPage category="all" /></ProtectedRoute>} />
         <Route path="/agenda-captacao" element={<ProtectedRoute><OperationalAgendaPage category="captacao" /></ProtectedRoute>} />
         <Route path="/agenda-social-media" element={<ProtectedRoute><OperationalAgendaPage category="social_media" /></ProtectedRoute>} />
         <Route path="/admin-settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />

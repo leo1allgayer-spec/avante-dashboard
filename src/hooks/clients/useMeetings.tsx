@@ -65,7 +65,13 @@ export function useMeetings() {
       console.warn("Agenda do CRM indisponível:", crmError || crmData?.error);
       setMeetings(localMeetings);
     } else {
-      const crmMeetings = Array.isArray(crmData?.appointments) ? crmData.appointments as Meeting[] : [];
+      const crmMeetings = Array.isArray(crmData?.appointments)
+        ? (crmData.appointments as Meeting[]).map((meeting) => ({
+            ...meeting,
+            agendaCategory: "reunioes" as const,
+            responsible: "Leonardo Webster",
+          }))
+        : [];
       const localExternalIds = new Set(localMeetings.map((meeting) => meeting.externalId).filter(Boolean));
       const deletedExternalIds = new Set(((deletedRows || []) as Array<{ external_id: string }>).map((row) => row.external_id));
       setMeetings([...localMeetings, ...crmMeetings.filter((meeting) => !localExternalIds.has(meeting.externalId) && !deletedExternalIds.has(String(meeting.externalId || "")))]);
