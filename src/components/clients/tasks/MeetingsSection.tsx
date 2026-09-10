@@ -592,7 +592,7 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
         </DialogContent>
       </Dialog>
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto overscroll-contain sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingMeeting ? "Editar horário" : "Novo horário"}</DialogTitle>
           </DialogHeader>
@@ -625,9 +625,9 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
             <div className="sm:col-span-2">
               <Label>Cliente</Label>
               <Select
-                value={clientName || "__none"}
+                value={clientName ? (clientNames.includes(clientName) ? clientName : "__manual") : "__none"}
                 onValueChange={(value) => {
-                  const nextClient = value === "__none" ? "" : value;
+                  const nextClient = value === "__none" || value === "__manual" ? "" : value;
                   setClientName(nextClient);
                   if (nextClient) setTitle(nextClient);
                 }}
@@ -635,9 +635,21 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">Sem cliente vinculado</SelectItem>
+                  <SelectItem value="__manual">Digitar cliente manualmente</SelectItem>
                   {clientNames.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <Input
+                className="mt-2"
+                value={clientName}
+                onChange={(event) => {
+                  const nextClient = event.target.value;
+                  setClientName(nextClient);
+                  setTitle(nextClient);
+                }}
+                placeholder="Ou digite o nome do cliente"
+                aria-label="Digitar nome do cliente manualmente"
+              />
             </div>
             {!clientName && (
               <div className="sm:col-span-2">
