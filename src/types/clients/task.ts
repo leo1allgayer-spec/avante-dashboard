@@ -24,6 +24,19 @@ export interface Task {
 
 export type AgendaCategory = "reunioes" | "captacao" | "social_media";
 
+export interface AgendaBlock {
+  id: string;
+  agendaCategory: AgendaCategory;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  allDay: boolean;
+  responsible: string;
+  reason: string;
+  ownerId?: string;
+}
+
 export interface Meeting {
   id: string;
   agendaCategory?: AgendaCategory;

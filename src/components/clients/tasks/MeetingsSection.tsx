@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
-import { AgendaCategory, Meeting, TeamMember } from "@/types/clients/task";
+import { AgendaBlock, AgendaCategory, Meeting, TeamMember } from "@/types/clients/task";
 import { useMeetingMonthlyMetrics, useSaveMeetingMonthlyMetrics } from "@/hooks/clients/useMeetingMetrics";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,12 +14,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw, BarChart3, Loader2 } from "lucide-react";
+import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw, BarChart3, Loader2, LockKeyhole } from "lucide-react";
 import { format, parseISO, startOfWeek, endOfWeek, addWeeks, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Props {
   meetings: Meeting[];
+  blocks?: AgendaBlock[];
+  currentUserId?: string;
   members: TeamMember[];
   agendaTitle?: string;
   agendaCategory?: AgendaCategory | "all";
@@ -26,6 +29,8 @@ interface Props {
   onAdd: (meeting: Omit<Meeting, "id">) => void;
   onUpdate: (meeting: Meeting) => void;
   onDelete: (id: string) => void;
+  onAddBlock?: (block: Omit<AgendaBlock, "id" | "ownerId">) => void;
+  onDeleteBlock?: (id: string) => void;
   onRefresh?: () => void;
   syncing?: boolean;
 }
@@ -159,8 +164,19 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
   );
 }
 
-export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuniões", agendaCategory = "reunioes", clientNames = [], onAdd, onUpdate, onDelete, onRefresh, syncing }: Props) {
+export function MeetingsSection({ meetings, blocks = [], currentUserId = "", members, agendaTitle = "Agenda Reuniões", agendaCategory = "reunioes", clientNames = [], onAdd, onUpdate, onDelete, onAddBlock, onDeleteBlock, onRefresh, syncing }: Props) {
   const [showDialog, setShowDialog] = useState(false);
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [blockCategory, setBlockCategory] = useState<AgendaCategory>(agendaCategory === "all" ? "reunioes" : agendaCategory);
+  const [blockResponsible, setBlockResponsible] = useState("");
+  const [blockStartDate, setBlockStartDate] = useState("");
+  const [blockEndDate, setBlockEndDate] = useState("");
+  const [blockStartTime, setBlockStartTime] = useState("");
+  const [blockEndTime, setBlockEndTime] = useState("");
+  const [blockAllDay, setBlockAllDay] = useState(true);
+  const [blockReason, setBlockReason] = useState("");
+  const [blockError, setBlockError] = useState("");
+
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
   const [selectedAgendaCategory, setSelectedAgendaCategory] = useState<AgendaCategory>(agendaCategory === "all" ? "reunioes" : agendaCategory);
   const [title, setTitle] = useState("");
@@ -283,6 +299,35 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
     return map;
   }, [meetings, currentWeekStart, filterParticipant, filterOutcome, filterMonth]);
 
+  const blocksByDay = useMemo(() => {
+    const map = new Map<string, AgendaBlock[]>();
+    weekDays.forEach((day) => map.set(format(day, "yyyy-MM-dd"), []));
+    blocks.forEach((block) => {
+      weekDays.forEach((day) => {
+        const key = format(day, "yyyy-MM-dd");
+        if (key >= block.startDate && key <= block.endDate) map.get(key)?.push(block);
+      });
+    });
+    return map;
+  }, [blocks, currentWeekStart]);
+
+  const openBlock = () => {
+    setBlockCategory(agendaCategory === "all" ? "reunioes" : agendaCategory);
+    setBlockResponsible(""); setBlockStartDate(""); setBlockEndDate("");
+    setBlockStartTime(""); setBlockEndTime(""); setBlockAllDay(true); setBlockReason(""); setBlockError("");
+    setShowBlockDialog(true);
+  };
+
+  const saveBlock = () => {
+    const endDate = blockEndDate || blockStartDate;
+    if (!blockResponsible || !blockStartDate) { setBlockError("Informe o respons�vel e a data."); return; }
+    if (endDate < blockStartDate) { setBlockError("A data final deve ser igual ou posterior � inicial."); return; }
+    if (!blockAllDay && (!blockStartTime || !blockEndTime)) { setBlockError("Informe o hor�rio inicial e final."); return; }
+    if (!blockAllDay && endDate === blockStartDate && blockEndTime <= blockStartTime) { setBlockError("O hor�rio final deve ser posterior ao inicial."); return; }
+    onAddBlock?.({ agendaCategory: blockCategory, startDate: blockStartDate, endDate, startTime: blockStartTime, endTime: blockEndTime, allDay: blockAllDay, responsible: blockResponsible, reason: blockReason.trim() });
+    setShowBlockDialog(false);
+  };
+
   const openAdd = () => {
     setEditingMeeting(null);
     setTitle(""); setMeetingType("reuniao"); setClientName(""); setDate(""); setTime(""); setDurationMinutes(60);
@@ -312,7 +357,20 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
   };
 
   const checkConflict = (): string | null => {
-    if (!time || selectedParticipants.length === 0) return null;
+    if (!time) return null;
+    const assignedPeople = [responsible, professional, ...selectedParticipants].filter(Boolean);
+    const meetingStart = Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
+    const meetingEnd = meetingStart + durationMinutes;
+    for (const block of blocks) {
+      if (block.agendaCategory !== selectedAgendaCategory || date < block.startDate || date > block.endDate) continue;
+      if (!assignedPeople.some((person) => matchesPersonName(person, block.responsible))) continue;
+      const blockStart = Number(block.startTime.slice(0, 2)) * 60 + Number(block.startTime.slice(3, 5));
+      const blockEnd = Number(block.endTime.slice(0, 2)) * 60 + Number(block.endTime.slice(3, 5));
+      if (block.allDay || (meetingStart < blockEnd && meetingEnd > blockStart)) {
+        return block.responsible + " est� com a agenda bloqueada" + (block.reason ? ": " + block.reason : ".");
+      }
+    }
+    if (selectedParticipants.length === 0) return null;
     const [h, m] = time.split(":").map(Number);
     const newMinutes = h * 60 + m;
     const otherMeetings = meetings.filter((mt) => {
@@ -425,6 +483,7 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={() => setShowMetricsDialog(true)}><BarChart3 className="h-4 w-4 mr-1" /> Lançar métricas</Button>
+          {onAddBlock && <Button variant="outline" size="sm" onClick={openBlock} className="border-amber-500/50 text-amber-500 hover:text-amber-400"><LockKeyhole className="h-4 w-4 mr-1" /> Bloquear agenda</Button>}
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4 mr-1" /> Agendar
           </Button>
@@ -475,6 +534,7 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
             {weekDays.map((day) => {
               const key = format(day, "yyyy-MM-dd");
               const dayMeetings = meetingsByDay.get(key) || [];
+              const dayBlocks = blocksByDay.get(key) || [];
               const weekdayIdx = (day.getDay() + 6) % 7;
               return (
                 <div key={key} className={`rounded-md border p-2 space-y-2 min-h-[120px] ${isToday(day) ? "border-primary bg-primary/5" : "border-border"}`}>
@@ -482,6 +542,17 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
                     {WEEKDAY_NAMES[weekdayIdx]} {formatDateShort(key)}
                   </div>
                   <div className="space-y-1.5">
+                    {dayBlocks.map((block) => (
+                      <div key={block.id} className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="flex items-center gap-1 font-medium text-amber-400"><LockKeyhole className="h-3 w-3" /> Agenda bloqueada</span>
+                          {block.ownerId === currentUserId && onDeleteBlock && <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDeleteBlock(block.id)}><Trash2 className="h-3 w-3" /></Button>}
+                        </div>
+                        <p className="mt-1">{block.responsible}</p>
+                        <p className="text-muted-foreground">{block.allDay ? "Dia inteiro" : block.startTime + "" + block.endTime}</p>
+                        {block.reason && <p className="mt-1 text-muted-foreground">{block.reason}</p>}
+                      </div>
+                    ))}
                     {dayMeetings.map((m) => (
                       <MeetingCard
                         key={m.id}
@@ -578,6 +649,22 @@ export function MeetingsSection({ meetings, members, agendaTitle = "Agenda Reuni
         </TabsContent>
       </Tabs>
 
+      <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader><DialogTitle>Bloquear agenda</DialogTitle></DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {agendaCategory === "all" && <div className="sm:col-span-2"><Label>Agenda</Label><Select value={blockCategory} onValueChange={(value) => setBlockCategory(value as AgendaCategory)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="reunioes">Reuni�es</SelectItem><SelectItem value="captacao">Capta��o</SelectItem><SelectItem value="social_media">Social Media</SelectItem></SelectContent></Select></div>}
+            <div className="sm:col-span-2"><Label>Respons�vel *</Label><Select value={blockResponsible} onValueChange={setBlockResponsible}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{members.map((member) => <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>Data inicial *</Label><Input type="date" value={blockStartDate} onChange={(event) => { setBlockStartDate(event.target.value); if (!blockEndDate) setBlockEndDate(event.target.value); }} /></div>
+            <div><Label>Data final</Label><Input type="date" value={blockEndDate} min={blockStartDate} onChange={(event) => setBlockEndDate(event.target.value)} /></div>
+            <div className="sm:col-span-2 flex items-center gap-2 rounded-md border p-3"><Checkbox id="block-all-day" checked={blockAllDay} onCheckedChange={(checked) => setBlockAllDay(checked === true)} /><Label htmlFor="block-all-day" className="cursor-pointer">Bloquear o dia inteiro</Label></div>
+            {!blockAllDay && <><div><Label>Hor�rio inicial *</Label><Input type="time" value={blockStartTime} onChange={(event) => setBlockStartTime(event.target.value)} /></div><div><Label>Hor�rio final *</Label><Input type="time" value={blockEndTime} onChange={(event) => setBlockEndTime(event.target.value)} /></div></>}
+            <div className="sm:col-span-2"><Label>Motivo</Label><Input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} placeholder="Ex.: viagem, compromisso, indispon�vel" /></div>
+            {blockError && <p className="sm:col-span-2 text-sm text-destructive">{blockError}</p>}
+          </div>
+          <DialogFooter><Button variant="ghost" onClick={() => setShowBlockDialog(false)}>Cancelar</Button><Button onClick={saveBlock}>Bloquear</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={showMetricsDialog} onOpenChange={setShowMetricsDialog}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader><DialogTitle>Métricas de reuniões — <span className="capitalize">{formatMonthLabel(metricsMonth)}</span></DialogTitle></DialogHeader>
