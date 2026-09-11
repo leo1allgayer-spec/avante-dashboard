@@ -23,6 +23,16 @@ const formatDate = (date: string) =>
   new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date));
 
 const cleanCpf = (value?: string | null) => String(value || "").replace(/\D/g, "");
+const cleanPhone = (value?: string | null) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  return digits.length >= 8 ? digits.slice(-8) : "";
+};
+const cleanName = (value?: string | null) => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/\s+/g, " ")
+  .trim()
+  .toLowerCase();
 const getPendingTotal = (student: FutureStudent) => (student.itens || []).reduce((sum, item) => sum + Number(item.valor_pendente || 0), 0);
 
 const distributeTotal = (values: number[], total: number) => {
@@ -51,12 +61,25 @@ export default function FutureStudentsPage() {
   const deleteStudent = useDeleteFutureStudent();
   const { toast } = useToast();
 
-  const surveyCpfSet = useMemo(() => new Set(surveys.map((survey) => cleanCpf(survey.cpf)).filter(Boolean)), [surveys]);
+  const linkedStudentIds = useMemo(() => {
+    const surveyCpfSet = new Set(surveys.map((survey) => cleanCpf(survey.cpf)).filter((value) => value.length === 11));
+    const surveyPhoneSet = new Set(surveys.map((survey) => cleanPhone(survey.whatsapp)).filter(Boolean));
+    const surveyNameSet = new Set(surveys.map((survey) => cleanName(survey.nome)).filter((value) => value.length >= 6));
+
+    return new Set(students.filter((student) => {
+      const cpf = cleanCpf(student.cpf);
+      const phone = cleanPhone(student.telefone);
+      const name = cleanName(student.nome);
+      return (cpf.length === 11 && surveyCpfSet.has(cpf)) ||
+        (phone && surveyPhoneSet.has(phone)) ||
+        (name.length >= 6 && surveyNameSet.has(name));
+    }).map((student) => student.id));
+  }, [students, surveys]);
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
     return students.filter((student) => {
-      const linked = surveyCpfSet.has(cleanCpf(student.cpf));
+      const linked = linkedStudentIds.has(student.id);
       if (studentView === "linked" ? !linked : linked) return false;
       if (!q) return true;
       return student.nome.toLowerCase().includes(q) ||
@@ -65,11 +88,11 @@ export default function FutureStudentsPage() {
         (student.curso || "").toLowerCase().includes(q) ||
         (student.itens || []).some((item) => item.nome.toLowerCase().includes(q));
     });
-  }, [search, studentView, students, surveyCpfSet]);
+  }, [search, studentView, students, linkedStudentIds]);
 
   const totalSignal = students.reduce((sum, student) => sum + Number(student.valor_sinal || 0), 0);
   const totalPending = students.reduce((sum, student) => sum + (student.itens || []).reduce((itemSum, item) => itemSum + Number(item.valor_pendente || 0), 0), 0);
-  const linkedCount = students.filter((student) => surveyCpfSet.has(cleanCpf(student.cpf))).length;
+  const linkedCount = linkedStudentIds.size;
 
   const openEdit = (student: FutureStudent) => {
     const itens = student.itens?.length
@@ -261,7 +284,7 @@ export default function FutureStudentsPage() {
                   </TableRow>
                 ) : (
                   filteredStudents.map((student) => {
-                    const linked = surveyCpfSet.has(cleanCpf(student.cpf));
+                    const linked = linkedStudentIds.has(student.id);
 
                     return (
                       <TableRow key={student.id}>
