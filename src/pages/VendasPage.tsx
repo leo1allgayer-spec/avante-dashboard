@@ -149,6 +149,28 @@ const getPaymentInstallments = (payment: string, fallback = 1) => {
 
 const getPaymentMethod = (payment: string) => String(payment || "").split("—")[0].trim();
 
+const matchesPaymentFilter = (filter: string, ...payments: Array<string | null | undefined>) => {
+  if (filter === "todos") return true;
+  const normalizedFilter = normalizeText(filter);
+  return payments.some((payment) => {
+    const normalizedPayment = normalizeText(getPaymentMethod(payment || ""));
+    if (!normalizedPayment) return false;
+    if (normalizedFilter === "cartao") {
+      return normalizedPayment.includes("cartao") || normalizedPayment.includes("infinity");
+    }
+    return normalizedPayment === normalizedFilter;
+  });
+};
+
+const matchesStatusFilter = (filter: string, status?: string | null) => {
+  if (filter === "todos") return true;
+  const normalizedStatus = normalizeText(status);
+  if (filter === "cancelada") return ["cancelada", "cancelado"].includes(normalizedStatus);
+  if (filter === "paga") return ["paga", "pago", "aprovada", "aprovado", "recebido"].includes(normalizedStatus);
+  if (filter === "pendente") return !["paga", "pago", "aprovada", "aprovado", "recebido", "cancelada", "cancelado"].includes(normalizedStatus);
+  return true;
+};
+
 const getNetPaymentValue = (amount: number, payment: string, installments: number, profile: TaxProfile) => {
   const method = getPaymentMethod(payment);
   if (!PAGAMENTOS_COM_PARCELA.includes(method)) return +Number(amount || 0).toFixed(2);
@@ -576,31 +598,31 @@ const VendasPage = () => {
       // A venda permanece no mês original, mas também entra na visão financeira
       // do mês seguinte enquanto estiver pendente ou quando houver recebimento.
       if (!dateInRange(saleDate) && !receivedInPeriod && !scheduledInPeriod && !pendingFromPreviousMonth) return false;
-      if (search && !v.cliente.toLowerCase().includes(search.toLowerCase()) && !v.produto.toLowerCase().includes(search.toLowerCase()) && !v.vendedor.toLowerCase().includes(search.toLowerCase())) return false;
-      if (statusFilter === "cancelada" && v.status !== "cancelada") return false;
-      if (statusFilter !== "cancelada" && v.status === "cancelada") return false;
-      if (vendedorFilter !== "todos" && v.vendedor !== vendedorFilter) return false;
-      if (pagamentoFilter !== "todos" && v.pagamento !== pagamentoFilter) return false;
-      if (origemFilter !== "todos" && (v.origem || "") !== origemFilter) return false;
+      const normalizedSearch = normalizeText(search);
+      if (normalizedSearch && ![v.cliente, v.produto, v.servico, v.vendedor].some((value) => normalizeText(value).includes(normalizedSearch))) return false;
+      if (!matchesStatusFilter(statusFilter, v.status)) return false;
+      if (vendedorFilter !== "todos" && normalizeText(v.vendedor) !== normalizeText(vendedorFilter)) return false;
+      if (!matchesPaymentFilter(pagamentoFilter, v.pagamento, v.pagamento_saldo)) return false;
+      if (origemFilter !== "todos" && normalizeText(v.origem) !== normalizeText(origemFilter)) return false;
       return true;
     });
   }, [vendas, fechamentos, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.mode, dateFilter.range.start, dateFilter.range.end]);
 
   const fechamentosFiltrados = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeText(search);
     return fechamentosPeriodo.filter((item) => {
       const fechamentoStatus = normalizeFechamentoStatus(item.status);
-      if (origemFilter !== "todos" && (item.origem || "") !== origemFilter) return false;
-      if (statusFilter === "cancelada") {
-        if (fechamentoStatus !== "cancelado") return false;
-      } else if (fechamentoStatus === "cancelado") {
-        return false;
-      }
+      if (origemFilter !== "todos" && normalizeText(item.origem) !== normalizeText(origemFilter)) return false;
+      if (vendedorFilter !== "todos" && normalizeText(item.vendedor) !== normalizeText(vendedorFilter)) return false;
+      if (!matchesPaymentFilter(pagamentoFilter, item.pagamento_sinal, item.pagamento_saldo)) return false;
+      if (statusFilter === "cancelada" && fechamentoStatus !== "cancelado") return false;
+      if (statusFilter === "paga" && fechamentoStatus !== "recebido") return false;
+      if (statusFilter === "pendente" && ["cancelado", "recebido"].includes(fechamentoStatus)) return false;
       if (!q) return true;
       return [item.cliente, item.vendedor, item.origem || "", getFechamentoCategoria(item), item.produto_servico, item.observacao || ""]
-        .some((value) => value.toLowerCase().includes(q));
+        .some((value) => normalizeText(value).includes(q));
     });
-  }, [fechamentosPeriodo, search, origemFilter, statusFilter]);
+  }, [fechamentosPeriodo, search, origemFilter, statusFilter, vendedorFilter, pagamentoFilter]);
 
   const getVendaValores = (v: Venda) => {
     const metodoPagamento = getPaymentMethod(v.pagamento);
