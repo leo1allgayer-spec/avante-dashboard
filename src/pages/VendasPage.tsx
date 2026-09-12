@@ -737,6 +737,12 @@ const VendasPage = () => {
       const coletadoPeriodo = paymentHistory
         .filter((entry) => dateInRange(entry.date))
         .reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, principalInstallments), taxProfile)), 0);
+      const taxasMaquininhaPeriodo = paymentHistory
+        .filter((entry) => dateInRange(entry.date))
+        .reduce((total, entry) => {
+          const valorLiquido = Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, principalInstallments), taxProfile));
+          return total + Math.max(0, Number(entry.amount || 0) - valorLiquido);
+        }, 0);
       const aReceberPorCategoria = new Map<string, number>();
       fechamentosRelacionados.forEach((item) => {
         const categoryKey = normalizeText(getFechamentoCategoria(item));
@@ -782,6 +788,7 @@ const VendasPage = () => {
         comissaoPendente: +Math.max(0, comissaoTotal - comissaoPaga).toFixed(2),
         paymentHistory,
         coletadoPeriodo,
+        taxasMaquininhaPeriodo,
         aReceberPeriodo,
         pendenciaMesAnterior: fechamentosRelacionados.some(isCarriedOverReceivable),
         previsoesRecebimento,
@@ -2606,8 +2613,9 @@ const VendasPage = () => {
             const totalVendido = vendasAgrupadas.reduce((total, grupo) => total + grupo.valorTotal, 0);
             const totalItens = vendasAgrupadas.reduce((total, grupo) => total + grupo.quantidade, 0);
             const totalComissaoPendente = vendasAgrupadas.reduce((total, grupo) => total + grupo.comissaoPendente, 0);
+            const totalTaxasMaquininha = vendasAgrupadas.reduce((total, grupo) => total + grupo.taxasMaquininhaPeriodo, 0);
             return (
-              <div className="grid grid-cols-5 gap-6 border-t-2 border-accent/40 bg-secondary/50 px-5 py-4 text-xs">
+              <div className="grid grid-cols-6 gap-6 border-t-2 border-accent/40 bg-secondary/50 px-5 py-4 text-xs">
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Registros</p>
                   <p className="mt-1 whitespace-nowrap font-bold text-accent">{vendasAgrupadas.length} clientes · {totalItens} {salesTableSection === "todos" ? "itens" : salesTableSection === "cursos" ? "cursos" : "serviços"}</p>
@@ -2627,6 +2635,10 @@ const VendasPage = () => {
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Comissão pendente</p>
                   <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalComissaoPendente)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Taxas da máquina</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-rose-400">{formatBRL(totalTaxasMaquininha)}</p>
                 </div>
               </div>
             );
