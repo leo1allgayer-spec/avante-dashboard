@@ -4,6 +4,7 @@ import PageTransition from "@/components/PageTransition";
 import MetricCard from "@/components/MetricCard";
 import { useDeleteFutureStudent, useFutureStudents, useUpdateFutureStudent, type FutureStudent } from "@/hooks/useFutureStudents";
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
+import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -33,25 +34,36 @@ const cleanName = (value?: string | null) => String(value || "")
   .replace(/\s+/g, " ")
   .trim()
   .toLowerCase();
-const getPendingTotal = (student: FutureStudent) => (student.itens || []).reduce((sum, item) => sum + Number(item.valor_pendente || 0), 0);
+const cleanCourse = (value?: string | null) => String(value || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase()
+  .replace(/\bcurso\b/g, " ")
+  .replace(/\bde\b/g, " ")
+  .replace(/\btrafego pago\b/g, " ")
+  .replace(/[^a-z0-9]+/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
 
-const distributeTotal = (values: number[], total: number) => {
-  if (!values.length) return [];
-  const safeTotal = Math.max(Number(total || 0), 0);
-  const currentTotal = values.reduce((sum, value) => sum + Number(value || 0), 0);
-  if (currentTotal <= 0) return values.map((_, index) => index === 0 ? safeTotal : 0);
-  let distributed = 0;
-  return values.map((value, index) => {
-    if (index === values.length - 1) return Number(Math.max(safeTotal - distributed, 0).toFixed(2));
-    const next = Number((safeTotal * (Number(value || 0) / currentTotal)).toFixed(2));
-    distributed += next;
-    return next;
-  });
+const getStudentItems = (student: FutureStudent) => student.itens?.length
+  ? student.itens
+  : student.curso
+    ? [{ tipo: "curso" as const, nome: student.curso, valor_sinal: Number(student.valor_sinal || 0), valor_pendente: 0, data: student.created_at }]
+    : [];
+
+const samePerson = (student: FutureStudent, survey: { cpf?: string | null; whatsapp?: string | null; nome?: string | null }) => {
+  const cpf = cleanCpf(student.cpf);
+  const phone = cleanPhone(student.telefone);
+  const name = cleanName(student.nome);
+  return (cpf.length === 11 && cpf === cleanCpf(survey.cpf)) ||
+    (phone && phone === cleanPhone(survey.whatsapp)) ||
+    (name.length >= 6 && name === cleanName(survey.nome));
 };
 
 export default function FutureStudentsPage() {
   const { data: students = [], isLoading } = useFutureStudents();
   const { data: surveys = [] } = useSurveyResponses();
+  const { bookings = [] } = useCourseBookings();
   const [search, setSearch] = useState("");
   const [studentView, setStudentView] = useState<"pending" | "linked">("pending");
   const [editing, setEditing] = useState<FutureStudent | null>(null);
@@ -61,38 +73,32 @@ export default function FutureStudentsPage() {
   const deleteStudent = useDeleteFutureStudent();
   const { toast } = useToast();
 
-  const linkedStudentIds = useMemo(() => {
-    const surveyCpfSet = new Set(surveys.map((survey) => cleanCpf(survey.cpf)).filter((value) => value.length === 11));
-    const surveyPhoneSet = new Set(surveys.map((survey) => cleanPhone(survey.whatsapp)).filter(Boolean));
-    const surveyNameSet = new Set(surveys.map((survey) => cleanName(survey.nome)).filter((value) => value.length >= 6));
+  const enrollmentRows = useMemo(() => students.flatMap((student) =>
+    getStudentItems(student).map((item, itemIndex) => {
+      const courseKey = cleanCourse(item.nome);
+      const linked = courseKey !== "" && surveys.some((survey) =>
+        samePerson(student, survey) && cleanCourse(survey.curso_realizado) === courseKey
+      );
+      const booking = bookings
+        .filter((candidate) => candidate.courseStatus !== "cancelado" && candidate.status !== "cancelled" && samePerson(student, { cpf: "", whatsapp: candidate.phone, nome: candidate.studentName }) && cleanCourse(candidate.courseName) === courseKey)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0] || null;
+      return { student, item, itemIndex, rowKey: `${student.id}:${itemIndex}:${courseKey}`, linked, booking };
+    })
+  ), [students, surveys, bookings]);
 
-    return new Set(students.filter((student) => {
-      const cpf = cleanCpf(student.cpf);
-      const phone = cleanPhone(student.telefone);
-      const name = cleanName(student.nome);
-      return (cpf.length === 11 && surveyCpfSet.has(cpf)) ||
-        (phone && surveyPhoneSet.has(phone)) ||
-        (name.length >= 6 && surveyNameSet.has(name));
-    }).map((student) => student.id));
-  }, [students, surveys]);
-
-  const filteredStudents = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return students.filter((student) => {
-      const linked = linkedStudentIds.has(student.id);
+  const filteredEnrollments = useMemo(() => {
+    const q = cleanName(search);
+    return enrollmentRows.filter(({ student, item, linked }) => {
       if (studentView === "linked" ? !linked : linked) return false;
       if (!q) return true;
-      return student.nome.toLowerCase().includes(q) ||
-        student.telefone.toLowerCase().includes(q) ||
-        student.cpf.toLowerCase().includes(q) ||
-        (student.curso || "").toLowerCase().includes(q) ||
-        (student.itens || []).some((item) => item.nome.toLowerCase().includes(q));
+      return cleanName(`${student.nome} ${student.telefone} ${student.cpf} ${item.nome}`).includes(q);
     });
-  }, [search, studentView, students, linkedStudentIds]);
+  }, [search, studentView, enrollmentRows]);
 
-  const totalSignal = students.reduce((sum, student) => sum + Number(student.valor_sinal || 0), 0);
-  const totalPending = students.reduce((sum, student) => sum + (student.itens || []).reduce((itemSum, item) => itemSum + Number(item.valor_pendente || 0), 0), 0);
-  const linkedCount = linkedStudentIds.size;
+  const totalSignal = enrollmentRows.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
+  const totalPending = enrollmentRows.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+  const linkedCount = enrollmentRows.filter((row) => row.linked).length;
+  const enrollmentCount = enrollmentRows.length;
 
   const openEdit = (student: FutureStudent) => {
     const itens = student.itens?.length
@@ -132,48 +138,66 @@ export default function FutureStudentsPage() {
     }
   };
 
-  const updateValueDraft = (student: FutureStudent, field: "signal" | "pending", value: string) => {
+  const updateValueDraft = (rowKey: string, item: ReturnType<typeof getStudentItems>[number], field: "signal" | "pending", value: string) => {
     setValueDrafts((current) => ({
       ...current,
-      [student.id]: {
-        signal: current[student.id]?.signal ?? String(Number(student.valor_sinal || 0)),
-        pending: current[student.id]?.pending ?? String(getPendingTotal(student)),
+      [rowKey]: {
+        signal: current[rowKey]?.signal ?? String(Number(item.valor_sinal || 0)),
+        pending: current[rowKey]?.pending ?? String(Number(item.valor_pendente || 0)),
         [field]: value,
       },
     }));
   };
 
-  const startValueEdit = (student: FutureStudent) => setValueDrafts((current) => ({
+  const startValueEdit = (rowKey: string, item: ReturnType<typeof getStudentItems>[number]) => setValueDrafts((current) => ({
     ...current,
-    [student.id]: current[student.id] || {
-      signal: String(Number(student.valor_sinal || 0)),
-      pending: String(getPendingTotal(student)),
+    [rowKey]: current[rowKey] || {
+      signal: String(Number(item.valor_sinal || 0)),
+      pending: String(Number(item.valor_pendente || 0)),
     },
   }));
 
-  const cancelValueDraft = (studentId: string) => setValueDrafts((current) => {
-    const next = { ...current };
-    delete next[studentId];
-    return next;
+  const cancelValueDraft = (rowKey: string) => setValueDrafts((current) => {
+    const nextDrafts = { ...current };
+    delete nextDrafts[rowKey];
+    return nextDrafts;
   });
 
-  const saveInlineValues = async (student: FutureStudent) => {
-    const draft = valueDrafts[student.id];
+  const saveInlineValues = async (student: FutureStudent, itemIndex: number, rowKey: string) => {
+    const draft = valueDrafts[rowKey];
     if (!draft) return;
     const signal = Math.max(Number(draft.signal.replace(",", ".")) || 0, 0);
     const pending = Math.max(Number(draft.pending.replace(",", ".")) || 0, 0);
-    const currentItems = student.itens?.length
-      ? student.itens.map((item) => ({ ...item }))
-      : student.curso ? [{ tipo: "curso" as const, nome: student.curso, valor_sinal: Number(student.valor_sinal || 0), valor_pendente: 0, data: student.created_at }] : [];
-    const signalValues = distributeTotal(currentItems.map((item) => Number(item.valor_sinal || 0)), signal);
-    const pendingValues = distributeTotal(currentItems.map((item) => Number(item.valor_pendente || 0)), pending);
-    const itens = currentItems.map((item, index) => ({ ...item, valor_sinal: signalValues[index], valor_pendente: pendingValues[index] }));
+    const itens = getStudentItems(student).map((item, index) => index === itemIndex
+      ? { ...item, valor_sinal: signal, valor_pendente: pending }
+      : { ...item });
     try {
-      await updateStudent.mutateAsync({ id: student.id, valor_sinal: signal, itens });
-      cancelValueDraft(student.id);
-      toast({ title: "Valores atualizados", description: `${student.nome}: sinal ${formatCurrency(signal)} · a receber ${formatCurrency(pending)}` });
+      await updateStudent.mutateAsync({
+        id: student.id,
+        valor_sinal: itens.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0),
+        itens,
+      });
+      cancelValueDraft(rowKey);
+      toast({ title: "Valores atualizados", description: `${student.nome} · ${itens[itemIndex].nome}: sinal ${formatCurrency(signal)} · a receber ${formatCurrency(pending)}` });
     } catch (error) {
       toast({ title: "Erro ao salvar valores", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+    }
+  };
+
+  const removeEnrollment = async (student: FutureStudent, itemIndex: number) => {
+    const itens = getStudentItems(student);
+    if (itens.length <= 1) return removeStudent(student);
+    const remaining = itens.filter((_, index) => index !== itemIndex);
+    try {
+      await updateStudent.mutateAsync({
+        id: student.id,
+        itens: remaining,
+        valor_sinal: remaining.reduce((sum, item) => sum + Number(item.valor_sinal || 0), 0),
+        curso: remaining.find((item) => item.tipo === "curso")?.nome || remaining[0]?.nome || "",
+      });
+      toast({ title: "Curso removido", description: `${student.nome} permanece cadastrado nos demais cursos.` });
+    } catch (error) {
+      toast({ title: "Erro ao remover curso", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
     }
   };
 
@@ -212,18 +236,18 @@ export default function FutureStudentsPage() {
           </DialogContent>
         </Dialog>
         <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <MetricCard title="Alunos com sinal" value={students.length} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
+          <MetricCard title="Cursos com sinal" value={enrollmentCount} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
           <MetricCard title="Total em sinais" value={totalSignal} icon={<DollarSign className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Total a receber" value={totalPending} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Ja preencheram formulario" value={linkedCount} icon={<UserCheck className="h-5 w-5" />} variant="accent" countUp />
-          <MetricCard title="Pendentes" value={Math.max(students.length - linkedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
+          <MetricCard title="Pendentes" value={Math.max(enrollmentCount - linkedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
         </div>
 
         <div className="glass-card rounded-xl border border-border/30">
           <div className="flex flex-col gap-3 border-b border-border/30 p-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="font-display text-lg font-bold">Lista de alunos futuros</h2>
-              <p className="text-xs text-muted-foreground">Os registros serao vinculados ao formulario pelo CPF.</p>
+              <p className="text-xs text-muted-foreground">Cada curso é vinculado separadamente ao formulário pela pessoa e pelo curso realizado.</p>
             </div>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
@@ -241,10 +265,10 @@ export default function FutureStudentsPage() {
               <TabsList className="grid h-auto w-full grid-cols-2 sm:w-[420px]">
                 <TabsTrigger value="pending" className="gap-2 py-2">
                   Pendentes
-                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{Math.max(students.length - linkedCount, 0)}</Badge>
+                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{Math.max(enrollmentCount - linkedCount, 0)}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="linked" className="gap-2 py-2">
-                  Vinculados
+                  Cursos feitos
                   <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{linkedCount}</Badge>
                 </TabsTrigger>
               </TabsList>
@@ -262,7 +286,8 @@ export default function FutureStudentsPage() {
                   <TableHead className="text-right">Valor sinal</TableHead>
                   <TableHead className="text-right">A receber</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Formulario</TableHead>
+                  <TableHead>Curso feito</TableHead>
+                  <TableHead>Agendamento</TableHead>
                   <TableHead>Cadastro</TableHead>
                   <TableHead className="w-24">Ações</TableHead>
                 </TableRow>
@@ -270,11 +295,11 @@ export default function FutureStudentsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
+                  <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
                   </TableRow>
-                ) : filteredStudents.length === 0 ? (
+                ) : filteredEnrollments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
                       {search.trim()
                         ? "Nenhum aluno encontrado com essa busca."
                         : studentView === "linked"
@@ -283,35 +308,29 @@ export default function FutureStudentsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredStudents.map((student) => {
-                    const linked = linkedStudentIds.has(student.id);
+                  filteredEnrollments.map(({ student, item, itemIndex, rowKey, linked, booking }) => {
 
                     return (
-                      <TableRow key={student.id}>
+                      <TableRow key={rowKey}>
                         <TableCell className="font-semibold">{student.nome}</TableCell>
                         <TableCell>{student.telefone}</TableCell>
                         <TableCell>{student.cpf}</TableCell>
                         <TableCell>
                           <div className="flex max-w-md flex-wrap gap-1.5">
-                            {(student.itens?.length ? student.itens : student.curso ? [{ tipo: "curso", nome: student.curso, valor_sinal: student.valor_sinal, data: student.created_at }] : []).map((item, index) => (
-                              <Badge key={`${item.nome}-${index}`} variant="secondary" title={`${item.tipo} · ${formatCurrency(item.valor_sinal)}`}>
-                                {item.nome}
-                              </Badge>
-                            ))}
-                            {!student.itens?.length && !student.curso && <span className="text-muted-foreground">Não informado</span>}
+                            <Badge variant="secondary" title={`${item.tipo} · ${formatCurrency(item.valor_sinal)}`}>{item.nome}</Badge>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          {valueDrafts[student.id] ? <div className="relative ml-auto w-28">
+                          {valueDrafts[rowKey] ? <div className="relative ml-auto w-28">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-success">R$</span>
-                            <Input autoFocus type="number" min={0} step="0.01" value={valueDrafts[student.id].signal} onChange={(event) => updateValueDraft(student, "signal", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-success" aria-label={`Valor do sinal de ${student.nome}`} />
-                          </div> : <button type="button" onClick={() => startValueEdit(student)} className="rounded-md px-2 py-1 font-semibold text-success transition-colors hover:bg-success/10" title="Clique para editar o valor do sinal">{formatCurrency(student.valor_sinal)}</button>}
+                            <Input autoFocus type="number" min={0} step="0.01" value={valueDrafts[rowKey].signal} onChange={(event) => updateValueDraft(rowKey, item, "signal", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student, itemIndex, rowKey)} className="h-8 pl-8 text-right font-semibold text-success" aria-label={`Valor do sinal de ${student.nome}`} />
+                          </div> : <button type="button" onClick={() => startValueEdit(rowKey, item)} className="rounded-md px-2 py-1 font-semibold text-success transition-colors hover:bg-success/10" title="Clique para editar o valor do sinal">{formatCurrency(item.valor_sinal)}</button>}
                         </TableCell>
                         <TableCell className="text-right">
-                          {valueDrafts[student.id] ? <div className="relative ml-auto w-28">
+                          {valueDrafts[rowKey] ? <div className="relative ml-auto w-28">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-warning">R$</span>
-                            <Input type="number" min={0} step="0.01" value={valueDrafts[student.id].pending} onChange={(event) => updateValueDraft(student, "pending", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student)} className="h-8 pl-8 text-right font-semibold text-warning" aria-label={`Valor a receber de ${student.nome}`} />
-                          </div> : <button type="button" onClick={() => startValueEdit(student)} className="rounded-md px-2 py-1 font-semibold text-warning transition-colors hover:bg-warning/10" title="Clique para editar o valor a receber">{formatCurrency(getPendingTotal(student))}</button>}
+                            <Input type="number" min={0} step="0.01" value={valueDrafts[rowKey].pending} onChange={(event) => updateValueDraft(rowKey, item, "pending", event.target.value)} onKeyDown={(event) => event.key === "Enter" && void saveInlineValues(student, itemIndex, rowKey)} className="h-8 pl-8 text-right font-semibold text-warning" aria-label={`Valor a receber de ${student.nome}`} />
+                          </div> : <button type="button" onClick={() => startValueEdit(rowKey, item)} className="rounded-md px-2 py-1 font-semibold text-warning transition-colors hover:bg-warning/10" title="Clique para editar o valor a receber">{formatCurrency(Number(item.valor_pendente || 0))}</button>}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="border-success/30 bg-success/10 text-success">
@@ -320,19 +339,22 @@ export default function FutureStudentsPage() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={linked ? "border-primary/30 bg-primary/10 text-primary" : "border-warning/30 bg-warning/10 text-warning"}>
-                            {linked ? "Vinculado" : "Pendente"}
+                            {linked ? "Curso feito" : "Pendente"}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {booking ? <div className="space-y-1"><Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">Curso marcado</Badge><div className="text-xs text-muted-foreground">{formatDate(`${booking.date}T12:00:00`)}{booking.time ? ` · ${booking.time}` : ""}</div></div> : <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">Ainda não marcado</Badge>}
                         </TableCell>
                         <TableCell className="text-muted-foreground">{formatDate(student.created_at)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            {valueDrafts[student.id] && <><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => void saveInlineValues(student)} title="Salvar valores" className="text-success hover:text-success"><Check className="h-4 w-4" /></Button><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => cancelValueDraft(student.id)} title="Cancelar alteração"><X className="h-4 w-4" /></Button></>}
+                            {valueDrafts[rowKey] && <><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => void saveInlineValues(student, itemIndex, rowKey)} title="Salvar valores" className="text-success hover:text-success"><Check className="h-4 w-4" /></Button><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => cancelValueDraft(rowKey)} title="Cancelar alteração"><X className="h-4 w-4" /></Button></>}
                             <Button size="icon" variant="ghost" onClick={() => openEdit(student)} title="Editar aluno"><Pencil className="h-4 w-4" /></Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild><Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" title="Remover aluno"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                               <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>Remover cadastro?</AlertDialogTitle><AlertDialogDescription>O cadastro de <strong>{student.nome}</strong> e todos os produtos e serviços vinculados serão removidos. Os agendamentos existentes não serão apagados.</AlertDialogDescription></AlertDialogHeader>
-                                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => removeStudent(student)}>Remover cadastro</AlertDialogAction></AlertDialogFooter>
+                                <AlertDialogHeader><AlertDialogTitle>Remover cadastro?</AlertDialogTitle><AlertDialogDescription>O curso <strong>{item.nome}</strong> de <strong>{student.nome}</strong> será removido. Os outros cursos e agendamentos não serão apagados.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => removeEnrollment(student, itemIndex)}>Remover cadastro</AlertDialogAction></AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
                           </div>
