@@ -1,4 +1,8 @@
-import React from "react";
+import { NavigationFavicon } from "@/components/NavigationFavicon";
+import { isSocialOperationUser, SOCIAL_OPERATION_PATHS } from "@/lib/accessControl";
+import { canAccessClientContracts } from "@/lib/accessControl";
+import React, { lazy, Suspense } from "react";
+import { isChunkError, recoverChunk } from "@/lib/chunkRecovery";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,56 +11,65 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
-import Dashboard from "./pages/Dashboard";
-import MetasPage from "./pages/MetasPage";
-import FaturamentoPage from "./pages/FaturamentoPage";
-import ComercialPage from "./pages/ComercialPage";
-import PerformancePage from "./pages/PerformancePage";
-import RelatoriosPage from "./pages/RelatoriosPage";
-import CampanhasPage from "./pages/CampanhasPage";
-import AnaliseVendasPage from "./pages/AnaliseVendasPage";
-import ClientesPage from "./pages/ClientesPage";
-import AnaliseAlunosPage from "./pages/AnaliseAlunosPage";
-import ConfiguracoesPage from "./pages/ConfiguracoesPage";
-import DashboardTVPage from "./pages/DashboardTVPage";
-import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
-import PesquisaPage from "./pages/PesquisaPage";
-import QrPage from "./pages/QrPage";
-import PlanilhaPage from "./pages/PlanilhaPage";
-import VendasPage from "./pages/VendasPage";
-import CursosDadosPage from "./pages/CursosDadosPage";
-import CriativosPage from "./pages/CriativosPage";
-import PlanilhaInstaPage from "./pages/PlanilhaInstaPage";
-import PagamentosPage from "./pages/PagamentosPage";
-import BoletosPage from "./pages/BoletosPage";
-import GoogleAdsClientsPage from "./pages/clients/GoogleAdsClientsPage";
-import ClientNotesPage from "./pages/clients/ClientNotesPage";
-import StudentDataPage from "./pages/StudentDataPage";
-import ClientNotesPublicFormPage from "./pages/clients/ClientNotesPublicFormPage";
-import ClientIntakePage from "./pages/clients/ClientIntakePage";
-import FutureStudentSignupPage from "./pages/FutureStudentSignupPage";
-import FutureStudentsPage from "./pages/FutureStudentsPage";
-import SupportSchedulePage from "./pages/SupportSchedulePage";
-import SupportBookingPublicPage from "./pages/SupportBookingPublicPage";
-import SocialMediaKanbanPage from "./pages/SocialMediaKanbanPage";
-import OperationalAgendaPage from "./pages/OperationalAgendaPage";
-import NotFound from "./pages/NotFound";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const EvolucaoPage = lazy(() => import("./pages/EvolucaoPage"));
+const MetasPage = lazy(() => import("./pages/MetasPage"));
+const FaturamentoPage = lazy(() => import("./pages/FaturamentoPage"));
+const ComercialPage = lazy(() => import("./pages/ComercialPage"));
+const PerformancePage = lazy(() => import("./pages/PerformancePage"));
+const RelatoriosPage = lazy(() => import("./pages/RelatoriosPage"));
+const CampanhasPage = lazy(() => import("./pages/CampanhasPage"));
+const AnaliseVendasPage = lazy(() => import("./pages/AnaliseVendasPage"));
+const ClientesPage = lazy(() => import("./pages/ClientesPage"));
+const ClientContractsPage = lazy(() => import("./pages/clients/ClientContractsPage"));
+const ClientFeedbackPage = lazy(() => import("./pages/clients/ClientFeedbackPage"));
+const ClientFeedbackPublicPage = lazy(() => import("./pages/clients/ClientFeedbackPublicPage"));
+const AnaliseAlunosPage = lazy(() => import("./pages/AnaliseAlunosPage"));
+const ConfiguracoesPage = lazy(() => import("./pages/ConfiguracoesPage"));
+const FinancialExpensesPage = lazy(() => import("./pages/FinancialExpensesPage"));
+const DashboardTVPage = lazy(() => import("./pages/DashboardTVPage"));
+const Auth = lazy(() => import("./pages/Auth"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const PesquisaPage = lazy(() => import("./pages/PesquisaPage"));
+const QrPage = lazy(() => import("./pages/QrPage"));
+const PlanilhaPage = lazy(() => import("./pages/PlanilhaPage"));
+const VendasPage = lazy(() => import("./pages/VendasPage"));
+const CursosDadosPage = lazy(() => import("./pages/CursosDadosPage"));
+const CriativosPage = lazy(() => import("./pages/CriativosPage"));
+const PlanilhaInstaPage = lazy(() => import("./pages/PlanilhaInstaPage"));
+const PagamentosPage = lazy(() => import("./pages/PagamentosPage"));
+const BoletosPage = lazy(() => import("./pages/BoletosPage"));
+const GoogleAdsClientsPage = lazy(() => import("./pages/clients/GoogleAdsClientsPage"));
+const ClientNotesPage = lazy(() => import("./pages/clients/ClientNotesPage"));
+const StudentDataPage = lazy(() => import("./pages/StudentDataPage"));
+const ClientNotesPublicFormPage = lazy(() => import("./pages/clients/ClientNotesPublicFormPage"));
+const ClientIntakePage = lazy(() => import("./pages/clients/ClientIntakePage"));
+const FutureStudentSignupPage = lazy(() => import("./pages/FutureStudentSignupPage"));
+const FutureStudentsPage = lazy(() => import("./pages/FutureStudentsPage"));
+const SupportSchedulePage = lazy(() => import("./pages/SupportSchedulePage"));
+const SupportBookingPublicPage = lazy(() => import("./pages/SupportBookingPublicPage"));
+const SocialMediaKanbanPage = lazy(() => import("./pages/SocialMediaKanbanPage"));
+const EditorialCalendarPage = lazy(() => import("./pages/EditorialCalendarPage"));
+const OperationalAgendaPage = lazy(() => import("./pages/OperationalAgendaPage"));
+const MeetingMetricsPage = lazy(() => import("./pages/MeetingMetricsPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Imports das Novas Páginas e Integrações
 import { AuthProvider as GestaoAuthProvider } from "@/hooks/clients/useGestaoAuth";
-import ClientsPage from "./pages/clients/ClientsPage";
-import ClientTasksPage from "./pages/clients/ClientTasksPage";
-import TaskManagerPage from "./pages/clients/TaskManagerPage";
-import ClientSettingsPage from "./pages/clients/ClientSettingsPage";
-import AdminBookingsPage from "./pages/clients/AdminBookingsPage";
-import BookingPublicPage from "./pages/clients/BookingPublicPage";
-import ConfirmBookingPage from "./pages/clients/ConfirmBookingPage";
-import ConfirmReschedulePage from "./pages/clients/ConfirmReschedulePage";
-import MetaPixelPage from "./pages/meta/MetaPixelPage";
-import { GOOGLE_TASKS_ONLY_PATH, isGoogleManagerPath, isGoogleTasksOnlyUser } from "@/lib/accessControl";
+const ClientSummaryPage = lazy(() => import("./pages/clients/ClientSummaryPage"));
+const ClientsPage = lazy(() => import("./pages/clients/ClientsPage"));
+const ClientMetricsPage = lazy(() => import("./pages/clients/ClientMetricsPage"));
+const ClientTasksPage = lazy(() => import("./pages/clients/ClientTasksPage"));
+const TaskManagerPage = lazy(() => import("./pages/clients/TaskManagerPage"));
+const ClientSettingsPage = lazy(() => import("./pages/clients/ClientSettingsPage"));
+const AdminBookingsPage = lazy(() => import("./pages/clients/AdminBookingsPage"));
+const BookingPublicPage = lazy(() => import("./pages/clients/BookingPublicPage"));
+const ConfirmBookingPage = lazy(() => import("./pages/clients/ConfirmBookingPage"));
+const ConfirmReschedulePage = lazy(() => import("./pages/clients/ConfirmReschedulePage"));
+const MetaPixelPage = lazy(() => import("./pages/meta/MetaPixelPage"));
+import { GOOGLE_TASKS_ONLY_PATH, isGoogleManagerPath, isGoogleTasksOnlyUser, isClientSummaryUser, isClientProfileEditor, canAccessSupportSchedule } from "@/lib/accessControl";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } });
 
 class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -71,8 +84,13 @@ class AppErrorBoundary extends React.Component<
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error) {
+    if (isChunkError(error)) recoverChunk();
+  }
+
   override render() {
     if (this.state.hasError) {
+      const chunkError = !!this.state.error && isChunkError(this.state.error);
       const isDomMutationError = this.state.error?.message.includes("removeChild") ||
         this.state.error?.message.includes("not a child of this node");
       return (
@@ -80,7 +98,7 @@ class AppErrorBoundary extends React.Component<
           <div className="max-w-2xl w-full rounded-2xl border border-destructive/30 bg-destructive/10 p-6 text-foreground">
             <h1 className="text-xl font-bold text-destructive mb-2">Erro ao carregar o dashboard</h1>
             <p className="text-sm text-muted-foreground mb-4">
-              A aplicação encontrou um erro em runtime. A mensagem abaixo ajuda a identificar a tela que está quebrando.
+              {chunkError ? "Não foi possível baixar um arquivo da tela. Isso pode ocorrer durante uma atualização ou por uma falha temporária de conexão. Tente carregar a versão atual novamente." : "A aplicação encontrou um erro. Os detalhes abaixo ajudam a identificar a causa."}
             </p>
             <pre className="whitespace-pre-wrap text-xs rounded-xl bg-black/40 p-4 overflow-auto">
               {this.state.error?.message || "Erro desconhecido"}
@@ -92,10 +110,10 @@ class AppErrorBoundary extends React.Component<
             )}
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => { if (!chunkError || !recoverChunk(window, true)) window.location.reload(); }}
               className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
             >
-              Recarregar pagina
+              {chunkError ? "Tentar novamente" : "Recarregar página"}
             </button>
           </div>
         </div>
@@ -120,6 +138,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
   if (!session) return <Navigate to="/auth" replace />;
+  if (isSocialOperationUser(session.user.email) && !SOCIAL_OPERATION_PATHS.has(location.pathname)) return <Navigate to="/agenda-geral" replace />;
+  if (location.pathname === "/contrato-cliente" && !canAccessClientContracts(session.user.email)) return <Navigate to="/gestao-clientes" replace />;
+  if (location.pathname === "/despesas-financeiras" && !canAccessClientContracts(session.user.email)) return <Navigate to="/" replace />;
+  if (location.pathname === "/nps-clientes" && !canAccessClientContracts(session.user.email)) return <Navigate to="/gestao-clientes" replace />;
+  if (isClientSummaryUser(session.user)) {
+    if (location.pathname === "/gestao-clientes") return isClientProfileEditor(session.user) ? <ClientsPage /> : <ClientSummaryPage />;
+    if (location.pathname !== "/agenda-geral" && location.pathname !== "/gestor-tarefas" && !(canAccessSupportSchedule(session.user) && location.pathname === "/agenda-suporte")) return <Navigate to="/gestao-clientes" replace />;
+  }
   if (isGoogleTasksOnlyUser(session.user.email) && !isGoogleManagerPath(location.pathname)) {
     return <Navigate to={GOOGLE_TASKS_ONLY_PATH} replace />;
   }
@@ -130,7 +156,7 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   if (loading) return null;
   if (session) {
-    return <Navigate to={isGoogleTasksOnlyUser(session.user.email) ? GOOGLE_TASKS_ONLY_PATH : "/"} replace />;
+    return <Navigate to={isSocialOperationUser(session.user.email) ? "/agenda-geral" : isClientSummaryUser(session.user) ? "/gestao-clientes" : isGoogleTasksOnlyUser(session.user.email) ? GOOGLE_TASKS_ONLY_PATH : "/"} replace />;
   }
   return <>{children}</>;
 };
@@ -140,10 +166,11 @@ const AnimatedRoutes = () => {
   useSmoothScroll();
 
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+    <Suspense fallback={<div role="status" className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Carregando página...</div>}>
+      <Routes location={location}>
         {/* Rotas de Métricas (Banco yhyuwmrwhnyxyyztzvqw) */}
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/evolucao" element={<ProtectedRoute><EvolucaoPage /></ProtectedRoute>} />
         <Route path="/metas" element={<ProtectedRoute><MetasPage /></ProtectedRoute>} />
         <Route path="/faturamento" element={<ProtectedRoute><FaturamentoPage /></ProtectedRoute>} />
         <Route path="/comercial" element={<ProtectedRoute><ComercialPage /></ProtectedRoute>} />
@@ -163,12 +190,14 @@ const AnimatedRoutes = () => {
         <Route path="/cursos-dados" element={<ProtectedRoute><CursosDadosPage /></ProtectedRoute>} />
         <Route path="/criativos" element={<ProtectedRoute><CriativosPage /></ProtectedRoute>} />
         <Route path="/planilha-insta" element={<ProtectedRoute><PlanilhaInstaPage /></ProtectedRoute>} />
+        <Route path="/despesas-financeiras" element={<ProtectedRoute><FinancialExpensesPage /></ProtectedRoute>} />
         <Route path="/pagamentos" element={<ProtectedRoute><PagamentosPage /></ProtectedRoute>} />
         <Route path="/boletos" element={<ProtectedRoute><BoletosPage /></ProtectedRoute>} />
         <Route path="/alunos-futuros" element={<ProtectedRoute><FutureStudentsPage /></ProtectedRoute>} />
         <Route path="/aluno-futuro" element={<FutureStudentSignupPage />} />
         <Route path="/agenda-suporte" element={<ProtectedRoute><SupportSchedulePage /></ProtectedRoute>} />
         <Route path="/kanban-social-media" element={<ProtectedRoute><SocialMediaKanbanPage /></ProtectedRoute>} />
+        <Route path="/calendario-editorial" element={<ProtectedRoute><EditorialCalendarPage /></ProtectedRoute>} />
         <Route path="/kanban-sites" element={<ProtectedRoute><SocialMediaKanbanPage boardType="sites" /></ProtectedRoute>} />
         <Route path="/kanban-crm" element={<ProtectedRoute><SocialMediaKanbanPage boardType="crm" /></ProtectedRoute>} />
         <Route path="/kanban-edicao" element={<ProtectedRoute><SocialMediaKanbanPage boardType="video_photo" /></ProtectedRoute>} />
@@ -176,6 +205,10 @@ const AnimatedRoutes = () => {
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
         <Route path="/gestao-clientes" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
+        <Route path="/contrato-cliente" element={<ProtectedRoute><ClientContractsPage /></ProtectedRoute>} />
+        <Route path="/metricas-clientes" element={<ProtectedRoute><ClientMetricsPage /></ProtectedRoute>} />
+        <Route path="/nps-clientes" element={<ProtectedRoute><ClientFeedbackPage /></ProtectedRoute>} />
+        <Route path="/feedback-cliente/:token" element={<ClientFeedbackPublicPage />} />
         <Route path="/dados-alunos" element={<ProtectedRoute><StudentDataPage /></ProtectedRoute>} />
         <Route path="/notas-clientes" element={<ProtectedRoute><ClientNotesPage /></ProtectedRoute>} />
         <Route path="/cadastro-notas-cliente" element={<ClientNotesPublicFormPage />} />
@@ -184,6 +217,7 @@ const AnimatedRoutes = () => {
         <Route path="/tasks" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
         <Route path="/gestor-tarefas" element={<ProtectedRoute><TaskManagerPage /></ProtectedRoute>} />
         <Route path="/reunioes" element={<ProtectedRoute><ClientTasksPage /></ProtectedRoute>} />
+        <Route path="/metricas-reunioes" element={<ProtectedRoute><MeetingMetricsPage /></ProtectedRoute>} />
         <Route path="/agenda-geral" element={<ProtectedRoute><OperationalAgendaPage category="all" /></ProtectedRoute>} />
         <Route path="/agenda-captacao" element={<ProtectedRoute><OperationalAgendaPage category="captacao" /></ProtectedRoute>} />
         <Route path="/agenda-social-media" element={<ProtectedRoute><OperationalAgendaPage category="social_media" /></ProtectedRoute>} />
@@ -201,7 +235,7 @@ const AnimatedRoutes = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </AnimatePresence>
+    </Suspense>
   );
 };
 
@@ -213,6 +247,7 @@ const App = () => (
       <GestaoAuthProvider>
         <AppErrorBoundary>
           <BrowserRouter>
+            <NavigationFavicon />
             <AnimatedRoutes />
           </BrowserRouter>
         </AppErrorBoundary>
@@ -222,3 +257,4 @@ const App = () => (
 );
 
 export default App;
+

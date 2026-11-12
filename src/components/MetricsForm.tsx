@@ -11,6 +11,8 @@ import type { DailyMetrics } from "@/hooks/useMetrics";
 
 interface MetricsFormProps {
   currentData?: DailyMetrics | null;
+  initialDate?: string;
+  triggerLabel?: string;
 }
 
 const sections = [
@@ -202,15 +204,15 @@ const withAutomaticTargets = (form: ReturnType<typeof createEmptyForm>, date: st
   };
 };
 
-const MetricsForm = ({ currentData }: MetricsFormProps) => {
+const MetricsForm = ({ currentData, initialDate, triggerLabel }: MetricsFormProps) => {
   const today = formatLocalDate(new Date());
   const yesterday = formatLocalDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
   const { mutate, isPending } = useUpsertMetrics();
   const deleteMetrics = useDeleteMetrics();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(today);
-  const { data: selectedDateData, isLoading: selectedDateLoading } = useMetricsByDate(selectedDate);
+  const [selectedDate, setSelectedDate] = useState(initialDate || today);
+  const { data: selectedDateData, isLoading: selectedDateLoading } = useMetricsByDate(selectedDate, open);
   const activeData = selectedDateData ?? (selectedDate === today ? currentData : null);
   const selectedDateLabel = formatDateLabel(selectedDate);
 
@@ -283,7 +285,7 @@ const MetricsForm = ({ currentData }: MetricsFormProps) => {
             color: "hsl(var(--accent-foreground))",
           }}
         >
-          {activeData ? "Atualizar" : "Registrar"} métricas
+          {triggerLabel || `${activeData ? "Atualizar" : "Registrar"} métricas`}
         </button>
       </DialogTrigger>
       <DialogContent

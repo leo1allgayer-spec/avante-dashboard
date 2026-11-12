@@ -21,7 +21,7 @@ import {
 } from "@/hooks/useSocialMediaKanban";
 
 const emptyTask: SocialMediaTaskInput = {
-  title: "", client: "", description: "", owner: "Ana", priority: "Média", status: "Solicitado", dueDate: "", commissionPaid: false,
+  title: "", client: "", description: "", owner: "Ana", priority: "Média", status: "Solicitado", dueDate: "", commissionPaid: false, siteValue: 0,
 };
 
 const columnStyles: Record<string, string> = {
@@ -82,7 +82,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
 
   const showEdit = (task: SocialMediaTask) => {
     setEditing(task);
-    setForm({ title: task.title, client: task.client, description: task.description, owner: task.owner, priority: task.priority, status: task.status, dueDate: task.dueDate, commissionPaid: task.commissionPaid });
+    setForm({ title: task.title, client: task.client, description: task.description, owner: task.owner, priority: task.priority, status: task.status, dueDate: task.dueDate, commissionPaid: task.commissionPaid, siteValue: task.siteValue });
     setOpen(true);
   };
 
@@ -142,6 +142,7 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
                           <Badge variant="outline" className={priorityStyles[task.priority]}>{task.priority}</Badge>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground"><UserRound className="h-3.5 w-3.5" />{task.owner}</span>
                           {task.dueDate && <span className="flex items-center gap-1 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />{new Date(`${task.dueDate}T12:00:00`).toLocaleDateString("pt-BR")}</span>}
+                          {boardType === "sites" && task.siteValue > 0 && <span className="text-xs font-semibold text-sky-400">Site: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(task.siteValue)}</span>}
                           <button
                             type="button"
                             onClick={(event) => { event.stopPropagation(); void updateTask(task.id, { commissionPaid: !task.commissionPaid }); }}
@@ -175,10 +176,11 @@ export default function SocialMediaKanbanPage({ boardType = "social_media" }: Pr
             </div>
             <div className="space-y-2"><Label>Fase</Label><Select value={form.status} onValueChange={(status: any) => setForm({ ...form, status })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{stages.map((stage) => <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>)}</SelectContent></Select></div>
             <div className="space-y-2"><Label>Controle da comissão</Label><Select value={form.commissionPaid ? "paga" : "pendente"} onValueChange={(value) => setForm({ ...form, commissionPaid: value === "paga" })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pendente">Comissão pendente</SelectItem><SelectItem value="paga">Comissão paga</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Controle informativo, sem vínculo com a data da tarefa.</p></div>
+            {boardType === "sites" && <div className="space-y-2"><Label>Valor do site</Label><Input type="number" min="0" step="0.01" value={form.siteValue || ""} onChange={(e) => setForm({ ...form, siteValue: Number(e.target.value) || 0 })} placeholder="Ex.: 6000" /></div>}
             <div className="space-y-2"><Label>Descrição</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Detalhes, formato, referências e observações..." rows={4} /></div>
           </div>
           <div className="flex items-center gap-2">
-            {editing && <Button variant="destructive" onClick={async () => { await deleteTask(editing.id); setOpen(false); }}><Trash2 className="mr-2 h-4 w-4" />Excluir</Button>}
+            {editing && <Button variant="destructive" onClick={async () => { if (await deleteTask(editing.id)) setOpen(false); }}><Trash2 className="mr-2 h-4 w-4" />Excluir</Button>}
             <Button variant="outline" className="ml-auto" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={save} disabled={!form.title.trim()}>{editing ? "Salvar alterações" : "Criar tarefa"}</Button>
           </div>

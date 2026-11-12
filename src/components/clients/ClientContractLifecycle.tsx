@@ -1,0 +1,10 @@
+import { useState } from "react";
+import type { Client } from "@/types/clients/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+export default function ClientContractLifecycle({client,onUpdate}:{client:Client;onUpdate:(client:Client)=>void|Promise<void>}) {
+ const [lifecycle,setLifecycle]=useState(client.contractLifecycle||"nao_informado"),[end,setEnd]=useState(client.contractEndDate||""),[saving,setSaving]=useState(false);
+ const invalid=lifecycle==="encerrado"&&(!end||!client.startDate||end<client.startDate);
+ return <div className="rounded-xl border p-4"><h3 className="mb-2 text-sm font-medium">Encerramento confirmado do contrato</h3><p className="mb-3 text-xs text-muted-foreground">Utilizado no churn. Pausar o cliente ou indicar que não vai renovar não registra um encerramento. Informe apenas a situação do contrato atual.</p><div className="flex flex-wrap items-end gap-3"><label className="text-xs">Situação<select aria-label="Situação do contrato" value={lifecycle} onChange={e=>setLifecycle(e.target.value as typeof lifecycle)} className="mt-1 block h-10 rounded-lg border bg-background px-3"><option value="nao_informado">Não informado</option><option value="vigente">Vigente</option><option value="encerrado">Encerrado</option></select></label>{lifecycle==="encerrado"&&<label className="text-xs">Data do encerramento<Input aria-label="Data do encerramento" type="date" value={end} min={client.startDate||undefined} onChange={e=>setEnd(e.target.value)} className="mt-1 w-44"/></label>}<Button disabled={saving||invalid} onClick={async()=>{setSaving(true);try{await onUpdate({...client,contractLifecycle:lifecycle,contractEndDate:lifecycle==="encerrado"?end:""});toast.success("Situação contratual salva");}catch{toast.error("Não foi possível salvar o contrato");}finally{setSaving(false);}}}>{saving?"Salvando...":"Salvar situação"}</Button></div>{invalid&&<p className="mt-2 text-xs text-destructive">Preencha a data de início do cliente e uma data de encerramento igual ou posterior.</p>}</div>;
+}

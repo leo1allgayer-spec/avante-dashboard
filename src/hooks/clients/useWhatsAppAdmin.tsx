@@ -36,6 +36,11 @@ const TYPE_LABELS: Record<string, string> = {
   reminder_24h: "Lembrete 24h",
   reminder_1h: "Lembrete 1h",
   post_course: "Pós-curso",
+  support_student_confirmation: "Confirmação de suporte",
+  support_student_reminder_1h: "Lembrete de suporte — aluno",
+  support_admin_notice: "Novo suporte — equipe",
+  support_admin_reminder_1h: "Lembrete de suporte — equipe",
+  support_admin_leonardo_reminder_1h: "Lembrete de suporte — Leonardo Allgayer",
 };
 
 export function getTypeLabel(type: string) {
@@ -112,6 +117,10 @@ export function useWhatsAppLogs() {
 }
 
 export async function resendMessage(log: WhatsAppLog) {
+  if (log.status !== "error" || /sem confirmação|não confirmad/i.test(log.errorMessage || "")) {
+    toast.error("Verifique a entrega desta mensagem antes de reenviar.");
+    return false;
+  }
   // Sempre buscar dados atualizados do booking para refletir alterações
   // recentes (telefone, nome, etc.) ao reenviar a mensagem.
   let phone = log.phone;
@@ -119,7 +128,7 @@ export async function resendMessage(log: WhatsAppLog) {
   let courseName = log.courseName;
   let useCustomText = true;
 
-  if (log.bookingId) {
+  if (log.bookingId && ["confirmation", "reminder_24h", "reminder_1h", "post_course"].includes(log.messageType)) {
     const { data: booking } = await supabase
       .from("course_bookings")
       .select("phone, student_name, course_name")
@@ -141,14 +150,16 @@ export async function resendMessage(log: WhatsAppLog) {
       messageType: log.messageType,
       studentName,
       courseName,
+      retryLogId: log.id,
       ...(useCustomText ? { customText: log.messageText } : {}),
     },
   });
-  if (error) {
-    toast.error("Erro ao reenviar mensagem");
+  if (error || data?.success !== true) {
+    const response = error?.context instanceof Response ? await error.context.json().catch(() => null) : null;
+    toast.error(response?.error || data?.error || "Erro ao reenviar mensagem; não haverá nova tentativa automática.");
     return false;
   }
-  toast.success("Mensagem reenviada");
+  toast.success(data?.deduplicated ? "Esta mensagem já foi enviada; nenhum novo envio foi feito." : "Mensagem reenviada");
   return true;
 }
 
@@ -156,10 +167,10 @@ export async function sendManualMessage(phone: string, bookingId: string | null,
   const { data, error } = await supabase.functions.invoke("whatsapp-send", {
     body: { phone, bookingId, messageType, studentName, courseName },
   });
-  if (error) {
+  if (error || data?.success !== true) {
     toast.error("Erro ao enviar mensagem");
     return false;
   }
-  toast.success("Mensagem enviada");
+  toast.success(data?.deduplicated ? "Esta mensagem já foi enviada; nenhum novo envio foi feito." : "Mensagem enviada");
   return true;
 }

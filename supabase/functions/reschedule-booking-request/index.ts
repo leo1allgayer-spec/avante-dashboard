@@ -6,6 +6,7 @@ const normalizeText = (value: string) => String(value || "")
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
+const equivalentCourses = (course:string) => ['Curso Meta Ads','Curso de Meta Ads','Curso Meta Ads Online'].includes(course) ? ['Curso Meta Ads','Curso de Meta Ads','Curso Meta Ads Online'] : [course];
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -50,14 +51,14 @@ Deno.serve(async (req) => {
     const { data: activeBookings, error: bookingError } = await supabase
       .from("course_bookings")
       .select("id,slot_id,student_name,course_name,email,phone,date,time,status,course_status")
-      .eq("course_name", courseName)
+      .in("course_name", equivalentCourses(courseName))
       .eq("status", "confirmed")
-      .not("course_status", "in", "(cancelado,concluido,concluído)")
+      .or("course_status.is.null,course_status.not.in.(cancelado,concluido,concluído)")
       .order("created_at", { ascending: false });
     if (bookingError) throw bookingError;
 
     const requestName = normalizeText(studentName);
-    const booking = (activeBookings || []).find((item) => {
+    const matches = (activeBookings || []).filter((item) => {
       const bookingName = normalizeText(item.student_name);
       const bookingPhone = normalizePhone(item.phone);
       const nameMatches = !!requestName && bookingName === requestName;
@@ -66,9 +67,13 @@ Deno.serve(async (req) => {
         (!!registeredPhone && bookingPhone === registeredPhone)
       );
       const contactMatches = item.email?.toLowerCase() === email && bookingPhone === phone;
-      return nameMatches || cpfMatches || contactMatches;
+      return (cpfMatches && nameMatches) || contactMatches || (nameMatches && !!phone && bookingPhone === phone);
     });
 
+    const requestedId=String(body.bookingId || '');
+    const selected= requestedId ? matches.filter(item=>item.id===requestedId) : matches;
+    if(selected.length>1) return new Response(JSON.stringify({error:'Há mais de uma inscrição ativa para este curso. Fale com a equipe para escolher o agendamento correto.'}),{status:409,headers:{...corsHeaders,'Content-Type':'application/json'}});
+    const booking=selected[0];
     if (!booking) {
       return new Response(JSON.stringify({ exists: false }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -101,7 +106,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (booking.date === date && booking.time === shift) {
+    if (booking.date === date && booking.time === shift && booking.course_name === courseName) {
       return new Response(JSON.stringify({ exists: true, kept: true, currentBooking }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -132,7 +137,7 @@ Deno.serve(async (req) => {
       .eq("slot_id", slot.id)
       .eq("status", "confirmed")
       .neq("id", booking.id)
-      .not("course_status", "in", "(cancelado,concluido,concluído)");
+      .or("course_status.is.null,course_status.not.in.(cancelado,concluido,concluído)");
     if (countError) throw countError;
     if ((count || 0) >= (slot.max_students || 5)) {
       return new Response(JSON.stringify({ error: "O novo horário ficou lotado. Escolha outra data." }), {
@@ -143,6 +148,7 @@ Deno.serve(async (req) => {
     const { error: updateError } = await supabase
       .from("course_bookings")
       .update({
+        course_name: courseName,
         slot_id: slot.id,
         date,
         time: shift,
@@ -173,7 +179,7 @@ Deno.serve(async (req) => {
       rescheduled: true,
       bookingId: booking.id,
       previousBooking: currentBooking,
-      currentBooking: { ...currentBooking, studentName, date, shift },
+      currentBooking: { ...currentBooking, courseName, studentName, date, shift },
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Reschedule booking error:", error);

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCreativePerformance } from "@/hooks/useCreativePerformance";
 
 export interface MetaCampaign {
   id: string;
@@ -90,8 +91,10 @@ export function useMetaAds(filters: MetaAdsFilters = { datePreset: "this_month" 
   });
 }
 
-export function useMetaAdCreatives() {
-  return useQuery<MetaAdCreative[]>({
+export function useMetaAdCreatives(range?: { start: string; end: string }) {
+  const performance = useCreativePerformance(range);
+  const legacy = useQuery<MetaAdCreative[]>({
+    enabled: !range,
     queryKey: ["meta-ad-creatives"],
     queryFn: async () => {
       const { data: metaData, error: metaError } = await supabase.functions.invoke("meta-ads", {
@@ -138,4 +141,10 @@ export function useMetaAdCreatives() {
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
+  if (!range) return legacy;
+  return { ...performance, data: performance.data?.map(row => ({
+    id: row.ad_id, name: row.ad_name, status: "UNKNOWN", campaignId: row.campaign_id, campaignName: row.campaign_name,
+    spend: row.spend, impressions: row.impressions, clicks: row.clicks, reach: row.reach,
+    conversations: Number(row.actions?.find(a => a.action_type === "onsite_conversion.messaging_conversation_started_7d")?.value || 0),
+  })) };
 }

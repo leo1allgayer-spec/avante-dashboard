@@ -61,7 +61,7 @@ async function fetchAllMetaPages<T>(url: string): Promise<T[]> {
   let nextUrl: string | undefined = url;
 
   while (nextUrl) {
-    const payload = await fetchMeta<MetaListResponse<T>>(nextUrl);
+    const payload: MetaListResponse<T> = await fetchMeta<MetaListResponse<T>>(nextUrl);
     rows.push(...(payload.data || []));
     nextUrl = payload.paging?.next;
   }
@@ -105,6 +105,12 @@ Deno.serve(async (req) => {
     const accessToken = getRequiredEnv("META_ACCESS_TOKEN");
     const adAccountId = normalizeAdAccountId(getRequiredEnv("META_AD_ACCOUNT_ID"));
     const dateParams = buildDateParams(body);
+
+    if (body.action === "creative_performance") {
+      const fields = "ad_id,ad_name,campaign_id,campaign_name,spend,impressions,clicks,reach,inline_link_clicks,actions,video_play_actions,video_thruplay_watched_actions,video_p25_watched_actions,video_p50_watched_actions,video_p75_watched_actions,video_p100_watched_actions,video_avg_time_watched_actions";
+      const rows = await fetchAllMetaPages(buildUrl(`${adAccountId}/insights`, {fields,level:"ad",...dateParams,limit:100}, accessToken));
+      return new Response(JSON.stringify({rows}), {headers:{...corsHeaders,"Content-Type":"application/json"}});
+    }
 
     const insightFields = [
       "spend",

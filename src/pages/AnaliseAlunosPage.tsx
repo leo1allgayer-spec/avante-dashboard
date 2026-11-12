@@ -114,6 +114,7 @@ const AlunoExpandRow = ({
   onDelete,
   onRate,
   onWheelUpdate,
+  onSupportGroupUpdate,
   isDeleting,
 }: {
   r: SurveyResponse;
@@ -122,6 +123,7 @@ const AlunoExpandRow = ({
   onDelete: (r: SurveyResponse) => void;
   onRate: (r: SurveyResponse, nota: number | null) => void;
   onWheelUpdate: (r: SurveyResponse, updates: Pick<SurveyResponse, "roleta_girada" | "bonus_roleta">) => void;
+  onSupportGroupUpdate: (r: SurveyResponse, created: boolean) => void;
   isDeleting: boolean;
 }) => {
   const [open, setOpen] = useState(false);
@@ -133,7 +135,12 @@ const AlunoExpandRow = ({
       >
         <div className="flex items-center gap-3 min-w-0">
           <span className="text-xs text-muted-foreground/50 w-6 shrink-0">{index + 1}</span>
-          <span className="font-medium text-foreground truncate">{r.nome}</span>
+          <div className="min-w-0">
+            <span className="block font-medium text-foreground truncate">{r.nome}</span>
+            <span className="mt-1 inline-flex max-w-full rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-xs text-primary">
+              <span className="truncate" title={r.curso_realizado || "Curso não informado"}>{r.curso_realizado || "Curso não informado"}</span>
+            </span>
+          </div>
           <span className="text-xs text-muted-foreground/60 hidden sm:inline">{r.whatsapp || r.email || ""}</span>
           {r.consultor && <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full hidden md:inline">{r.consultor}</span>}
           {r.nota_curso != null && <span className="text-[10px] text-warning hidden md:inline">⭐ {r.nota_curso}/10 curso</span>}
@@ -144,6 +151,26 @@ const AlunoExpandRow = ({
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <label
+            className={cn(
+              "hidden sm:flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] cursor-pointer transition-colors",
+              r.support_group_created
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                : "border-border/40 bg-secondary/20 text-muted-foreground hover:text-foreground",
+            )}
+            title="Marcar grupo de suporte como criado"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={r.support_group_created === true}
+              onChange={(e) => onSupportGroupUpdate(r, e.target.checked)}
+              onClick={(e) => e.stopPropagation()}
+              className="h-3 w-3 accent-emerald-500"
+              aria-label={`Grupo de suporte de ${r.nome}`}
+            />
+            <span className="hidden lg:inline">Grupo</span>
+          </label>
           <div className="hidden sm:flex items-center gap-0.5 rounded-full border border-border/40 bg-secondary/20 px-2 py-1" onClick={(e) => e.stopPropagation()}>
             {[1, 2, 3, 4, 5].map((nota) => (
               <button
@@ -200,6 +227,15 @@ const AlunoExpandRow = ({
             className="overflow-hidden"
           >
             <div className="px-4 pt-3 pb-4 border-b border-border/20 grid grid-cols-1 md:grid-cols-2 gap-4 bg-secondary/10">
+              <label className="md:col-span-2 flex items-center gap-3 rounded-lg border border-border/30 bg-background/30 px-3 py-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={r.support_group_created === true}
+                  onChange={(e) => onSupportGroupUpdate(r, e.target.checked)}
+                  className="h-4 w-4 accent-emerald-500"
+                />
+                <span className="text-sm text-foreground">Grupo de suporte criado</span>
+              </label>
               <div className="space-y-1.5">
                 <Label>Girou a roleta?</Label>
                 <Select
@@ -275,6 +311,7 @@ const AnaliseAlunosPage = () => {
 
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [studentSearch, setStudentSearch] = useState("");
   const [editingResponse, setEditingResponse] = useState<SurveyResponse | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
 
@@ -306,6 +343,11 @@ const AnaliseAlunosPage = () => {
       return true;
     });
   }, [allData, dateFrom, dateTo]);
+  const filteredStudents = useMemo(() => {
+    const normalizeName = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const query = normalizeName(studentSearch);
+    return data.filter((student) => normalizeName(student.nome || "").includes(query));
+  }, [data, studentSearch]);
   const clientsData = clients || [];
   const total = data.length;
 
@@ -327,6 +369,16 @@ const AnaliseAlunosPage = () => {
       { id: response.id, ...updates },
       {
         onError: (err) => toast({ title: "Erro ao atualizar a roleta", description: err.message, variant: "destructive" }),
+      },
+    );
+  };
+
+  const handleSupportGroupUpdate = (response: SurveyResponse, created: boolean) => {
+    updateSurveyResponse.mutate(
+      { id: response.id, support_group_created: created },
+      {
+        onSuccess: () => toast({ title: created ? "Grupo de suporte marcado como criado" : "Grupo de suporte marcado como pendente" }),
+        onError: (err) => toast({ title: "Erro ao atualizar grupo de suporte", description: err.message, variant: "destructive" }),
       },
     );
   };
@@ -796,8 +848,19 @@ const AnaliseAlunosPage = () => {
               <h3 className="font-display text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
                 📝 Lista Completa de Alunos ({data.length})
               </h3>
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  type="search"
+                  aria-label="Buscar aluno por nome"
+                  placeholder="Buscar aluno por nome..."
+                  value={studentSearch}
+                  onChange={(event) => setStudentSearch(event.target.value)}
+                  className="sm:max-w-md"
+                />
+                {studentSearch.trim() && <span className="text-xs text-muted-foreground" role="status">{filteredStudents.length} de {data.length} alunos</span>}
+              </div>
               <div className="space-y-1">
-                {data.map((r: SurveyResponse, i: number) => (
+                {filteredStudents.map((r: SurveyResponse, i: number) => (
                   <AlunoExpandRow
                     key={r.id}
                     r={r}
@@ -806,11 +869,12 @@ const AnaliseAlunosPage = () => {
                     onDelete={handleDeleteResponse}
                     onRate={handleRateResponse}
                     onWheelUpdate={handleWheelUpdate}
+                    onSupportGroupUpdate={handleSupportGroupUpdate}
                     isDeleting={deleteSurveyResponse.isPending}
                   />
                 ))}
               </div>
-              {data.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum aluno cadastrado</p>}
+              {filteredStudents.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">{studentSearch.trim() ? "Nenhum aluno encontrado com esse nome." : "Nenhum aluno cadastrado"}</p>}
             </motion.div>
 
             {/* AI Summary */}

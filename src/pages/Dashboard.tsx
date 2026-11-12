@@ -1,4 +1,7 @@
 import { useState, useMemo } from "react";
+import { collectionCalculator } from "@/lib/collectionCalculator";
+import { useVendas } from "@/hooks/useVendas";
+import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -7,7 +10,7 @@ import { useDeleteMetrics } from "@/hooks/useMetrics";
 import { useBusinessSummary } from "@/hooks/useBusinessSummary";
 import { useSyncSheets } from "@/hooks/useSyncSheets";
 import { useMetaAds } from "@/hooks/useMetaAds";
-import { useSurveyResponses } from "@/hooks/useSurveyInsights";
+import { useSurveyResponseCount } from "@/hooks/useSurveyInsights";
 import { useCrmMql } from "@/hooks/useCrmMql";
 import { COURSE_PRODUCTS, SERVICE_CATEGORIES, SERVICE_OPTIONS, canonicalizeSaleCategory, isCourseCategory } from "@/constants/serviceCategories";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -30,16 +33,6 @@ import MonthlyMetricsTimeline from "@/components/MonthlyMetricsTimeline";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
-const getSaoPauloDate = (value: string) => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(value));
-  const get = (type: string) => parts.find((part) => part.type === type)?.value || "";
-  return `${get("year")}-${get("month")}-${get("day")}`;
-};
 const normalizeText = (value?: string | null) =>
   (value || "")
     .normalize("NFD")
@@ -133,6 +126,8 @@ const item = {
 };
 
 const Dashboard = () => {
+  const { data: allCollectionSales = [] } = useVendas();
+  const { data: allCollectionClosings = [] } = useFechamentosDiarios();
   const navigate = useNavigate();
   const openMonthlyReceivables = () => navigate("/vendas?status=pendente&escopo=todos#a-receber");
   const filter = useDateFilter();
@@ -165,7 +160,7 @@ const Dashboard = () => {
   }), [filter.range.start, filter.range.end]);
   const { data: metaAdsMonth } = useMetaAds(metaAdsFilters);
   const { data: crmMql } = useCrmMql(filter.range.start, filter.range.end);
-  const { data: surveyResponses = [] } = useSurveyResponses();
+  const { data: completedCourses = 0 } = useSurveyResponseCount(filter.range.start, filter.range.end);
   const selectedMonthAds = useMemo(() => {
     const dailyInsights = metaAdsMonth?.dailyInsights || [];
     if (dailyInsights.length > 0) {
@@ -187,6 +182,7 @@ const Dashboard = () => {
   );
   const campaignLeads = campaignMetaLeads + metaConversations;
   const qualifiedMql = Number(crmMql?.total || 0);
+  const crmReportLeads = crmMql?.crmReportLeads;
   const eligibleCampaignSpend = useMemo(() => {
     const eligibleObjectives = new Set(["OUTCOME_ENGAGEMENT", "OUTCOME_SALES", "OUTCOME_LEADS"]);
     const eligibleIds = new Set(
@@ -276,20 +272,21 @@ const Dashboard = () => {
 
   const collectedCategoryStats = useMemo(() => {
     const stats = new Map(OVERVIEW_SERVICE_CATEGORIES.map((category) => [category, 0]));
-    for (const fechamento of fechamentosMes) {
-      if (normalizeText(fechamento.status) === "cancelado" || fechamento.data < filter.range.start || fechamento.data > filter.range.end) continue;
+    const calculator = collectionCalculator(allCollectionSales, filter.range.start, filter.range.end);
+    for (const fechamento of allCollectionClosings) {
+      if (normalizeText(fechamento.status) === "cancelado") continue;
       const category = getOverviewCategory(fechamento.categoria || fechamento.produto_servico);
-      stats.set(category, (stats.get(category) || 0) + getCollectedNet(fechamento));
+      stats.set(category, (stats.get(category) || 0) + calculator.getCollectedNetInPeriod(fechamento));
     }
     return stats;
-  }, [fechamentosMes, filter.range.start, filter.range.end]);
+  }, [allCollectionSales, allCollectionClosings, filter.range.start, filter.range.end]);
   const collectedTotal = useMemo(
-    () => fechamentosMes.reduce((total, item) => (
-      normalizeText(item.status) !== "cancelado" && item.data >= filter.range.start && item.data <= filter.range.end
-        ? total + getCollectedNet(item)
+    () => allCollectionClosings.reduce((total, item) => (
+      normalizeText(item.status) !== "cancelado"
+        ? total + collectionCalculator(allCollectionSales, filter.range.start, filter.range.end).getCollectedNetInPeriod(item)
         : total
     ), 0),
-    [fechamentosMes, filter.range.start, filter.range.end],
+    [allCollectionSales, allCollectionClosings, filter.range.start, filter.range.end],
   );
   const receivableTotal = useMemo(
     () => fechamentosMes.reduce((total, item) => (
@@ -325,12 +322,12 @@ const Dashboard = () => {
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       result.push({
         date: String(date.getDate()).padStart(2, "0"),
-        faturamento: dailyCollected.get(key) || 0,
+        faturamento: allCollectionClosings.filter(item => normalizeText(item.status) !== "cancelado").reduce((sum, item) => sum + collectionCalculator(allCollectionSales, key, key).getCollectedNetInPeriod(item), 0),
         meta: date.getDay() >= 1 && date.getDay() <= 5 ? dailyTarget : 0,
       });
     }
     return result;
-  }, [salesFinancialGroups, filter.range.start, filter.range.end, filter.anchor, metaMensal]);
+  }, [salesFinancialGroups, allCollectionClosings, allCollectionSales, filter.range.start, filter.range.end, filter.anchor, metaMensal]);
   const acquisitionHistory = useMemo(() => {
     const salesPerDay = registeredVendas.reduce((map, venda) => {
       map.set(venda.data, (map.get(venda.data) || 0) + 1);
@@ -396,11 +393,6 @@ const Dashboard = () => {
   const scheduledCourses = useMemo(() => registeredVendas.filter((venda) =>
     isCourseCategory(venda.produto) || isCourseCategory(venda.servico)
   ).length, [registeredVendas]);
-  const completedCourses = useMemo(() => surveyResponses.filter((response) => {
-    if (!response.created_at) return false;
-    const date = getSaoPauloDate(response.created_at);
-    return date >= filter.range.start && date <= filter.range.end;
-  }).length, [surveyResponses, filter.range.start, filter.range.end]);
   const cacTotal = registeredVendas.length > 0 ? selectedMonthAds / registeredVendas.length : 0;
   const cacCourses = scheduledCourses > 0 ? selectedMonthAds / scheduledCourses : 0;
 
@@ -542,7 +534,7 @@ const Dashboard = () => {
             <p className="text-sm font-medium text-muted-foreground">{filter.label}</p>
           </div>
 
-          {filter.mode === "mes" && <MonthlyMetricsTimeline />}
+          {filter.mode === "mes" && <MonthlyMetricsTimeline cardsOnly />}
 
           {/* ROW 1: Hero + side cards */}
           <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-12 md:auto-rows-auto">
@@ -782,12 +774,13 @@ const Dashboard = () => {
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
               <div className="flex items-center gap-2 mb-3">
                 <Users className="h-3.5 w-3.5 text-muted-foreground/50" />
-                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Leads</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50 font-medium">Leads CRM</p>
               </div>
               <p className="font-display text-2xl sm:text-3xl font-bold text-foreground leading-none tabular-nums">
-                <CountUp end={campaignLeads} duration={2} />
+                {crmReportLeads == null ? "—" : <CountUp end={crmReportLeads} duration={2} />}
               </p>
-              <p className="text-xs text-muted-foreground/40 mt-1.5">{campaignMetaLeads} leads + {metaConversations} conversas</p>
+              <p className="text-xs text-muted-foreground/40 mt-1.5">{crmReportLeads == null ? "Relatório CRM indisponível" : "Relatório completo do CRM"}</p>
+              <p className="text-[10px] text-muted-foreground/35 mt-0.5">Meta: {campaignMetaLeads} leads + {metaConversations} conversas</p>
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">
@@ -798,7 +791,7 @@ const Dashboard = () => {
               <p className="font-display text-2xl sm:text-3xl font-bold text-accent leading-none tabular-nums">
                 <CountUp end={qualifiedMql} duration={2} />
               </p>
-              {campaignLeads > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">CRM · 3, 4 ou 5 estrelas · {((qualifiedMql / campaignLeads) * 100).toFixed(1)}%</p>}
+              {(crmReportLeads ?? campaignLeads) > 0 && <p className="text-xs text-muted-foreground/40 mt-1.5">CRM · 3, 4 ou 5 estrelas · {((qualifiedMql / (crmReportLeads ?? campaignLeads)) * 100).toFixed(1)}%</p>}
             </motion.div>
 
             <motion.div variants={item} className="rounded-2xl p-4 sm:p-5 dashboard-card">

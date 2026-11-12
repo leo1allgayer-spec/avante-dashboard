@@ -1,3 +1,4 @@
+import { formatCep, validCep } from '@/lib/cep';
 import { useState } from "react";
 import { CheckCircle2, Send } from "lucide-react";
 import logoFull from "@/assets/logo-full.svg";
@@ -13,7 +14,7 @@ import { toast } from "sonner";
 const initial = {
   personType: "PJ", responsibleName: "", nationality: "", maritalStatus: "", profession: "",
   cpf: "", rg: "", rgIssuer: "", companyName: "", tradeName: "", cnpj: "", stateRegistration: "",
-  address: "", email: "", phone: "", photoDocumentName: "",
+  address: "", cep: "", email: "", phone: "", photoDocumentName: "",
 };
 
 const Field = ({ label, value, onChange, required, type = "text" }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; type?: string }) => (
@@ -28,8 +29,16 @@ export default function ClientNotesPublicFormPage() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if(!validCep(form.cep)){toast.error("Informe um CEP com 8 dígitos.");return;}
     setSending(true);
-    const { error } = await (supabase as any).rpc("submit_client_contract_notes", { p_data: form });
+    let error;
+    try {
+      const params=new URLSearchParams(window.location.search);
+      const noteToken=params.get('ficha');
+      const token=params.get('token');
+      const result=await (supabase as any).rpc(noteToken?'submit_client_note_intake':'submit_linked_client_contract_notes',{p_data:form,p_token:noteToken||token||null});
+      error = result.error;
+    } catch { error = { message: "Não foi possível conectar. Seus dados continuam no formulário; tente enviar novamente." }; }
     setSending(false);
     if (error) { toast.error(error.message || "Não foi possível enviar as informações."); return; }
     setSent(true);
@@ -49,7 +58,8 @@ export default function ClientNotesPublicFormPage() {
         {form.personType === "PJ" && <><Field label="Razão social" value={form.companyName} onChange={(v) => set("companyName", v)} required /><Field label="Nome fantasia" value={form.tradeName} onChange={(v) => set("tradeName", v)} /><Field label="CNPJ" value={form.cnpj} onChange={(v) => set("cnpj", v)} required /><Field label="Inscrição estadual" value={form.stateRegistration} onChange={(v) => set("stateRegistration", v)} /></>}
         <Field label="E-mail" type="email" value={form.email} onChange={(v) => set("email", v)} required /><Field label="Telefone / WhatsApp" value={form.phone} onChange={(v) => set("phone", v)} required />
       </div>
-      <div className="space-y-1.5"><Label>Endereço completo *</Label><Textarea value={form.address} onChange={(event) => set("address", event.target.value)} placeholder="Rua, número, complemento, bairro, cidade, UF e CEP" required /></div>
+      <Field label="CEP" value={form.cep} onChange={v=>set("cep",formatCep(v))} required />
+      <div className="space-y-1.5"><Label>Endereço completo *</Label><Textarea value={form.address} onChange={(event) => set("address", event.target.value)} placeholder="Rua, número, complemento, bairro, cidade e UF" required /></div>
       <div className="space-y-1.5"><Label>Documento com foto</Label><Input type="file" accept="image/*,.pdf" onChange={(event) => set("photoDocumentName", event.target.files?.[0]?.name || "")} /><p className="text-xs text-muted-foreground">O nome do arquivo será registrado para conferência da equipe.</p></div>
       <Button type="submit" size="lg" className="w-full gap-2" disabled={sending}><Send className="h-4 w-4" /> {sending ? "Enviando..." : "Enviar informações"}</Button>
     </CardContent></Card></form>

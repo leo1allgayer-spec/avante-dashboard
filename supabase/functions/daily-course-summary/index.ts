@@ -1,3 +1,4 @@
+import { sendWhatsAppOnce } from "../_shared/whatsapp-dispatch.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 
 const corsHeaders = {
@@ -7,6 +8,7 @@ const corsHeaders = {
 
 type Booking = {
   id: string;
+  instructor?: string | null;
   course_name: string;
   course_status?: string | null;
   date: string;
@@ -89,81 +91,6 @@ function buildNoCoursesMessage(recipientName: string, targetDate: string): strin
   ].join("\n");
 }
 
-let resolvedInstance: string | null = null;
-
-async function resolveInstanceName(baseUrl: string, configuredName: string, token: string): Promise<string> {
-  if (resolvedInstance) return resolvedInstance;
-
-  try {
-    const direct = await fetch(`${baseUrl}/instance/connectionState/${encodeURIComponent(configuredName)}`, {
-      headers: { "apikey": token },
-    });
-    if (direct.ok) {
-      await direct.text();
-      resolvedInstance = configuredName;
-      return configuredName;
-    }
-    await direct.text();
-  } catch (_) {
-    // Falls back to fetchInstances below.
-  }
-
-  const listResp = await fetch(`${baseUrl}/instance/fetchInstances`, {
-    headers: { "apikey": token },
-  });
-  const listText = await listResp.text();
-  let instances: any[] = [];
-  try {
-    instances = JSON.parse(listText);
-  } catch (_) {
-    instances = [];
-  }
-
-  const target = configuredName.trim().toLowerCase();
-  const match = instances.find((instance: any) =>
-    (instance?.name && String(instance.name).trim().toLowerCase() === target) ||
-    (instance?.profileName && String(instance.profileName).trim().toLowerCase() === target) ||
-    (instance?.token && String(instance.token) === token)
-  );
-
-  resolvedInstance = match?.name || configuredName;
-  return resolvedInstance;
-}
-
-async function sendText(phone: string, text: string) {
-  const apiUrl = Deno.env.get("EVOLUTION_API_URL");
-  const instanceName = Deno.env.get("EVOLUTION_INSTANCE_NAME");
-  const apiToken = Deno.env.get("EVOLUTION_API_TOKEN");
-
-  if (!apiUrl || !instanceName || !apiToken) {
-    throw new Error("Evolution API credentials not configured");
-  }
-
-  const baseUrl = normalizeBaseUrl(apiUrl);
-  const instance = instanceName;
-  const response = await fetch(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": apiToken,
-    },
-    body: JSON.stringify({ number: formatPhone(phone), text }),
-    signal: AbortSignal.timeout(15000),
-  });
-
-  const resultText = await response.text();
-  let result: any;
-  try {
-    result = JSON.parse(resultText);
-  } catch (_) {
-    result = { raw: resultText };
-  }
-
-  const hasError = !!result?.error || String(result?.status || "").toUpperCase() === "ERROR";
-  const ok = response.ok && !hasError;
-
-  return { ok, status: response.status, result, resultText };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -185,29 +112,12 @@ Deno.serve(async (req) => {
 
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const targetDate = body.date || getBrtDate(1);
-    const recipientName = Deno.env.get("DAILY_COURSE_SUMMARY_NAME") || "Leonardo";
-    const recipientPhone = Deno.env.get("DAILY_COURSE_SUMMARY_PHONE") || "5551999692480";
+
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-
-    const logCourseName = `Meta Ads ${targetDate}`;
-    const { data: existingLog } = await supabase
-      .from("whatsapp_message_logs")
-      .select("id")
-      .eq("message_type", "daily_course_summary")
-      .eq("course_name", logCourseName)
-      .eq("phone", formatPhone(recipientPhone))
-      .eq("status", "sent")
-      .maybeSingle();
-
-    if (existingLog && !body.force) {
-      return new Response(JSON.stringify({ success: true, skipped: true, reason: "already_sent" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const { data, error } = await supabase
       .from("course_bookings")
@@ -216,40 +126,25 @@ Deno.serve(async (req) => {
 
     if (error) throw new Error(`Failed to fetch bookings: ${error.message}`);
 
-    const bookings = ((data || []) as Booking[]).filter((booking) => isMetaCourse(booking) && isActiveBooking(booking));
+    const active = ((data || []) as Booking[]).filter(booking=>isMetaCourse(booking)&&isActiveBooking(booking));
+    const deliveries=[];
+    for (const [recipientName,recipientPhone] of [['Nicolas','5551998119283'],['Henrique','555197152836']]) {
+      const bookings=active.filter(booking=>booking.instructor===recipientName);
+      if(!bookings.length)continue;
+      const logCourseName=`Meta Ads ${targetDate} · ${recipientName}`;
+      const {data:existingLog,error:logError}=await supabase.from('whatsapp_message_logs').select('id').eq('message_type','daily_course_summary').eq('course_name',logCourseName).eq('phone',formatPhone(recipientPhone)).limit(1).maybeSingle();
+      if(logError)throw logError;
+      if(existingLog){deliveries.push({teacher:recipientName,skipped:true});continue;}
+      const messageText=buildMessage(recipientName,targetDate,bookings);
+      const delivery=await sendWhatsAppOnce(supabase,formatPhone(recipientPhone),messageText,'internal','daily_course_summary',logCourseName);
+      if(!delivery.deduplicated)await supabase.from('whatsapp_message_logs').insert({booking_id:null,phone:formatPhone(recipientPhone),student_name:recipientName,course_name:logCourseName,message_type:'daily_course_summary',message_text:messageText,status:delivery.accepted?'sent':'error',error_message:delivery.accepted?null:delivery.resultText,sent_at:delivery.accepted?new Date().toISOString():null});
+      deliveries.push({teacher:recipientName,count:bookings.length,sent:delivery.accepted});
+    }
+    return new Response(JSON.stringify({success:deliveries.every(result=>result.skipped||result.sent),date:targetDate,deliveries}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
 
-    const messageText = bookings.length > 0
-      ? buildMessage(recipientName, targetDate, bookings)
-      : buildNoCoursesMessage(recipientName, targetDate);
-    const result = await sendText(recipientPhone, messageText);
-    const formattedPhone = formatPhone(recipientPhone);
-
-    await supabase.from("whatsapp_message_logs").insert({
-      booking_id: null,
-      phone: formattedPhone,
-      student_name: recipientName,
-      course_name: logCourseName,
-      message_type: "daily_course_summary",
-      message_text: messageText,
-      status: result.ok ? "sent" : "error",
-      error_message: result.ok ? null : `HTTP ${result.status}: ${result.resultText}`,
-      sent_at: result.ok ? new Date().toISOString() : null,
-    });
-
-    return new Response(JSON.stringify({
-      success: result.ok,
-      sent: result.ok,
-      count: bookings.length,
-      date: targetDate,
-      message: messageText,
-      result: result.result,
-    }), {
-      status: result.ok ? 200 : 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   } catch (error) {
     console.error("Daily course summary error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

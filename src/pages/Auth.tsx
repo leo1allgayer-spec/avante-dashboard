@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
-import { supabaseClients } from "@/integrations/supabase/clientsClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +17,6 @@ const getPasswordResetRedirectUrl = () => {
 };
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,7 +51,7 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    if (isLogin) {
+    {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
@@ -75,14 +73,6 @@ const Auth = () => {
         window.location.href = "/";
       }, 500);
       return;
-    } else {
-      const { error } = await supabase.auth.signUp({ email, password });
-
-      if (error) {
-        toast({ title: "Erro ao cadastrar", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Cadastro realizado!", description: "Verifique seu e-mail para confirmar." });
-      }
     }
     setLoading(false);
   };
@@ -103,18 +93,17 @@ const Auth = () => {
             className="flex flex-col items-center gap-4"
           >
             <img src={logoFull} alt="Avante Digital" className="h-32 object-contain drop-shadow-2xl" />
-            <AnimatePresence mode="wait">
+
               <motion.h1
-                key={isLogin ? "login" : "signup"}
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.3 }}
                 className="font-display text-2xl font-bold text-foreground"
               >
-                {isLogin ? "Entrar no Dashboard" : "Criar Conta"}
+                Entrar no Dashboard
               </motion.h1>
-            </AnimatePresence>
+
           </motion.div>
 
           <motion.form
@@ -158,10 +147,10 @@ const Auth = () => {
                   >
                     Carregando...
                   </motion.span>
-                ) : isLogin ? "Entrar" : "Cadastrar"}
+                ) : "Entrar"}
               </Button>
             </motion.div>
-            {isLogin && (
+            {(
               <button
                 type="button"
                 onClick={handleForgotPassword}
@@ -171,13 +160,7 @@ const Auth = () => {
                 {resetting ? "Enviando..." : "Esqueci minha senha"}
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="w-full text-center text-sm text-muted-foreground hover:text-accent transition-colors duration-300"
-            >
-              {isLogin ? "Não tem conta? Cadastre-se" : "Já tem conta? Entre"}
-            </button>
+            <p className="text-center text-xs text-muted-foreground">Acesso exclusivo para usuários autorizados pela Avante.</p>
           </motion.form>
         </motion.div>
       </div>

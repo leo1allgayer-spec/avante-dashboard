@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Client, MANAGERS, WEEKDAYS } from "@/types/clients/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +10,18 @@ interface AddClientDialogProps {
   onClose: () => void;
   onAdd: (client: Client) => void | Promise<void>;
   hideContractValues?: boolean;
+  initialClient?: Partial<Client>;
+  title?: string;
+  submitLabel?: string;
+  area?: 'meta_ads'|'google_ads';
+  onAreaChange?: (area:'meta_ads'|'google_ads')=>void;
   managerOptions?: readonly string[];
+  summaryOnly?: boolean;
 }
 
-export function AddClientDialog({ open, onClose, onAdd, hideContractValues = false, managerOptions = MANAGERS }: AddClientDialogProps) {
+export function AddClientDialog({ open, onClose, onAdd, hideContractValues = false, summaryOnly = false, managerOptions = MANAGERS, initialClient, title='Novo Cliente', submitLabel='Adicionar Cliente', area='meta_ads', onAreaChange }: AddClientDialogProps) {
   const [saving, setSaving] = useState(false);
+  const [error,setError]=useState("");
   const [form, setForm] = useState({
     name: "",
     company: "",
@@ -29,11 +36,14 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
     reportDay: WEEKDAYS[0],
   });
 
+  useEffect(()=>{if(open&&initialClient)setForm({name:initialClient.name||'',company:initialClient.company||'',instagram:initialClient.instagram||'',manager:initialClient.manager||managerOptions[0]||MANAGERS[0],monthlyBudget:initialClient.monthlyBudget||0,paymentDate:initialClient.paymentDate||1,commissionValue:initialClient.commissionValue||0,contractValue:initialClient.contractValue||0,contractType:initialClient.contractType||'MRR',contractMonths:initialClient.contractMonths||1,reportDay:initialClient.reportDay||WEEKDAYS[0]});},[open]);
   const handleSubmit = async () => {
     if (!form.name.trim()) return;
+    setError("");
     setSaving(true);
     const today = new Date().toISOString().split("T")[0];
     const newClient: Client = {
+      ...initialClient,
       id: Date.now().toString(),
       name: form.name,
       company: form.company,
@@ -60,6 +70,8 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
       await onAdd(newClient);
       setForm({ name: "", company: "", instagram: "", manager: managerOptions[0] || MANAGERS[0], monthlyBudget: 0, paymentDate: 1, commissionValue: 0, contractValue: 0, contractType: "MRR", contractMonths: 1, reportDay: WEEKDAYS[0] });
       onClose();
+    } catch(error) {
+      setError(error instanceof Error?error.message:"Não foi possível adicionar o cliente.");
     } finally {
       setSaving(false);
     }
@@ -67,11 +79,12 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-card border-border">
+      <DialogContent className="bg-card border-border max-h-[90dvh] overflow-y-auto" data-lenis-prevent>
         <DialogHeader>
-          <DialogTitle>Novo Cliente</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {onAreaChange&&<div className="space-y-1"><p className="text-sm text-muted-foreground">Gestão de destino</p><Select value={area} onValueChange={v=>onAreaChange(v as 'meta_ads'|'google_ads')}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="meta_ads">Clientes · Meta Ads</SelectItem><SelectItem value="google_ads">Clientes · Google Ads</SelectItem></SelectContent></Select></div>}
           <Input placeholder="Nome do cliente *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="bg-input border-border" />
           <Input placeholder="Empresa (opcional)" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="bg-input border-border" />
           <Input placeholder="Instagram (ex: @usuario)" value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} className="bg-input border-border" />
@@ -95,7 +108,7 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
               ))}
             </SelectContent>
           </Select>
-          <div className={hideContractValues ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
+          {!summaryOnly && <div className={hideContractValues ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
             <Input type="number" placeholder="Orçamento" value={form.monthlyBudget || ""} onChange={(e) => setForm({ ...form, monthlyBudget: Number(e.target.value) })} className="bg-input border-border" />
             {!hideContractValues && <Select value={form.contractType} onValueChange={(v: "MRR" | "TCV") => setForm({ ...form, contractType: v })}>
               <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Tipo do contrato" /></SelectTrigger>
@@ -103,16 +116,17 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
             </Select>}
             {!hideContractValues && <Input type="number" min={1} placeholder="Duração (meses)" value={form.contractMonths || ""} onChange={(e) => setForm({ ...form, contractMonths: Math.max(1, Number(e.target.value)) })} className="bg-input border-border" />}
             {!hideContractValues && <Input type="number" placeholder={form.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal"} value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />}
-          </div>
-          {!hideContractValues && <p className="text-xs text-muted-foreground">
+          </div>}
+          {!summaryOnly && !hideContractValues && <p className="text-xs text-muted-foreground">
             Mensal: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue / Math.max(1, form.contractMonths) : form.contractValue)} · Total do período: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue : form.contractValue * Math.max(1, form.contractMonths))}
           </p>}
-          <div className="grid grid-cols-3 gap-2">
+          {!summaryOnly && <div className="grid grid-cols-3 gap-2">
             <Input type="number" placeholder="Dia pgto" min={1} max={31} value={form.paymentDate || ""} onChange={(e) => setForm({ ...form, paymentDate: Number(e.target.value) })} className="bg-input border-border" />
             <Input type="number" placeholder="Comissão" value={form.commissionValue || ""} onChange={(e) => setForm({ ...form, commissionValue: Number(e.target.value) })} className="bg-input border-border" />
-          </div>
+          </div>}
+          {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
           <Button onClick={handleSubmit} className="w-full" disabled={saving}>
-            {saving ? "Salvando..." : "Adicionar Cliente"}
+            {saving ? "Salvando..." : submitLabel}
           </Button>
         </div>
       </DialogContent>

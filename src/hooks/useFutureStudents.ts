@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export interface FutureStudent {
+  support_groups?: Record<string, boolean>;
   id: string;
   nome: string;
   telefone: string;
@@ -30,6 +31,21 @@ export interface FutureStudent {
   updated_at: string;
 }
 
+export function useSetFutureStudentSupportGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ studentId, course, created }: { studentId: string; course: string; created: boolean }) => {
+      const { error } = await (supabase as any).rpc('set_future_student_support_group', { p_student_id: studentId, p_course: course, p_created: created });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['future-students'] });
+      qc.invalidateQueries({ queryKey: ['survey-responses'] });
+      qc.invalidateQueries({ queryKey: ['survey-insights'] });
+    },
+  });
+}
+
 export type FutureStudentInsert = {
   nome: string;
   telefone: string;
@@ -47,9 +63,9 @@ function isMissingTableError(error: unknown) {
 export function useFutureStudents() {
   return useQuery({
     queryKey: ["future-students"],
-    refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
-    refetchInterval: 30_000,
+    staleTime: 60_000,
+    refetchInterval: 2 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("alunos_futuros" as any)

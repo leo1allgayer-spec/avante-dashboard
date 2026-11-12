@@ -1,3 +1,4 @@
+import {COURSE_NAMES_BY_TYPE} from '@/constants/courseCatalog';
 import { useState, useMemo } from "react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -12,18 +13,10 @@ import { Plus, Pencil, Trash2, Loader2, GraduationCap, ChevronLeft, ChevronRight
 import { cn } from "@/lib/utils";
 
 interface Props {
-  courseType: "google" | "social_media" | "meta_ads" | "meta_ads_advanced" | "canva" | "ia" | "video";
+  courseType: "google" | "social_media" | "meta_ads" | "meta_ads_advanced" | "meta_ads_online" | "canva" | "ia" | "video";
 }
 
-const COURSE_LABELS: Record<string, string> = {
-  google: "Curso Google Ads",
-  social_media: "Curso Social Media",
-  meta_ads: "Curso Meta Ads",
-  canva: "Curso Canva",
-  meta_ads_advanced: "Curso Meta Ads Avançado",
-  ia: "Curso Inteligência Artificial",
-  video: "Curso Captação e Edição de Vídeo",
-};
+const COURSE_LABELS:Record<string,string> = COURSE_NAMES_BY_TYPE;
 
 const emptyForm = { studentName: "", contact: "", email: "", instagram: "", date: "", time: "" };
 

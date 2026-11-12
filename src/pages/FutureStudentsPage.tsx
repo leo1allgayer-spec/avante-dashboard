@@ -1,8 +1,13 @@
+import {COURSE_CATALOG,courseDisplayName,findCourse} from '@/constants/courseCatalog';
 import { useMemo, useState } from "react";
+import {confirmedCourseAbsence,confirmedCourseCompletion,courseHasPastSchedule,studentCourseIdentity} from '@/lib/surveyCourseOptions';
+import { localTimestampDate } from "@/lib/analyticsPeriods";
+import MonthYearSelect from "@/components/MonthYearSelect";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import MetricCard from "@/components/MetricCard";
-import { useDeleteFutureStudent, useFutureStudents, useUpdateFutureStudent, type FutureStudent } from "@/hooks/useFutureStudents";
+import { useDeleteFutureStudent, useFutureStudents, useUpdateFutureStudent, useSetFutureStudentSupportGroup, type FutureStudent } from "@/hooks/useFutureStudents";
+import { Checkbox } from '@/components/ui/checkbox';
 import { useSurveyResponses } from "@/hooks/useSurveyInsights";
 import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
 import { Button } from "@/components/ui/button";
@@ -14,19 +19,24 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, DollarSign, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
+import { Check, DollarSign, MessageCircle, Pencil, Plus, Search, ShieldCheck, Trash2, UserCheck, Users, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value || 0));
 
 const formatDate = (date: string) =>
-  new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(date));
+  new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Sao_Paulo" }).format(new Date(date));
 
 const cleanCpf = (value?: string | null) => String(value || "").replace(/\D/g, "");
 const cleanPhone = (value?: string | null) => {
   const digits = String(value || "").replace(/\D/g, "");
   return digits.length >= 8 ? digits.slice(-8) : "";
+};
+const crmConversationUrl = (student: FutureStudent) => {
+  const phone = String(student.telefone || "").replace(/\D/g, "");
+  const searchValue = phone || student.nome;
+  return `https://crm.solairew.com.br/leads?search=${encodeURIComponent(searchValue)}`;
 };
 const cleanName = (value?: string | null) => String(value || "")
   .normalize("NFD")
@@ -34,16 +44,7 @@ const cleanName = (value?: string | null) => String(value || "")
   .replace(/\s+/g, " ")
   .trim()
   .toLowerCase();
-const cleanCourse = (value?: string | null) => String(value || "")
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "")
-  .toLowerCase()
-  .replace(/\bcurso\b/g, " ")
-  .replace(/\bde\b/g, " ")
-  .replace(/\btrafego pago\b/g, " ")
-  .replace(/[^a-z0-9]+/g, " ")
-  .replace(/\s+/g, " ")
-  .trim();
+const cleanCourse = studentCourseIdentity;
 
 const getStudentItems = (student: FutureStudent) => student.itens?.length
   ? student.itens
@@ -62,14 +63,18 @@ const samePerson = (student: FutureStudent, survey: { cpf?: string | null; whats
 
 export default function FutureStudentsPage() {
   const { data: students = [], isLoading } = useFutureStudents();
-  const { data: surveys = [] } = useSurveyResponses();
+  const { data: surveys = [], isLoading: surveysLoading } = useSurveyResponses();
   const { bookings = [] } = useCourseBookings();
   const [search, setSearch] = useState("");
+  const [registrationMonth, setRegistrationMonth] = useState("");
   const [studentView, setStudentView] = useState<"pending" | "linked">("pending");
+  const [courseStatusFilter, setCourseStatusFilter] = useState<"all" | "pending" | "done">("all");
+  const [bookingFilter, setBookingFilter] = useState<"all" | "marked" | "unmarked">("all");
   const [editing, setEditing] = useState<FutureStudent | null>(null);
   const [valueDrafts, setValueDrafts] = useState<Record<string, { signal: string; pending: string }>>({});
   const [editForm, setEditForm] = useState({ nome: "", telefone: "", cpf: "", observacao: "", itens: [] as NonNullable<FutureStudent["itens"]> });
   const updateStudent = useUpdateFutureStudent();
+  const updateGroup = useSetFutureStudentSupportGroup();
   const deleteStudent = useDeleteFutureStudent();
   const { toast } = useToast();
 
@@ -81,24 +86,36 @@ export default function FutureStudentsPage() {
       );
       const booking = bookings
         .filter((candidate) => candidate.courseStatus !== "cancelado" && candidate.status !== "cancelled" && samePerson(student, { cpf: "", whatsapp: candidate.phone, nome: candidate.studentName }) && cleanCourse(candidate.courseName) === courseKey)
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0] || null;
-      return { student, item, itemIndex, rowKey: `${student.id}:${itemIndex}:${courseKey}`, linked, booking };
+        .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))[0] || null;
+      const noShow = !surveysLoading && !linked && confirmedCourseAbsence(booking?.courseStatus);
+      const completed=linked||confirmedCourseCompletion(booking?.courseStatus);
+      const notDone=!surveysLoading&&!completed&&!noShow&&courseHasPastSchedule(booking?.date,booking?.status);
+      return { student, item, itemIndex, rowKey: `${student.id}:${itemIndex}:${courseKey}`, linked, completed, booking, noShow, notDone };
     })
-  ), [students, surveys, bookings]);
+  ), [students, surveys, surveysLoading, bookings]);
+
+  const periodEnrollments = useMemo(() => enrollmentRows.filter(({ student }) =>
+    !registrationMonth || localTimestampDate(student.created_at).slice(0, 7) === registrationMonth
+  ), [enrollmentRows, registrationMonth]);
 
   const filteredEnrollments = useMemo(() => {
     const q = cleanName(search);
-    return enrollmentRows.filter(({ student, item, linked }) => {
-      if (studentView === "linked" ? !linked : linked) return false;
+    return periodEnrollments.filter(({ student, item, completed, booking }) => {
+      if (studentView === "linked" ? !completed : completed) return false;
+      if (courseStatusFilter === "pending" && completed) return false;
+      if (courseStatusFilter === "done" && !completed) return false;
+      if (bookingFilter === "marked" && !booking) return false;
+      if (bookingFilter === "unmarked" && booking) return false;
       if (!q) return true;
       return cleanName(`${student.nome} ${student.telefone} ${student.cpf} ${item.nome}`).includes(q);
     });
-  }, [search, studentView, enrollmentRows]);
+  }, [search, studentView, courseStatusFilter, bookingFilter, periodEnrollments]);
 
-  const totalSignal = enrollmentRows.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
-  const totalPending = enrollmentRows.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
-  const linkedCount = enrollmentRows.filter((row) => row.linked).length;
-  const enrollmentCount = enrollmentRows.length;
+  const totalSignal = periodEnrollments.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
+  const totalPending = periodEnrollments.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+  const linkedCount = periodEnrollments.filter((row) => row.linked).length;
+  const completedCount = periodEnrollments.filter((row) => row.completed).length;
+  const enrollmentCount = periodEnrollments.length;
 
   const openEdit = (student: FutureStudent) => {
     const itens = student.itens?.length
@@ -223,7 +240,7 @@ export default function FutureStudentsPage() {
                 {editForm.itens.map((item, index) => (
                   <div key={index} className="grid gap-2 rounded-lg bg-secondary/20 p-2 sm:grid-cols-[110px_1fr_130px_130px_40px]">
                     <Select value={item.tipo} onValueChange={(value: "curso" | "produto" | "servico") => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, tipo: value } : current) })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="curso">Curso</SelectItem><SelectItem value="produto">Produto</SelectItem><SelectItem value="servico">Serviço</SelectItem></SelectContent></Select>
-                    <Input value={item.nome} placeholder="Nome do item" onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, nome: e.target.value } : current) })} />
+                    <>{item.tipo==="curso"?<Select value={findCourse(item.nome)?.name||item.nome} onValueChange={nome=>setEditForm({...editForm,itens:editForm.itens.map((current,i)=>i===index?{...current,nome}:current)})}><SelectTrigger><SelectValue placeholder="Selecione o curso"/></SelectTrigger><SelectContent>{item.nome&&!findCourse(item.nome)&&<SelectItem value={item.nome}>{item.nome}</SelectItem>}{COURSE_CATALOG.map(course=><SelectItem key={course.id} value={course.name}>{course.name}</SelectItem>)}</SelectContent></Select>:<Input value={item.nome} placeholder="Nome do item" onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, nome: e.target.value } : current) })}/>}</>
                     <Input type="number" min={0} step="0.01" value={item.valor_sinal} onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, valor_sinal: Number(e.target.value) } : current) })} />
                     <Input type="number" min={0} step="0.01" value={item.valor_pendente || 0} onChange={(e) => setEditForm({ ...editForm, itens: editForm.itens.map((current, i) => i === index ? { ...current, valor_pendente: Number(e.target.value) } : current) })} />
                     <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => setEditForm({ ...editForm, itens: editForm.itens.filter((_, i) => i !== index) })}><Trash2 className="h-4 w-4" /></Button>
@@ -235,28 +252,51 @@ export default function FutureStudentsPage() {
             <Button onClick={saveEdit} disabled={updateStudent.isPending}>{updateStudent.isPending ? "Salvando..." : "Salvar alterações"}</Button>
           </DialogContent>
         </Dialog>
+        <div className="mb-5 flex flex-wrap items-end gap-3">
+          <div className="space-y-2"><label htmlFor="future-students-month" className="text-sm font-medium">Mês de cadastro</label><MonthYearSelect id="future-students-month" label="Mês de cadastro" value={registrationMonth} onChange={setRegistrationMonth} /></div>
+          <Button variant={registrationMonth ? "outline" : "default"} onClick={() => setRegistrationMonth("")}>Todos os meses</Button>
+          <p className="w-full text-xs text-muted-foreground">Lista, totais e contagens por mês de cadastro do aluno, no horário de Brasília.</p>
+        </div>
         <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard title="Cursos com sinal" value={enrollmentCount} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
           <MetricCard title="Total em sinais" value={totalSignal} icon={<DollarSign className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Total a receber" value={totalPending} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Ja preencheram formulario" value={linkedCount} icon={<UserCheck className="h-5 w-5" />} variant="accent" countUp />
-          <MetricCard title="Pendentes" value={Math.max(enrollmentCount - linkedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
+          <MetricCard title="Pendentes" value={Math.max(enrollmentCount - completedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
         </div>
 
         <div className="glass-card rounded-xl border border-border/30">
           <div className="flex flex-col gap-3 border-b border-border/30 p-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="font-display text-lg font-bold">Lista de alunos futuros</h2>
-              <p className="text-xs text-muted-foreground">Cada curso é vinculado separadamente ao formulário pela pessoa e pelo curso realizado.</p>
+              <p className="text-xs text-muted-foreground">Cada curso é identificado separadamente. A conclusão é reconhecida pelo formulário ou pela confirmação na agenda; o preenchimento do formulário é informado à parte.</p>
             </div>
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar por nome, CPF ou telefone..."
-                className="pl-9"
-              />
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 md:w-auto">
+              <div className="relative w-full md:w-72">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar por nome, CPF ou telefone..."
+                  className="pl-9"
+                />
+              </div>
+              <Select value={courseStatusFilter} onValueChange={(value) => setCourseStatusFilter(value as typeof courseStatusFilter)}>
+                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Curso feito" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os cursos</SelectItem>
+                  <SelectItem value="pending">Curso pendente</SelectItem>
+                  <SelectItem value="done">Curso feito</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={bookingFilter} onValueChange={(value) => setBookingFilter(value as typeof bookingFilter)}>
+                <SelectTrigger className="w-[160px]"><SelectValue placeholder="Agendamento" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos agendamentos</SelectItem>
+                  <SelectItem value="marked">Curso marcado</SelectItem>
+                  <SelectItem value="unmarked">Não marcado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -265,11 +305,11 @@ export default function FutureStudentsPage() {
               <TabsList className="grid h-auto w-full grid-cols-2 sm:w-[420px]">
                 <TabsTrigger value="pending" className="gap-2 py-2">
                   Pendentes
-                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{Math.max(enrollmentCount - linkedCount, 0)}</Badge>
+                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{Math.max(enrollmentCount - completedCount, 0)}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="linked" className="gap-2 py-2">
                   Cursos feitos
-                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{linkedCount}</Badge>
+                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{completedCount}</Badge>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -288,6 +328,7 @@ export default function FutureStudentsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Curso feito</TableHead>
                   <TableHead>Agendamento</TableHead>
+                  <TableHead>Grupo criado</TableHead>
                   <TableHead>Cadastro</TableHead>
                   <TableHead className="w-24">Ações</TableHead>
                 </TableRow>
@@ -295,20 +336,20 @@ export default function FutureStudentsPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                  <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
+                  <TableCell colSpan={12} className="py-8 text-center text-muted-foreground">Carregando...</TableCell>
                   </TableRow>
                 ) : filteredEnrollments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="py-8 text-center text-muted-foreground">
                       {search.trim()
                         ? "Nenhum aluno encontrado com essa busca."
                         : studentView === "linked"
-                          ? "Nenhum aluno vinculado ao formulário ainda."
+                          ? "Nenhum curso concluído nesta seleção."
                           : "Nenhum aluno pendente de vinculação."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredEnrollments.map(({ student, item, itemIndex, rowKey, linked, booking }) => {
+                  filteredEnrollments.map(({ student, item, itemIndex, rowKey, linked, completed, booking, noShow, notDone }) => {
 
                     return (
                       <TableRow key={rowKey}>
@@ -317,7 +358,7 @@ export default function FutureStudentsPage() {
                         <TableCell>{student.cpf}</TableCell>
                         <TableCell>
                           <div className="flex max-w-md flex-wrap gap-1.5">
-                            <Badge variant="secondary" title={`${item.tipo} · ${formatCurrency(item.valor_sinal)}`}>{item.nome}</Badge>
+                            <Badge variant="secondary" title={`${item.tipo} · ${formatCurrency(item.valor_sinal)}`}>{item.tipo==='curso'?courseDisplayName(item.nome):item.nome}</Badge>
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -338,17 +379,28 @@ export default function FutureStudentsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={linked ? "border-primary/30 bg-primary/10 text-primary" : "border-warning/30 bg-warning/10 text-warning"}>
-                            {linked ? "Curso feito" : "Pendente"}
+                          <Badge variant="outline" className={completed ? "border-primary/30 bg-primary/10 text-primary" : noShow||notDone ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-warning/30 bg-warning/10 text-warning"}>
+                            {completed ? "Curso feito" : noShow ? "Não compareceu" : notDone ? "Não feito" : "Pendente"}
                           </Badge>
+                          {completed&&<p className="mt-1 text-xs text-muted-foreground">{linked?'Formulário preenchido':'Formulário ainda não preenchido'}</p>}
                         </TableCell>
                         <TableCell>
-                          {booking ? <div className="space-y-1"><Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">Curso marcado</Badge><div className="text-xs text-muted-foreground">{formatDate(`${booking.date}T12:00:00`)}{booking.time ? ` · ${booking.time}` : ""}</div></div> : <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">Ainda não marcado</Badge>}
+                          {booking ? <div className="space-y-1"><Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">{completed?'Curso realizado':'Curso marcado'}</Badge><div className="text-xs text-muted-foreground">{formatDate(`${booking.date}T12:00:00`)}{booking.time ? ` · ${booking.time}` : ""}</div></div> : <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">{completed?'Data da aula não vinculada':'Ainda não marcado'}</Badge>}
                         </TableCell>
+                        <TableCell><label className="flex cursor-pointer items-center gap-2 text-xs"><Checkbox
+                          checked={student.support_groups?.[cleanCourse(item.nome)] ?? surveys.some(survey => samePerson(student, survey) && cleanCourse(survey.curso_realizado) === cleanCourse(item.nome) && survey.support_group_created)}
+                          disabled={updateGroup.isPending}
+                          aria-label={`Grupo de suporte de ${student.nome} - ${courseDisplayName(item.nome)}`}
+                          onCheckedChange={checked => updateGroup.mutate({ studentId: student.id, course: item.nome, created: checked === true }, {
+                            onSuccess: () => toast({ title: checked === true ? 'Grupo marcado como criado' : 'Grupo marcado como pendente' }),
+                            onError: (error: Error) => toast({ title: 'Erro ao atualizar grupo', description: error.message, variant: 'destructive' }),
+                          })}
+                        /><span>Grupo</span></label></TableCell>
                         <TableCell className="text-muted-foreground">{formatDate(student.created_at)}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
                             {valueDrafts[rowKey] && <><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => void saveInlineValues(student, itemIndex, rowKey)} title="Salvar valores" className="text-success hover:text-success"><Check className="h-4 w-4" /></Button><Button size="icon" variant="ghost" disabled={updateStudent.isPending} onClick={() => cancelValueDraft(rowKey)} title="Cancelar alteração"><X className="h-4 w-4" /></Button></>}
+                            <Button asChild size="icon" variant="ghost" title="Abrir conversa no CRM"><a href={crmConversationUrl(student)} target="_blank" rel="noopener noreferrer"><MessageCircle className="h-4 w-4 text-emerald-400" /></a></Button>
                             <Button size="icon" variant="ghost" onClick={() => openEdit(student)} title="Editar aluno"><Pencil className="h-4 w-4" /></Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild><Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" title="Remover aluno"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>

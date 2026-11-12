@@ -12,22 +12,46 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EditableCell } from "@/components/clients/EditableCell";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+
+const META_BALANCE_MANAGERS = new Set(["digitalavante3@gmail.com", "nicolaspatzlaff02@gmail.com", "lucadsilva666@gmail.com", "leonardowebster.ja@gmail.com"]);
+type MetaBalance = { accountId?: string; available: number | null; currency: string; status: string };
 
 interface ClientTableProps {
   clients: Client[];
   onClientClick: (id: string) => void;
-  onUpdateClient: (client: Client) => void;
+  onUpdateClient: (client: Client, options?: { changeStatus?: boolean; statusConfirmed?: boolean }) => void;
   onDeleteClient: (id: string) => void;
   onAddClient: () => void;
   onlyStatus?: "Ativo" | "Pausado";
   title?: string;
   hideContractValues?: boolean;
+  summaryOnly?: boolean;
+  allowAddClient?: boolean;
   managerOptions?: readonly string[];
 }
 
 type SortKey = "name" | "retention" | "paymentDate" | "lastAccountUpdate" | "lastBalanceDate";
 
-export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteClient, onAddClient, onlyStatus, title, hideContractValues = false, managerOptions = MANAGERS }: ClientTableProps) {
+export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteClient, onAddClient, onlyStatus, title, hideContractValues = false, summaryOnly = false, allowAddClient = false, managerOptions = MANAGERS }: ClientTableProps) {
+  const { session } = useAuth();
+  const userEmail = (session?.user.email || "").trim().toLowerCase();
+  const hideInternalFinancial = userEmail === "emanoelbull@gmail.com";
+  const canViewMetaBalance = userEmail === "emanoelbull@gmail.com" || (!summaryOnly && META_BALANCE_MANAGERS.has(userEmail));
+  const metaBalances = useQuery({
+    queryKey: ["client-meta-balances", session?.user.id],
+    enabled: canViewMetaBalance,
+    staleTime: 300000,
+    refetchInterval: 300000,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("client-meta-ads", { body: { action: "balances" } });
+      if (error) throw error;
+      return data as { balances: Record<string, MetaBalance>; checkedAt: string };
+    },
+  });
   const [search, setSearch] = useState("");
   const [filterManager, setFilterManager] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -84,7 +108,10 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
           break;
         }
       }
-      return sortAsc ? cmp : -cmp;
+      // O resumo e a consulta completa chegam em ordens diferentes do banco.
+      // Desempate estável para que ambas as contas mostrem a mesma sequência.
+      const stableCmp = (Number.isFinite(cmp) ? cmp : 0) || a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id);
+      return sortAsc ? stableCmp : -stableCmp;
     });
 
     return result;
@@ -219,7 +246,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             <SelectItem value="late">Atrasados</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filterPayment} onValueChange={setFilterPayment}>
+        {!summaryOnly && !hideInternalFinancial && <Select value={filterPayment} onValueChange={setFilterPayment}>
           <SelectTrigger className="w-full bg-card border-border">
             <SelectValue placeholder="Pgto" />
           </SelectTrigger>
@@ -229,27 +256,30 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             <SelectItem value="30">Dia 30</SelectItem>
           </SelectContent>
         </Select>
-        <Button onClick={onAddClient} className="gap-2 whitespace-nowrap">
+        }
+        {(!summaryOnly || allowAddClient) && <Button onClick={onAddClient} className="gap-2 whitespace-nowrap">
           <Plus className="h-4 w-4" /> Novo Cliente
-        </Button>
+        </Button>}
       </div>
 
       {/* Table */}
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <div className="overflow-x-auto overscroll-contain">
-        <table className={cn(hideContractValues ? "min-w-[1360px]" : "min-w-[1710px]", "w-full table-fixed text-xs")}>
+        <table className={cn(summaryOnly ? (canViewMetaBalance ? "min-w-[1465px]" : "min-w-[1335px]") : hideInternalFinancial ? "min-w-[1450px]" : hideContractValues ? "min-w-[1680px]" : "min-w-[2030px]", "w-full table-fixed text-xs")}>
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
-              <SortHeader label="Cliente" sortField="name" className="w-[150px]" />
+              <SortHeader label="Cliente" sortField="name" className="w-[185px]" />
               <StaticHeader label="Instagram" className="w-[130px]" />
               <StaticHeader label="Gestor" className="w-[70px]" />
               <StaticHeader label="Status" className="w-[70px]" />
+              <StaticHeader label="Satisfação" className="w-[160px]" /><StaticHeader label="Renovar contrato" className="w-[160px]" />
               <StaticHeader label="Orcamento" className="w-[90px]" />
-              <StaticHeader label="Saldo" className="w-[150px]" />
+              {canViewMetaBalance && <StaticHeader label="Saldo Meta" className="w-[130px]" />}
+              <StaticHeader label="Controle de saldo" className="w-[150px]" />
               <StaticHeader label="Otimizacao" className="w-[150px]" />
               <StaticHeader label="Dia relatorio" className="w-[105px]" />
-              <SortHeader label="Retencao" sortField="retention" className="w-[85px]" />
-              <StaticHeader label="Cobranca" className="w-[95px]" />
+              {!summaryOnly && <><SortHeader label="Retencao" sortField="retention" className="w-[85px]" />
+              {!hideInternalFinancial && <><StaticHeader label="Cobranca" className="w-[95px]" />
               {!hideContractValues && <StaticHeader label="Tipo" className="w-[75px]" />}
               {!hideContractValues && <StaticHeader label="Meses" className="w-[60px]" />}
               {!hideContractValues && <StaticHeader label="Contrato" className="w-[105px]" />}
@@ -257,7 +287,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
               <StaticHeader label="Status pgto" className="w-[120px]" />
               <SortHeader label="Pgto" sortField="paymentDate" className="w-[75px]" />
               <StaticHeader label="Comissao" className="w-[90px]" />
-              <StaticHeader label="" className="w-[40px]" />
+              <StaticHeader label="" className="w-[40px]" /></>}</>}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -268,11 +298,23 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   "hover:bg-accent/50 transition-colors cursor-pointer",
                   filtered.indexOf(client) % 2 === 1 && "bg-muted/50"
                 )}
-                onClick={() => onClientClick(client.id)}
+                onClick={() => { if (!summaryOnly) onClientClick(client.id); }}
               >
-                <td className="px-2 py-2 font-medium whitespace-nowrap">
+                <td className="px-2 py-2 font-medium whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <div className="max-w-[140px] truncate" title={client.name}>
-                    {renderEditable(client, "name", client.name)}
+                    <div>{renderEditable(client, "name", client.name)}</div>
+                    <Select value={client.level || "nao_definido"} onValueChange={value => onUpdateClient({ ...client, level: value as Client["level"] })}>
+                      <SelectTrigger aria-label={`Nível de ${client.name}`} className="mt-1 h-7 w-[128px] border-0 bg-transparent px-1 text-[13px] font-semibold"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="nao_definido">Nível não definido</SelectItem>{[1, 2, 3, 4, 5].map(level => <SelectItem key={level} value={String(level)}><span className="text-yellow-400">{"★".repeat(level)}</span><span className="text-slate-500">{"★".repeat(5 - level)}</span><span className="ml-1 text-xs text-muted-foreground">{level}/5</span></SelectItem>)}</SelectContent>
+                    </Select>
+                    {!summaryOnly && <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-1 h-7 px-2 text-xs text-primary border-primary/40"
+                      aria-label={`Abrir perfil de ${client.name}`}
+                      onClick={(event) => { event.stopPropagation(); onClientClick(client.id); }}
+                    >Abrir perfil</Button>}
                   </div>
                 </td>
                 <td className="px-2 py-2 max-w-[140px]" onClick={(e) => e.stopPropagation()}>
@@ -300,7 +342,9 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   {renderEditable(client, "manager", client.manager)}
                 </td>
                 <td className="px-2 py-2">
-                  <span
+                  <button
+                    type="button"
+                    aria-label={`Alterar status de ${client.name}`}
                     className={`inline-flex border px-2 py-0.5 rounded-full text-xs font-semibold ${
                       client.status === "Ativo"
                         ? "border-emerald-500/35 bg-emerald-500/15 text-emerald-300"
@@ -311,13 +355,51 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                       onUpdateClient({
                         ...client,
                         status: client.status === "Ativo" ? "Pausado" : "Ativo",
-                      });
+                      }, { changeStatus: true });
                     }}
                   >
                     {client.status}
-                  </span>
+                  </button>
                 </td>
+                <><td className="px-2 py-2" onClick={e => e.stopPropagation()}>
+                    <Select disabled={summaryOnly} value={client.satisfaction || "nao_avaliado"} onValueChange={value => onUpdateClient({ ...client, satisfaction: value as Client["satisfaction"] })}>
+                      <SelectTrigger aria-label={`Satisfação de ${client.name}`} className="h-7 w-[148px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>{[["nao_avaliado", "Não avaliado"], ["muito_satisfeito", "Muito satisfeito"], ["satisfeito", "Satisfeito"], ["neutro", "Neutro"], ["insatisfeito", "Insatisfeito"], ["muito_insatisfeito", "Muito insatisfeito"]].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
+                    <Select disabled={summaryOnly} value={client.contractRenewal || "nao_definido"} onValueChange={value => onUpdateClient({ ...client, contractRenewal: value as Client["contractRenewal"] })}>
+                      <SelectTrigger aria-label={`Renovação de ${client.name}`} className="h-7 w-[148px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>{[["nao_definido", "Não definido"], ["sim", "Vai renovar"], ["nao", "Não vai renovar"], ["em_negociacao", "Em negociação"]].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </td>
+                </>
                 <td className={cn("px-2 py-2", moneyTone(client.monthlyBudget))}>{renderEditable(client, "monthlyBudget", formatCurrency(client.monthlyBudget), "number")}</td>
+                {canViewMetaBalance && <td className="px-2 py-2 whitespace-nowrap" title={metaBalances.data?.checkedAt ? `Consultado em ${new Date(metaBalances.data.checkedAt).toLocaleString("pt-BR")}` : "Fundos disponíveis da conta vinculada na Meta"}>
+                  {(() => {
+                    const balance = metaBalances.data?.balances[client.id];
+                    if (metaBalances.isPending) return <span className="text-muted-foreground text-xs">Carregando…</span>;
+                    if (metaBalances.isError) return <span className="text-muted-foreground text-xs">Indisponível</span>;
+                    if (!balance) return <span className="text-muted-foreground text-xs">Sem conta vinculada</span>;
+                    if (balance.status === "permission_denied") return <span title="A Meta negou a consulta dos dados financeiros desta conta. O acesso aos relatórios de anúncios não garante acesso ao saldo." className="text-amber-400 text-xs">Sem acesso financeiro</span>;
+                    if (balance.status === "credit_card") return <span title="A Meta identifica esta conta como não pré-paga, com pagamento por cartão, e não forneceu um saldo pré-pago disponível nesta consulta." className="text-muted-foreground text-xs">Pagamento no cartão</span>;
+                    if (balance.available == null) return <span className="text-muted-foreground text-xs">Indisponível na Meta</span>;
+                    return <span className={cn("font-semibold", balance.available < 50 ? "text-red-400" : "text-emerald-400")}>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: balance.currency }).format(balance.available)}</span>;
+                  })()}
+                  {(() => {
+                    const accountId = metaBalances.data?.balances[client.id]?.accountId?.replace(/^act_/, "");
+                    if (!accountId || !/^\d+$/.test(accountId)) return null;
+                    return <a
+                      href={`https://business.facebook.com/billing_hub/payment_settings?asset_id=${accountId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Adicionar saldo na Meta — ${client.name}`}
+                      title="Abrir cobrança da conta vinculada na Meta para adicionar saldo"
+                      className="mt-1 block w-fit rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={(event) => event.stopPropagation()}
+                    >Adicionar saldo</a>;
+                  })()}
+                </td>}
                 {(["lastBalanceDate", "lastReportDate"] as const).map((field) => {
                   const dateStr = client[field];
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
@@ -346,7 +428,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     <SelectContent>{WEEKDAYS.map((d) => (<SelectItem key={d} value={d}>{d}</SelectItem>))}</SelectContent>
                   </Select>
                 </td>
-                <td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                {!summaryOnly && <><td className="px-2 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <Popover>
                     <PopoverTrigger asChild>
                       <button className="flex items-center gap-1 hover:bg-accent rounded px-1 py-0.5 transition-colors">
@@ -359,7 +441,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                     </PopoverContent>
                   </Popover>
                 </td>
-                {(() => {
+                {!hideInternalFinancial && <>{(() => {
                   const dateStr = client.nextChargeDate || "";
                   const parsedDate = dateStr ? new Date(dateStr + "T00:00:00") : undefined;
                   const dateFormatted = parsedDate ? format(parsedDate, "dd/MM/yyyy") : "-";
@@ -405,7 +487,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 </td>
                 <td className={cn("px-2 py-2", moneyTone(client.commissionValue))}>{formatCurrency(client.commissionValue)}</td>
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                  <AlertDialog>
+                  {userEmail !== "emanoelbull@gmail.com" && <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <button className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded hover:bg-destructive/10">
                         <Trash2 className="h-4 w-4" />
@@ -425,28 +507,28 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>
-                </td>
+                  </AlertDialog>}
+                </td></>}</>}
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={hideContractValues ? 14 : 18} className="px-2 py-6 text-center text-muted-foreground">
+                <td colSpan={(summaryOnly ? 10 : hideInternalFinancial ? 11 : hideContractValues ? 16 : 20) + (canViewMetaBalance ? 1 : 0)} className="px-2 py-6 text-center text-muted-foreground">
                   Nenhum cliente encontrado.
                 </td>
               </tr>
             )}
           </tbody>
-          {filtered.length > 0 && !hideContractValues && (
+          {filtered.length > 0 && !summaryOnly && !hideInternalFinancial && !hideContractValues && (
             <tfoot className="bg-secondary border-t border-border">
               <tr>
-                <td colSpan={4} className="px-2 py-2 text-right text-xs font-semibold text-muted-foreground uppercase">
+                <td colSpan={6} className="px-2 py-2 text-right text-xs font-semibold text-muted-foreground uppercase">
                   Totais
                 </td>
                 <td className="px-2 py-2 font-semibold text-primary">
                   {formatCurrency(filtered.filter(c => c.status === "Ativo").reduce((sum, c) => sum + (Number(c.monthlyBudget) || 0), 0))}
                 </td>
-                <td colSpan={3}></td>
+                <td colSpan={3 + (canViewMetaBalance ? 1 : 0)}></td>
                 <td className="px-2 py-2 font-semibold text-primary whitespace-nowrap">
                   {(() => {
                     const ativos = filtered.filter(c => c.status === "Ativo" && c.startDate);

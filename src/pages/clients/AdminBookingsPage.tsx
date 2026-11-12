@@ -1,8 +1,12 @@
+import {BOOKABLE_COURSES,courseDisplayName} from '@/constants/courseCatalog';
+import MonthYearSelect from "@/components/MonthYearSelect";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/clients/useGestaoAuth";
 import { useBlockedDates } from "@/hooks/clients/useBlockedDates";
 import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
-import { useDisabledDays, DAY_LABELS } from "@/hooks/clients/useDisabledDays";
+import { DAY_LABELS } from "@/hooks/clients/useDisabledDays";
+import { useCourseWeekAvailability } from "@/hooks/clients/useCourseWeekAvailability";
+import { monthWeeks, dateInMonth } from "@/lib/courseWeekAvailability";
 import { useWhatsAppTemplates, useWhatsAppLogs, resendMessage, sendManualMessage, getTypeLabel } from "@/hooks/clients/useWhatsAppAdmin";
 import { useWhatsAppTiming, getTimingLabel, formatTimingDescription } from "@/hooks/clients/useWhatsAppTiming";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
@@ -37,15 +41,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
 import { isGoogleTasksOnlyUser } from "@/lib/accessControl";
 
-const COURSES = [
-  "Curso Meta Ads",
-  "Curso Meta Ads Avançado",
-  "Curso Google Ads",
-  "Curso Social Media",
-  "Curso Canva",
-  "Curso Inteligência Artificial",
-  "Curso Captação e Edição de Vídeo",
-];
+const COURSES:string[]=BOOKABLE_COURSES.map(course=>course.name);
 
 const SHIFTS = ["Manhã", "Tarde"];
 const MAX_STUDENTS = 5;
@@ -104,10 +100,15 @@ export default function AdminBookings() {
   const isAdmin = !!session?.user?.email && BOOKINGS_ADMINS.includes(session.user.email);
   const isHenrique = isGoogleTasksOnlyUser(session?.user?.email);
   const canManageWeekdays = isAdmin || isHenrique;
-  const weekdayCourses = isHenrique ? ["Curso Google Ads"] : COURSES;
   const { blockedDates, loading: blockedLoading, blockDate, unblockDate, isDateBlocked, getBlocksForDate } = useBlockedDates();
   const { bookings, loading: bookingsLoading, updateBooking, deleteBooking, refetch: refetchBookings } = useCourseBookings();
-  const { loading: disabledLoading, toggleDay, isDayDisabled, isShiftOnlyDisabled } = useDisabledDays();
+  const [availabilityInstructor,setAvailabilityInstructor]=useState(isHenrique?"Henrique":"Nicolas");
+  const weekdayCourses = availabilityInstructor === "Henrique" ? COURSES.filter(course => ["Curso Meta Ads", "Curso Meta Ads Avançado", "Curso Meta Ads Online", "Curso Google Ads"].includes(course)) : COURSES;
+  const [availabilityMonth, setAvailabilityMonth] = useState(() => format(new Date(), 'yyyy-MM'));
+  const { loading: disabledLoading, saving: availabilitySaving, toggleDay, isDayDisabled, isShiftDisabled: isShiftOnlyDisabled } = useCourseWeekAvailability(availabilityMonth,availabilityInstructor);
+  const [availabilityWeek, setAvailabilityWeek] = useState(() => monthWeeks(format(new Date(), 'yyyy-MM')).findIndex(week => week.some(date => format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'))));
+  const availabilityWeeks = monthWeeks(availabilityMonth);
+  const selectedAvailabilityDays = availabilityWeeks[Math.min(availabilityWeek, availabilityWeeks.length - 1)];
   const { templates, loading: templatesLoading, updateTemplate, refetch: refetchTemplates } = useWhatsAppTemplates();
   const { logs, loading: logsLoading, refetch: refetchLogs } = useWhatsAppLogs();
   const { timings, loading: timingsLoading, updateTiming } = useWhatsAppTiming();
@@ -128,6 +129,10 @@ export default function AdminBookings() {
   const [metaExceptions, setMetaExceptions] = useState<Array<{ id: string; date: string; shift: string | null }>>([]);
   const [excDialog, setExcDialog] = useState(false);
   const [excForm, setExcForm] = useState({ date: "", shift: "all" });
+  const [specialSlots, setSpecialSlots] = useState<Array<{ id: string; course_name: string; date: string; time: string; max_students: number }>>([]);
+  const [specialSlotDialog, setSpecialSlotDialog] = useState(false);
+  const [specialSlotSaving, setSpecialSlotSaving] = useState(false);
+  const [specialSlotForm, setSpecialSlotForm] = useState(() => ({ date: format(addDays(new Date(), 1), "yyyy-MM-dd"), course_name: "Curso Google Ads", time: "17:00", max_students: "5" }));
   const [rescheduleRequests, setRescheduleRequests] = useState<RescheduleRequest[]>([]);
 
   const fetchMetaExceptions = async () => {
@@ -135,6 +140,38 @@ export default function AdminBookings() {
     setMetaExceptions((data || []) as any);
   };
   useEffect(() => { fetchMetaExceptions(); }, []);
+
+  const fetchSpecialSlots = async () => {
+    const { data } = await supabase.from("course_slots").select("id,course_name,date,time,max_students").gte("date", format(startOfDay(new Date()), "yyyy-MM-dd")).order("date").order("time");
+    const custom = (data || []).filter((slot: any) => !["Manhã", "Tarde", "08:30", "14:00"].includes(String(slot.time)));
+    setSpecialSlots(custom as typeof specialSlots);
+  };
+  useEffect(() => { fetchSpecialSlots(); }, []);
+
+  const addSpecialSlot = async () => {
+    const capacity = Number(specialSlotForm.max_students);
+    if (!specialSlotForm.date || !specialSlotForm.course_name || !/^([01]\d|2[0-3]):[0-5]\d$/.test(specialSlotForm.time) || !Number.isInteger(capacity) || capacity < 1 || capacity > 30) {
+      toast.error("Confira o curso, a data, o horário e a capacidade (de 1 a 30 alunos)."); return;
+    }
+    if (isBefore(parse(specialSlotForm.date, "yyyy-MM-dd", new Date()), startOfDay(new Date()))) { toast.error("Escolha uma data de hoje em diante."); return; }
+    setSpecialSlotSaving(true);
+    const { error } = await supabase.from("course_slots").insert({ course_name: specialSlotForm.course_name, date: specialSlotForm.date, time: specialSlotForm.time, max_students: capacity });
+    setSpecialSlotSaving(false);
+    if (error) { toast.error(error.message.includes("duplicate") ? "Esse horário especial já foi cadastrado." : `Não foi possível criar o horário: ${error.message}`); return; }
+    toast.success("Horário especial liberado para agendamento.");
+    setSpecialSlotDialog(false);
+    await fetchSpecialSlots();
+  };
+
+  const removeSpecialSlot = async (id: string) => {
+    const { data: bookingsForSlot, error: bookingLookupError } = await supabase.from("course_bookings").select("id").eq("slot_id", id).limit(1);
+    if (bookingLookupError) { toast.error(`Não foi possível conferir as vagas ocupadas: ${bookingLookupError.message}`); return; }
+    if (bookingsForSlot?.length) { toast.error("Esse horário já tem aluno inscrito e não pode ser removido."); return; }
+    const { error } = await supabase.from("course_slots").delete().eq("id", id);
+    if (error) { toast.error(`Não foi possível remover: ${error.message}`); return; }
+    toast.success("Horário especial removido.");
+    await fetchSpecialSlots();
+  };
 
   const fetchRescheduleRequests = async () => {
     const { data } = await supabase
@@ -223,7 +260,7 @@ export default function AdminBookings() {
     }
   };
 
-  const loading = blockedLoading || bookingsLoading || disabledLoading;
+  const loading = blockedLoading || bookingsLoading;
 
   // Week navigation
   const today = new Date();
@@ -344,7 +381,7 @@ export default function AdminBookings() {
             <SelectTrigger className="w-[250px]"><SelectValue placeholder="Filtrar por curso" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os cursos</SelectItem>
-              {COURSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {COURSES.map(c => <SelectItem key={c} value={c}>{courseDisplayName(c)}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -509,6 +546,37 @@ export default function AdminBookings() {
 
             <Card className="mt-4">
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="flex items-start gap-2 text-base"><CalendarDays className="h-4 w-4" /> Horários especiais</CardTitle>
+                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => { setSpecialSlotForm(f => ({ ...f, date: format(addDays(new Date(), 1), "yyyy-MM-dd") })); setSpecialSlotDialog(true); }}>
+                  Adicionar horário especial
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">Libere uma data e hora fora da grade normal. O horário aparecerá no link público apenas para o curso selecionado.</p>
+                {specialSlots.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum horário especial futuro cadastrado.</p> : (
+                  <Table><TableHeader><TableRow><TableHead>Curso</TableHead><TableHead>Data</TableHead><TableHead>Horário</TableHead><TableHead>Vagas</TableHead><TableHead className="w-[80px]">Ação</TableHead></TableRow></TableHeader>
+                    <TableBody>{specialSlots.map(slot => <TableRow key={slot.id}><TableCell>{courseDisplayName(slot.course_name)}</TableCell><TableCell>{fmtDate(slot.date)}</TableCell><TableCell>{String(slot.time).slice(0, 5)}</TableCell><TableCell>{slot.max_students}</TableCell><TableCell><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeSpecialSlot(slot.id)}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell></TableRow>)}</TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            <Dialog open={specialSlotDialog} onOpenChange={setSpecialSlotDialog}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Adicionar horário especial</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div><label className="text-sm font-medium">Curso</label><Select value={specialSlotForm.course_name} onValueChange={value => setSpecialSlotForm(f => ({ ...f, course_name: value }))}><SelectTrigger><SelectValue placeholder="Selecione o curso" /></SelectTrigger><SelectContent>{COURSES.map(course => <SelectItem key={course} value={course}>{courseDisplayName(course)}</SelectItem>)}</SelectContent></Select></div>
+                  <div><label className="text-sm font-medium">Data</label><Input type="date" min={format(startOfDay(new Date()), "yyyy-MM-dd")} value={specialSlotForm.date} onChange={e => setSpecialSlotForm(f => ({ ...f, date: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Horário</label><Input type="time" value={specialSlotForm.time} onChange={e => setSpecialSlotForm(f => ({ ...f, time: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Vagas</label><Input type="number" min="1" max="30" value={specialSlotForm.max_students} onChange={e => setSpecialSlotForm(f => ({ ...f, max_students: e.target.value }))} /></div>
+                  <p className="text-xs text-muted-foreground">Nos cursos de Meta, o professor segue a disponibilidade cadastrada. Nos demais, este horário libera a vaga para agendamento.</p>
+                </div>
+                <DialogFooter><Button variant="outline" onClick={() => setSpecialSlotDialog(false)}>Cancelar</Button><Button onClick={addSpecialSlot} disabled={specialSlotSaving}>{specialSlotSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Liberar horário</Button></DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Card className="mt-4">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="flex items-start gap-2 text-base">
                   <CalendarDays className="h-4 w-4" /> Exceções Meta Ads (Básico + Avançado no mesmo período)
                 </CardTitle>
@@ -583,23 +651,36 @@ export default function AdminBookings() {
           <TabsContent value="weekdays">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" /> Dias da Semana por Curso</CardTitle>
+                <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" /> Disponibilidade por Professor e Curso</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Controle a disponibilidade por dia inteiro ou por turno individual. Itens desativados não aparecerão para os alunos.
+                  Escolha o professor, mês e semana. Nos três cursos de Meta, o horário abre quando algum professor está disponível. Nicolas tem prioridade; alunos da mesma turma ficam com o mesmo professor. Desativar um horário não cancela nem troca o professor das turmas já marcadas. Outros cursos mantêm a disponibilidade por curso.
                 </p>
+                <div className="flex flex-wrap gap-4 mb-5">
+                  <label className="space-y-2 text-sm">Professor dos cursos de Meta<Select value={availabilityInstructor} onValueChange={setAvailabilityInstructor} disabled={isHenrique}><SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Nicolas">Nicolas</SelectItem><SelectItem value="Henrique">Henrique</SelectItem></SelectContent></Select></label>
+                  <div className="space-y-2 text-sm"><span>Mês</span><MonthYearSelect label="Mês da disponibilidade" value={availabilityMonth} onChange={value => { setAvailabilityMonth(value); setAvailabilityWeek(0); }} /></div>
+                  <label className="space-y-2 text-sm">Semana
+                    <Select value={String(Math.min(availabilityWeek, availabilityWeeks.length - 1))} onValueChange={value => setAvailabilityWeek(Number(value))}>
+                      <SelectTrigger className="w-[280px]" aria-label="Semana da disponibilidade"><SelectValue /></SelectTrigger>
+                      <SelectContent>{availabilityWeeks.map((week, index) => {
+                        const dates = week.filter(date => dateInMonth(date, availabilityMonth));
+                        return <SelectItem key={index} value={String(index)}>Semana {index + 1} · {format(dates[0], 'dd/MM')} a {format(dates[dates.length - 1], 'dd/MM')}</SelectItem>;
+                      })}</SelectContent>
+                    </Select>
+                  </label>
+                </div>
                 <div className="space-y-4">
                   {weekdayCourses.map(course => (
                     <div key={course} className="border rounded-lg p-4">
-                      <h3 className="text-sm font-semibold mb-3">{course}</h3>
+                      <h3 className="text-sm font-semibold mb-3">{courseDisplayName(course)}</h3>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr>
                               <th className="text-left pr-2 pb-2 text-muted-foreground font-medium text-xs">Turno</th>
                               {DAY_LABELS.map((label, i) => (
-                                <th key={i} className="text-center pb-2 px-1 text-muted-foreground font-medium text-xs min-w-[50px]">{label}</th>
+                                <th key={i} className="text-center pb-2 px-1 text-muted-foreground font-medium text-xs min-w-[70px]">{label}<span className="block mt-1">{format(selectedAvailabilityDays[i], 'dd/MM')}</span></th>
                               ))}
                             </tr>
                           </thead>
@@ -607,16 +688,19 @@ export default function AdminBookings() {
                             <tr>
                               <td className="pr-2 py-1 text-xs font-medium whitespace-nowrap">Dia inteiro</td>
                               {DAY_LABELS.map((_, dayIndex) => {
-                                const off = isDayDisabled(course, dayIndex);
+                                const date = format(selectedAvailabilityDays[dayIndex], 'yyyy-MM-dd');
+                                const outsideMonth = !dateInMonth(selectedAvailabilityDays[dayIndex], availabilityMonth);
+                                const off = isDayDisabled(course, date);
                                 return (
                                   <td key={dayIndex} className="text-center px-1 py-1">
                                     <Button
                                       variant={off ? "destructive" : "outline"}
                                       size="sm"
                                       className={`w-full min-w-[44px] h-7 text-xs ${!off ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10" : ""}`}
-                                      onClick={() => toggleDay(course, dayIndex, null)}
+                                      disabled={outsideMonth || availabilitySaving || disabledLoading}
+                                      onClick={() => toggleDay(course, date, null)}
                                     >
-                                      {off ? "Off" : "On"}
+                                      {outsideMonth ? '—' : off ? "Off" : "On"}
                                     </Button>
                                   </td>
                                 );
@@ -626,18 +710,20 @@ export default function AdminBookings() {
                               <tr key={shift}>
                                 <td className="pr-2 py-1 text-xs font-medium whitespace-nowrap">{shift}</td>
                                 {DAY_LABELS.map((_, dayIndex) => {
-                                  const fullOff = isDayDisabled(course, dayIndex);
-                                  const shiftOff = isShiftOnlyDisabled(course, dayIndex, shift);
+                                  const date = format(selectedAvailabilityDays[dayIndex], 'yyyy-MM-dd');
+                                  const outsideMonth = !dateInMonth(selectedAvailabilityDays[dayIndex], availabilityMonth);
+                                  const fullOff = isDayDisabled(course, date);
+                                  const shiftOff = isShiftOnlyDisabled(course, date, shift);
                                   return (
                                     <td key={dayIndex} className="text-center px-1 py-1">
                                       <Button
                                         variant={fullOff || shiftOff ? "destructive" : "outline"}
                                         size="sm"
-                                        disabled={fullOff}
+                                        disabled={outsideMonth || availabilitySaving || disabledLoading}
                                         className={`w-full min-w-[44px] h-7 text-xs ${!fullOff && !shiftOff ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10" : ""}`}
-                                        onClick={() => toggleDay(course, dayIndex, shift)}
+                                        onClick={() => toggleDay(course, date, shift)}
                                       >
-                                        {fullOff ? "—" : shiftOff ? "Off" : "On"}
+                                        {outsideMonth ? '—' : shiftOff ? "Off" : "On"}
                                       </Button>
                                     </td>
                                   );
@@ -728,10 +814,11 @@ export default function AdminBookings() {
                                             <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent>
-                                            {COURSES.map((course) => <SelectItem key={course} value={course}>{course.replace(/^Curso\s+/, "")}</SelectItem>)}
+                                            {COURSES.map((course) => <SelectItem key={course} value={course}>{courseDisplayName(course)}</SelectItem>)}
                                           </SelectContent>
                                         </Select>
                                       ) : b.courseName.replace(/^Curso\s+/, "")}
+                                      {b.instructor && <p className="mt-1 text-xs font-medium text-sky-400">Prof. {b.instructor}</p>}
                                     </TableCell>
                                     <TableCell className="whitespace-nowrap">
                                       <EditableCell
@@ -949,6 +1036,9 @@ export default function AdminBookings() {
 
           {/* WhatsApp Logs Tab */}
           <TabsContent value="whatsapp-logs">
+            <p className="mb-4 rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+              Falhas de envio não são reenviadas automaticamente. Após resolver o problema do número, revise os avisos ainda válidos antes de reenviar. Envios sem confirmação precisam de verificação de entrega.
+            </p>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> Logs de Envio WhatsApp</CardTitle>
@@ -981,7 +1071,7 @@ export default function AdminBookings() {
                             <TableCell className="text-sm">{fmtDateTime(log.sentAt || log.createdAt)}</TableCell>
                             <TableCell>{log.studentName}</TableCell>
                             <TableCell>{log.phone}</TableCell>
-                            <TableCell className="text-sm">{log.courseName}</TableCell>
+                            <TableCell className="text-sm">{courseDisplayName(log.courseName)}</TableCell>
                             <TableCell>
                               <Badge variant="outline">{getTypeLabel(log.messageType)}</Badge>
                             </TableCell>
@@ -998,7 +1088,7 @@ export default function AdminBookings() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                disabled={resending === log.id}
+                                disabled={!!resending || log.status !== "error" || /sem confirmação|não confirmad/i.test(log.errorMessage || "")}
                                 onClick={() => handleResend(log)}
                                 title="Reenviar"
                               >
@@ -1063,7 +1153,7 @@ export default function AdminBookings() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os cursos</SelectItem>
-                  {COURSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {COURSES.map(c => <SelectItem key={c} value={c}>{courseDisplayName(c)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

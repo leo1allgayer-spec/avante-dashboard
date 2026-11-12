@@ -1,3 +1,4 @@
+import {TaskFilePicker} from "./TaskFilePicker";
 import { useState } from "react";
 import { Task, TeamMember } from "@/types/clients/task";
 import {
@@ -15,11 +16,14 @@ import { Switch } from "@/components/ui/switch";
 interface Props {
   open: boolean;
   onClose: () => void;
-  onAdd: (task: Omit<Task, "id" | "createdAt" | "startedAt" | "completedAt" | "userId">) => void;
+  onAdd: (task: Omit<Task, "id" | "createdAt" | "startedAt" | "completedAt" | "userId">, files?: File[]) => void | Promise<unknown>;
   members: TeamMember[];
 }
 
 export function AddTaskDialog({ open, onClose, onAdd, members }: Props) {
+  const [files,setFiles]=useState<File[]>([]);
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");
@@ -27,9 +31,10 @@ export function AddTaskDialog({ open, onClose, onAdd, members }: Props) {
   const [priority, setPriority] = useState<"Baixa" | "Média" | "Alta">("Média");
   const [isDaily, setIsDaily] = useState(false);
 
-  const handleSubmit = () => {
-    if (!title.trim()) return;
-    onAdd({
+  const handleSubmit = async () => {
+    if (!title.trim() || saving) return;
+    setSaving(true);setError("");
+    try { await onAdd({
       title: title.trim(),
       description,
       assigneeId: assigneeId || null,
@@ -37,19 +42,20 @@ export function AddTaskDialog({ open, onClose, onAdd, members }: Props) {
       priority,
       status: "Pendente",
       isDaily,
-    });
+    },files);
     setTitle("");
     setDescription("");
     setAssigneeId("");
     setDueDate("");
     setPriority("Média");
     setIsDaily(false);
-    onClose();
+    setFiles([]);onClose();
+    }catch(error){setError(error instanceof Error?error.message:"Não foi possível salvar a tarefa.");}finally{setSaving(false);}
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} onOpenChange={()=>{if(!saving)onClose();}}>
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto" data-lenis-prevent>
         <DialogHeader>
           <DialogTitle>Nova Tarefa</DialogTitle>
         </DialogHeader>
@@ -62,6 +68,7 @@ export function AddTaskDialog({ open, onClose, onAdd, members }: Props) {
             <Label>Descrição</Label>
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Detalhes da tarefa..." rows={3} />
           </div>
+          <TaskFilePicker files={files} onChange={setFiles} disabled={saving}/>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Responsável</Label>
@@ -69,7 +76,7 @@ export function AddTaskDialog({ open, onClose, onAdd, members }: Props) {
                 <SelectTrigger><SelectValue placeholder="Selecionar" /></SelectTrigger>
                 <SelectContent>
                   {members.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                    <SelectItem key={m.id} value={m.id}>{m.name}{!m.phone ? " · WhatsApp não cadastrado" : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -95,9 +102,10 @@ export function AddTaskDialog({ open, onClose, onAdd, members }: Props) {
             <Label>Tarefa fixa diária</Label>
           </div>
         </div>
+        {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={!title.trim()}>Criar Tarefa</Button>
+          <Button variant="ghost" disabled={saving} onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSubmit} disabled={!title.trim()||saving}>{saving?"Salvando tarefa e anexos…":"Criar Tarefa"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

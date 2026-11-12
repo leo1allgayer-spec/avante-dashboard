@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import AnnualGoalsPanel from "@/components/AnnualGoalsPanel";
+import GoalHistoryPanel from "@/components/GoalHistoryPanel";
 import { useDateFilter } from "@/hooks/useDateFilter";
 import { useTodayMetrics } from "@/hooks/useMetrics";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -242,7 +244,9 @@ const MetasPage = () => {
     const totalWorkDays = countWorkingDays(year, month);
     const metaDiaPorDiaUtil = totalWorkDays > 0 ? Number(metaMensal) / totalWorkDays : 0;
 
-    const refDate = year === now.getFullYear() && month === now.getMonth()
+    const refDate = filter.mode === "dia"
+      ? new Date(`${filter.range.start}T12:00:00`)
+      : year === now.getFullYear() && month === now.getMonth()
       ? now
       : new Date(year, month, 1);
     const remaining = remainingWorkingDays(refDate);
@@ -256,6 +260,16 @@ const MetasPage = () => {
 
     const cursosParaMeta = Math.max(0, Number(svcMetaCursos) - totalCursos);
     const cursosPorDia = remaining > 0 ? Math.ceil(cursosParaMeta / remaining) : 0;
+
+    const isCourse = (sale: typeof registeredMonthVendas[number]) =>
+      COURSE_PRODUCTS.some((course) => normalizeText(course) === normalizeText(canonicalizeSaleCategory(sale.servico || sale.produto)));
+    const cursosNoDia = registeredPeriodVendas.filter(isCourse).length;
+    const cursosAntesDoDia = registeredMonthVendas.filter((sale) => sale.data < filter.range.start && isCourse(sale)).length;
+    const isWorkingDay = refDate.getDay() >= 1 && refDate.getDay() <= 5;
+    const metaCursosDia = isWorkingDay && remaining > 0
+      ? Math.ceil(Math.max(0, Number(svcMetaCursos) - cursosAntesDoDia) / remaining)
+      : 0;
+    const cursosFaltantesDia = Math.max(0, metaCursosDia - cursosNoDia);
 
 
     let periodMeta = Number(metaMensal);
@@ -279,10 +293,13 @@ const MetasPage = () => {
       metaDiariaAjustada,
       cursosParaMeta,
       cursosPorDia,
+      cursosNoDia,
+      metaCursosDia,
+      cursosFaltantesDia,
       totalCursos,
       periodMeta,
     };
-  }, [registeredMonthVendas, filter.anchor, filter.mode, filter.range.start, filter.range.end, metaMensal, monthRealized, periodRealized, svcMetaCursos]);
+  }, [registeredMonthVendas, registeredPeriodVendas, filter.anchor, filter.mode, filter.range.start, filter.range.end, metaMensal, monthRealized, periodRealized, svcMetaCursos]);
 
   const pctAtingido = calcData.periodMeta > 0 ? ((periodRealized / calcData.periodMeta) * 100).toFixed(1) : "0";
 
@@ -297,9 +314,11 @@ const MetasPage = () => {
   return (
     <PageTransition>
       <DashboardLayout title="Metas" subtitle="Acompanhe suas metas mensais e diárias" actions={<MetricsForm currentData={today} />}>
+        <div className="mb-6"><AnnualGoalsPanel/></div>
+        <div className="mb-6"><GoalHistoryPanel month={`${filter.anchor.getFullYear()}-${String(filter.anchor.getMonth() + 1).padStart(2, "0")}`}/></div>
         <DateFilterBar mode={filter.mode} onModeChange={filter.setMode} label={filter.label} onBack={filter.goBack} onForward={filter.goForward} />
 
-        <MonthlyMetricsTimeline />
+        <MonthlyMetricsTimeline range={filter.range} />
 
         <StaggerContainer className="grid gap-5 sm:grid-cols-2">
           <StaggerItem>
@@ -340,14 +359,16 @@ const MetasPage = () => {
               variant={calcData.metaDiariaAjustada > calcData.metaDiaPorDiaUtil ? "accent" : "primary"}
             />
             <MetricCard
-              title="Faltante p/ Meta"
-              value={formatCurrency(calcData.faltante)}
+              title={filter.mode === "dia" ? "Faltante p/ Meta do Dia" : "Faltante p/ Meta do Mês"}
+              value={formatCurrency(filter.mode === "dia" ? Math.max(0, calcData.periodMeta - periodRealized) : calcData.faltante)}
               icon={<Target className="h-5 w-5" />}
             />
             <MetricCard
-              title="Cursos p/ Bater Meta"
-              value={`${calcData.cursosParaMeta}`}
-              subtitle={calcData.cursosPorDia > 0 ? `~${calcData.cursosPorDia} por dia útil` : "Meta atingida"}
+              title={filter.mode === "dia" ? "Cursos p/ Bater Meta do Dia" : "Cursos p/ Bater Meta do Mês"}
+              value={`${filter.mode === "dia" ? calcData.cursosFaltantesDia : calcData.cursosParaMeta}`}
+              subtitle={filter.mode === "dia"
+                ? `${calcData.cursosNoDia} vendidos no dia · Meta: ${calcData.metaCursosDia}`
+                : calcData.cursosPorDia > 0 ? `~${calcData.cursosPorDia} por dia útil` : "Meta atingida"}
               icon={<GraduationCap className="h-5 w-5" />}
               variant="accent"
             />

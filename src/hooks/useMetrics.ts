@@ -86,10 +86,10 @@ export function useTodayMetrics() {
   });
 }
 
-export function useMetricsByDate(date: string) {
+export function useMetricsByDate(date: string, enabled = true) {
   return useQuery({
     queryKey: ["daily-metrics", "by-date", date],
-    enabled: Boolean(date),
+    enabled: Boolean(date) && enabled,
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
@@ -122,6 +122,18 @@ export function useMonthMetrics(year?: number, month?: number) {
         .gte("date", startOfMonth)
         .lte("date", endOfMonth)
         .order("date", { ascending: true });
+      if (error) throw error;
+      return (data as DailyMetrics[]) || [];
+    },
+  });
+}
+
+export function useMetricsRange(start: string, end: string) {
+  return useQuery({
+    queryKey: ["daily-metrics", "range", start, end],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("daily_metrics").select("*")
+        .gte("date", start).lte("date", end).order("date", { ascending: true });
       if (error) throw error;
       return (data as DailyMetrics[]) || [];
     },

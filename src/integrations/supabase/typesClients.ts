@@ -133,6 +133,7 @@ export type Database = {
       }
       course_bookings: {
         Row: {
+          certificate_ready: boolean
           certificate_name: string | null
           course_name: string
           course_status: string
@@ -149,6 +150,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          certificate_ready?: boolean
           certificate_name?: string | null
           course_name: string
           course_status?: string
@@ -165,6 +167,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          certificate_ready?: boolean
           certificate_name?: string | null
           course_name?: string
           course_status?: string
@@ -216,6 +219,7 @@ export type Database = {
       }
       course_enrollments: {
         Row: {
+          certificate_ready: boolean
           contact: string | null
           course_type: string
           created_at: string | null
@@ -228,6 +232,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          certificate_ready?: boolean
           contact?: string | null
           course_type: string
           created_at?: string | null
@@ -240,6 +245,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          certificate_ready?: boolean
           contact?: string | null
           course_type?: string
           created_at?: string | null

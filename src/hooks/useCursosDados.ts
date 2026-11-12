@@ -1,3 +1,4 @@
+import {courseDisplayName} from '@/constants/courseCatalog';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -9,6 +10,8 @@ export interface CursoDado {
   tipo_curso: string;
   nome_aluno: string;
   comissao_extra: number;
+  comissao_paga_valor?: number;
+  data_pagamento_comissao?: string | null;
   survey_response_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -22,48 +25,56 @@ const normalizeCourseKey = (value: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-const COURSE_NAME_ALIASES: Record<string, string> = {
-  "curso meta ads": "Curso de Meta Ads",
-  "curso de meta ads": "Curso de Meta Ads",
-  "curso google ads": "Curso de Google Ads",
-  "curso de google ads": "Curso de Google Ads",
-  "curso de social midia": "Curso de Social Media",
-  "curso de social media": "Curso de Social Media",
-  "curso de ia": "Curso de Inteligência Artificial",
-  "curso de inteligencia artificial": "Curso de Inteligência Artificial",
-  "curso canva para empreendedores": "Curso Canva para Empreendedores",
-  "curso captacao edicao": "Curso de Edição e Captação de Vídeos",
-  "curso de edicao e captacao de videos": "Curso de Edição e Captação de Vídeos",
-};
+export const canonicalizeCourseName=courseDisplayName;
 
-export const canonicalizeCourseName = (value?: string | null) => {
-  const courseName = (value || "").trim();
-  return COURSE_NAME_ALIASES[normalizeCourseKey(courseName)] || courseName;
-};
-
-export const getCourseInstructor = (courseName?: string | null, fallback = "Leonardo") => {
+export const getCourseInstructor = (courseName?: string | null, fallback = "") => {
   const key = normalizeCourseKey(courseName || "");
+  const hasMetaAssignment = key.includes("meta ads");
+  const allowsHenrique = hasMetaAssignment || key.includes("google ads");
+  if (allowsHenrique && (fallback === "Nicolas" || fallback === "Henrique")) return fallback;
   if (key.includes("google ads")) return "Henrique";
-  if (key.includes("social media") || key.includes("social midia")) return "Luana";
-  if (key.includes("meta ads")) return "Leonardo";
-  return fallback;
+  return "Nicolas";
 };
+
+export const getCourseInstructorOptions = (courseName?: string | null) =>
+  /meta ads|google ads/.test(normalizeCourseKey(courseName || ""))
+    ? ["Nicolas", "Henrique"]
+    : ["Nicolas"];
 
 export function useCursosDados() {
   return useQuery({
     queryKey: ["cursos_dados"],
+    staleTime: 60_000,
+    refetchInterval: 2 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("cursos_dados")
-        .select("*")
-        .order("data", { ascending: false });
+      const [{ data, error }, { data: bookings, error: bookingsError }] = await Promise.all([
+        supabase
+          .from("cursos_dados")
+          .select("*")
+          .order("data", { ascending: false }),
+        (supabase as any)
+          .from("course_bookings")
+          .select("course_name,date,student_name,instructor")
+          .in("course_name", ["Curso Meta Ads", "Curso Meta Ads Avançado", "Curso Meta Ads Online"])
+          .not("instructor", "is", null)
+          .eq("status", "confirmed"),
+      ]);
       if (error) throw error;
+      if (bookingsError) throw bookingsError;
       return ((data as CursoDado[]) || []).map((curso) => ({
         ...curso,
-        instrutor: getCourseInstructor(
-          curso.tipo_curso,
-          !curso.instrutor.trim() || normalizeCourseKey(curso.instrutor) === "nao informado" ? "Leonardo" : curso.instrutor,
-        ),
+        instrutor: (() => {
+          const courseKey = normalizeCourseKey(canonicalizeCourseName(curso.tipo_curso));
+          const studentKey = normalizeCourseKey(curso.nome_aluno);
+          const assignedBooking = (bookings || []).find((booking: any) =>
+            booking.date === curso.data &&
+            normalizeCourseKey(canonicalizeCourseName(booking.course_name)) === courseKey &&
+            normalizeCourseKey(booking.student_name) === studentKey &&
+            (booking.instructor === "Nicolas" || booking.instructor === "Henrique")
+          );
+          const storedInstructor = curso.instrutor === "Nicolas" || curso.instrutor === "Henrique" ? curso.instrutor : "";
+          return getCourseInstructor(curso.tipo_curso, assignedBooking?.instructor || storedInstructor);
+        })(),
         tipo_curso: canonicalizeCourseName(curso.tipo_curso),
       }));
     },

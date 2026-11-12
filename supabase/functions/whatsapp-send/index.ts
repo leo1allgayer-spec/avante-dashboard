@@ -1,3 +1,8 @@
+import { onlineCourseMessage } from '../_shared/online-course-message.ts';
+import { courseNotificationIdentity } from '../_shared/course-notification-identity.ts';
+import { isInternalMessage } from "../_shared/whatsapp-router.ts";
+import { sendWhatsAppOnce } from "../_shared/whatsapp-dispatch.ts";
+import { supportNotificationExpired } from "../_shared/whatsapp-delivery-policy.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 
 const corsHeaders = {
@@ -30,108 +35,6 @@ function fillTemplate(template: string, vars: Record<string, string>): string {
 
 function getPublicSiteUrl(): string {
   return (Deno.env.get("PUBLIC_SITE_URL") || "https://dashboard-avante.pages.dev").replace(/\/+$/, "");
-}
-
-// Cache do nome técnico real da instância (resolvido via fetchInstances)
-let RESOLVED_INSTANCE: string | null = null;
-
-async function resolveInstanceName(baseUrl: string, configuredName: string, token: string): Promise<string> {
-  if (RESOLVED_INSTANCE) return RESOLVED_INSTANCE;
-
-  // Tenta primeiro o nome configurado (caso seja exatamente o "name" técnico)
-  try {
-    const r = await fetch(`${baseUrl}/instance/connectionState/${encodeURIComponent(configuredName)}`, {
-      headers: { "apikey": token },
-    });
-    const responseText = await r.text();
-    if (r.ok) {
-      let connection: any = {};
-      try { connection = JSON.parse(responseText); } catch { /* resposta inesperada */ }
-      const state = String(connection?.instance?.state ?? connection?.state ?? "").toLowerCase();
-      if (state && state !== "open") {
-        throw new Error(`Instância Evolution desconectada (status: ${state})`);
-      }
-      RESOLVED_INSTANCE = configuredName;
-      console.log(`Evolution instance resolved (direct): "${configuredName}" (${state || "status não informado"})`);
-      return configuredName;
-    }
-  } catch (_) { /* segue para fallback */ }
-
-  // Fallback: lista todas as instâncias e procura por name OU profileName
-  const listResp = await fetch(`${baseUrl}/instance/fetchInstances`, {
-    headers: { "apikey": token },
-  });
-  const listText = await listResp.text();
-  if (!listResp.ok) {
-    console.error("fetchInstances failed:", listResp.status, listText);
-    throw new Error(`Não foi possível listar instâncias da Evolution API (HTTP ${listResp.status})`);
-  }
-  let arr: any[] = [];
-  try { arr = JSON.parse(listText); } catch { arr = []; }
-  const target = configuredName.trim().toLowerCase();
-  const match = arr.find((i: any) =>
-    (i?.name && String(i.name).trim().toLowerCase() === target) ||
-    (i?.profileName && String(i.profileName).trim().toLowerCase() === target) ||
-    (i?.token && String(i.token) === token)
-  );
-  if (!match?.name) {
-    const available = arr.map((i: any) => i?.name).filter(Boolean).join(", ");
-    throw new Error(`Instância "${configuredName}" não encontrada. Disponíveis: ${available || "(nenhuma)"}`);
-  }
-  const matchState = String(match?.connectionStatus ?? match?.state ?? match?.instance?.state ?? "").toLowerCase();
-  if (matchState && matchState !== "open") {
-    throw new Error(`Instância Evolution desconectada (status: ${matchState})`);
-  }
-  RESOLVED_INSTANCE = match.name;
-  console.log(`Evolution instance resolved (via fetchInstances): "${configuredName}" -> "${match.name}"`);
-  return match.name;
-}
-
-async function sendViaEvolution(phone: string, text: string) {
-  const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-  const EVOLUTION_INSTANCE_NAME = Deno.env.get("EVOLUTION_INSTANCE_NAME");
-  const EVOLUTION_API_TOKEN = Deno.env.get("EVOLUTION_API_TOKEN");
-
-  if (!EVOLUTION_API_URL || !EVOLUTION_INSTANCE_NAME || !EVOLUTION_API_TOKEN) {
-    throw new Error("Evolution API credentials not configured");
-  }
-
-  const baseUrl = normalizeBaseUrl(EVOLUTION_API_URL);
-  const instanceName = await resolveInstanceName(baseUrl, EVOLUTION_INSTANCE_NAME, EVOLUTION_API_TOKEN);
-  const instance = encodeURIComponent(instanceName);
-  const url = `${baseUrl}/message/sendText/${instance}`;
-
-  const requestBody = { number: phone, text };
-
-  console.log("Evolution request:", JSON.stringify({ url, body: requestBody }));
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": EVOLUTION_API_TOKEN,
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  const resultText = await response.text();
-  console.log("Evolution response status:", response.status);
-  console.log("Evolution response body:", resultText);
-
-  let result: any;
-  try { result = JSON.parse(resultText); } catch { result = { raw: resultText }; }
-
-  // Evolution pode responder 200/201 com payloads diferentes conforme a versão.
-  // Se não houver erro explícito, consideramos o envio aceito e registramos como "sent".
-  let accepted = response.ok;
-  let providerStatus = String(result?.status ?? "").toUpperCase();
-  if (accepted && result && typeof result === "object") {
-    const hasError = !!result?.error || providerStatus === "ERROR" || providerStatus === "FAILED";
-    if (hasError) accepted = false;
-  }
-
-  const deliveryStatus = accepted ? "sent" : "error";
-  return { accepted, deliveryStatus, status: response.status, result, resultText };
 }
 
 function buildErrorMessage(status: number, resultText: string, result: any): string {
@@ -224,9 +127,66 @@ Deno.serve(async (req) => {
 
     const formattedPhone = formatPhone(phone);
 
-    const { accepted, deliveryStatus, status, result, resultText } = await sendViaEvolution(formattedPhone, messageText);
+    let identity = String(body.courseName || "");
+    if (bookingId) {
+      const { data: current, error } = await supabase.from("course_bookings")
+        .select("date,time,status,course_status,course_name").eq("id", bookingId).single();
+      if (error || !current) throw new Error("Agendamento não encontrado; envio interrompido.");
+      if (current.status !== "confirmed" || current.course_status === "cancelado") throw new Error("Agendamento cancelado ou não confirmado; envio interrompido.");
+      const time = current.time === "Manhã" ? "08:30" : current.time === "Tarde" ? "14:00" : current.time || "08:30";
+      const starts = Date.parse(`${current.date}T${time}-03:00`);
+      if (["confirmation", "reminder_24h", "reminder_1h"].includes(messageType) && (!Number.isFinite(starts) || starts <= Date.now())) {
+        throw new Error("Aviso expirado; o horário do curso já passou.");
+      }
+      if(current.course_name==='Curso Meta Ads Online'&&['confirmation','reminder_24h','reminder_1h'].includes(messageType)) messageText=onlineCourseMessage(messageText);
+      identity = courseNotificationIdentity(bookingId, current.date, time, current.course_name);
+    } else if (String(messageType).startsWith("support_")) {
+      const supportId = /^Suporte:([0-9a-f-]{36}):/i.exec(String(body.courseName || ""))?.[1];
+      if (!supportId) throw new Error("Identificação do suporte ausente; envio interrompido.");
+      const { data: booking, error } = await supabase.from("support_bookings")
+        .select("booking_date,start_time,status").eq("id", supportId).single();
+      const { data: job } = await supabase.from("support_notification_jobs").select("scheduled_for")
+        .eq("booking_id", supportId).eq("message_type", messageType.slice(8)).maybeSingle();
+      if (error || !booking || !job || booking.status !== "agendado"
+        || supportNotificationExpired(messageType, job.scheduled_for, booking.booking_date, booking.start_time)) {
+        throw new Error("Aviso de suporte expirado ou agendamento encerrado; envio interrompido.");
+      }
+      identity = `${supportId}:${booking.booking_date}:${booking.start_time}`;
+    }
 
-    await supabase.from("whatsapp_message_logs").insert({
+    let manualRetry = false;
+    if (body.retryLogId) {
+      const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
+      const { data: auth, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !auth.user) throw new Error("Entre na sua conta para revisar o reenvio.");
+      const { data: original } = await supabase.from("whatsapp_message_logs").select("status,phone,message_type,booking_id,course_name")
+        .eq("id", body.retryLogId).single();
+      if (!original || original.status !== "error" || original.message_type !== messageType
+        || original.booking_id !== (bookingId || null) || original.course_name !== (body.courseName || "")) {
+        throw new Error("Registro de falha inválido para reenvio.");
+      }
+      manualRetry = true;
+    }
+
+    // Respect deliveries recorded before the atomic dispatch ledger existed.
+    const { data: previous, error: previousError } = await supabase.from("whatsapp_message_logs")
+      .select("status,error_message").eq("phone", formattedPhone).eq("message_type", messageType)
+      .eq("message_text", messageText).in("status", ["sent", "pending", "error"]).order("created_at", { ascending: false }).limit(1000);
+    if (previousError) throw new Error("Não foi possível verificar o histórico; envio interrompido.");
+    if (previous?.some(log => log.status === "sent")) {
+      return new Response(JSON.stringify({ success: true, deduplicated: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (previous?.some(log => log.status === "pending" || /sem confirmação|não confirmad/i.test(log.error_message || ""))) {
+      throw new Error("Envio anterior sem confirmação. Verifique a entrega antes de reenviar.");
+    }
+
+    const { data: team } = await supabase.from("team_members").select("phone");
+    const teamRecipient = (team || []).some(member => formatPhone(String(member.phone || "")) === formattedPhone);
+    const audience = isInternalMessage(messageType) || teamRecipient ? "internal" : "customer";
+    const { accepted, deliveryStatus, status, result, resultText, channel, fallback, definitive, deduplicated } = await sendWhatsAppOnce(supabase, formattedPhone, messageText, audience, messageType, identity, manualRetry);
+    if (!accepted) console.error("WhatsApp delivery was not accepted", { audience, channel, fallback });
+
+    if (!deduplicated) await supabase.from("whatsapp_message_logs").insert({
       booking_id: bookingId || null,
       phone: formattedPhone,
       student_name: body.studentName || "",
@@ -234,11 +194,12 @@ Deno.serve(async (req) => {
       message_type: messageType,
       message_text: messageText,
       status: deliveryStatus,
-      error_message: accepted ? null : buildErrorMessage(status, resultText, result),
+      error_message: accepted ? null : !definitive ? "Envio sem confirmação; verificar entrega antes de reenviar." : buildErrorMessage(status, resultText, result),
       sent_at: deliveryStatus === "sent" ? new Date().toISOString() : null,
     });
 
-    return new Response(JSON.stringify({ success: accepted, status: deliveryStatus, result }), {
+    return new Response(JSON.stringify({ success: accepted, status: deliveryStatus, result, channel, fallback, deduplicated,
+      error: accepted ? undefined : !definitive && !deduplicated ? "Envio sem confirmação; verificar entrega antes de reenviar." : buildErrorMessage(status, resultText, result) }), {
       status: accepted ? 200 : 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

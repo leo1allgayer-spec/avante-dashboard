@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ export interface SocialMediaTask {
   status: SocialMediaStatus;
   dueDate: string;
   commissionPaid: boolean;
+  siteValue: number;
   createdAt: string;
 }
 
@@ -44,6 +45,7 @@ const fromRow = (row: any): SocialMediaTask => ({
   status: row.status,
   dueDate: row.due_date || "",
   commissionPaid: Boolean(row.commission_paid),
+  siteValue: Number(row.site_value || 0),
   createdAt: row.created_at,
 });
 
@@ -51,6 +53,7 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
   const [tasks, setTasks] = useState<SocialMediaTask[]>([]);
   const [stages, setStages] = useState<KanbanStage[]>([]);
   const [loading, setLoading] = useState(true);
+  const taskRequest = useRef(0);
 
   const fetchStages = useCallback(async () => {
     const { data, error } = await supabase
@@ -63,12 +66,14 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
   }, [boardType]);
 
   const fetchTasks = useCallback(async () => {
+    const request = ++taskRequest.current;
     const { data, error } = await supabase
       .from("social_media_kanban_tasks" as any)
       .select("*")
       .eq("board_type", boardType)
       .order("created_at", { ascending: false });
 
+    if (request !== taskRequest.current) return;
     if (error) {
       console.error(error);
       toast.error("Erro ao carregar o Kanban");
@@ -143,6 +148,7 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
       status: task.status,
       due_date: task.dueDate || null,
       commission_paid: task.commissionPaid,
+      site_value: task.siteValue || 0,
       board_type: boardType,
     } as any);
     if (error) return toast.error("Erro ao criar tarefa");
@@ -160,16 +166,24 @@ export function useSocialMediaKanban(boardType: KanbanBoardType = "social_media"
     if (task.status !== undefined) payload.status = task.status;
     if (task.dueDate !== undefined) payload.due_date = task.dueDate || null;
     if (task.commissionPaid !== undefined) payload.commission_paid = task.commissionPaid;
+    if (task.siteValue !== undefined) payload.site_value = Number(task.siteValue || 0);
     const { error } = await supabase.from("social_media_kanban_tasks" as any).update(payload as any).eq("id", id);
     if (error) return toast.error("Erro ao atualizar tarefa");
     setTasks((current) => current.map((item) => item.id === id ? { ...item, ...task } : item));
   };
 
   const deleteTask = async (id: string) => {
-    const { error } = await supabase.from("social_media_kanban_tasks" as any).delete().eq("id", id);
-    if (error) return toast.error("Erro ao excluir tarefa");
+    const { data, error } = await supabase.from("social_media_kanban_tasks" as any)
+      .delete().eq("id", id).eq("board_type", boardType).select("id").maybeSingle();
+    if (error || !data) {
+      toast.error("Não foi possível excluir a tarefa. Verifique sua permissão e tente novamente.");
+      return false;
+    }
+    // Ignore snapshots requested before the deletion was confirmed.
+    taskRequest.current++;
     setTasks((current) => current.filter((item) => item.id !== id));
     toast.success("Tarefa excluída");
+    return true;
   };
 
   return { tasks, stages, loading, addTask, updateTask, deleteTask, addStage, renameStage, deleteStage, moveStage };

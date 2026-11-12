@@ -1,5 +1,34 @@
+import {sendWhatsAppOnce} from "../_shared/whatsapp-dispatch.ts";
+import {sendTaskCompletion} from "../_shared/task-completion-notice.ts";
+import {sendCourseInstructorChange} from "../_shared/course-instructor-change-notice.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.100.0/cors";
+
+async function sendTaskAssignment(req:Request,db:any,body:any){
+ const json=(value:any,status=200)=>new Response(JSON.stringify(value),{status,headers:{...corsHeaders,'Content-Type':'application/json'}});
+ const authorization=req.headers.get('Authorization')||'';
+ const token=authorization.replace(/^Bearer\s+/i,'');const {data:auth,error:authError}=await db.auth.getUser(token);
+ if(authError||!auth?.user)return json({error:'Entre novamente para enviar o aviso.'},401);
+ const userDb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:authorization}}});
+ const {data:task,error}=await userDb.from('tasks').select('*').eq('id',String(body.taskId||'')).maybeSingle();
+ if(error||!task)return json({error:'Tarefa não encontrada ou sem acesso.'},403);
+ if(!task.assignee_id)return json({sent:false,reason:'Tarefa sem responsável.'});
+ const {data:member,error:memberError}=await db.from('task_assignee_directory').select('display_name,phone').eq('member_id',task.assignee_id).single();
+ if(memberError||!member)return json({error:'Responsável não encontrado.'},400);
+ if(!/^55[0-9]{10,11}$/.test(member.phone||''))return json({sent:false,reason:`WhatsApp não cadastrado para ${member.display_name}. A tarefa já está disponível no dashboard.`});
+ const {data:claim,error:claimError}=await db.from('task_assignment_notifications').update({status:'processing',error_message:null}).eq('task_id',task.id).eq('assignee_id',task.assignee_id).eq('assignment_version',task.assignment_version).eq('status','pending').select('id').maybeSingle();
+ if(claimError)return json({error:'Não foi possível reservar o aviso.'},500);
+ if(!claim){const {data:existing}=await db.from('task_assignment_notifications').select('status').eq('task_id',task.id).eq('assignment_version',task.assignment_version).maybeSingle();return json({sent:existing?.status==='sent',reason:existing?.status==='sent'?'Aviso já enviado.':'Aviso já processado ou em processamento.'});}
+ const due=task.due_date?task.due_date.split('-').reverse().join('/'):'Sem prazo definido';
+ const {count}=await db.from('task_attachments').select('id',{count:'exact',head:true}).eq('task_id',task.id);
+ const message=[`📋 Nova tarefa para ${member.display_name}`,`Tarefa: ${task.title}`,`Prioridade: ${task.priority}`,`Entrega: ${due}`,task.description?`Descrição: ${task.description.slice(0,1800)}`:'',count?`Anexos: ${count} (disponíveis no dashboard)`:'',`Abrir tarefa: https://dashboard-avante.pages.dev/gestor-tarefas?task=${task.id}`].filter(Boolean).join('\n');
+ try{
+ const delivery=await sendWhatsAppOnce(db,member.phone,message,'internal','task_assignment',`${task.id}:${task.assignment_version}`);
+ await db.from('task_assignment_notifications').update({status:delivery.accepted?'sent':'error',sent_at:delivery.accepted?new Date().toISOString():null,error_message:delivery.accepted?null:delivery.resultText}).eq('id',claim.id);
+ if(!delivery.deduplicated)await db.from('whatsapp_message_logs').insert({booking_id:null,phone:member.phone,student_name:member.display_name,course_name:task.title,message_type:'task_assignment',message_text:message,status:delivery.accepted?'sent':'error',error_message:delivery.accepted?null:delivery.resultText,sent_at:delivery.accepted?new Date().toISOString():null});
+ return json({sent:delivery.accepted,reason:delivery.accepted?undefined:'O provedor não confirmou o envio do aviso.'});
+ }catch(error){await db.from('task_assignment_notifications').update({status:'error',error_message:String(error)}).eq('id',claim.id);return json({error:'Tarefa salva, mas o aviso não foi confirmado.'},500);}
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -13,6 +42,9 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
+    if(body.action==='course_instructor_change')return await sendCourseInstructorChange(req,supabase,body,sendWhatsAppOnce);
+    if(body.action==='task_completion')return await sendTaskCompletion(req,supabase,body,authorization=>createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:authorization}}}),sendWhatsAppOnce);
+    if(body.action==='task_assignment')return await sendTaskAssignment(req,supabase,body);
     const { bookingId, rescheduled = false } = body;
 
     if (!bookingId) {
@@ -95,7 +127,7 @@ Deno.serve(async (req) => {
             studentName: booking.student_name,
             courseName: booking.course_name,
           }),
-          signal: AbortSignal.timeout(12000),
+          signal: AbortSignal.timeout(90000),
         });
 
         if (response.ok) sentMessageTypes.add(messageType);
@@ -111,22 +143,16 @@ Deno.serve(async (req) => {
       confirmationSent = await sendMessageNow("confirmation");
     }
 
-    // Notify the Google Ads instructor with operational schedule data only.
+    // Reuse the internal instructor notice type, now routing Meta to its saved teacher.
     let googleManagerNotified = sentMessageTypes.has("google_manager_notification");
-    if (!googleManagerNotified && String(booking.course_name || "").toLowerCase().includes("google ads")) {
-      const [bookingYear, bookingMonth, bookingDay] = booking.date.split("-");
-      const bookingTime = booking.time === "Manhã" ? "08:30" : booking.time === "Tarde" ? "14:00" : booking.time;
-      const googleManagerText = [
-        "📢 Novo curso de Google Ads marcado",
-        `Data: ${bookingDay}/${bookingMonth}/${bookingYear}`,
-        `Horário: ${bookingTime}`,
-        "Consulte o dashboard para ver os detalhes do agendamento.",
-      ].join("\n");
-      googleManagerNotified = await sendMessageNow(
-        "google_manager_notification",
-        "555197152836",
-        googleManagerText,
-      );
+    const teacherPhone = booking.instructor === 'Nicolas' ? '5551998119283' : booking.instructor === 'Henrique' ? '555197152836' : null;
+    const isMeta = ['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online'].includes(booking.course_name);
+    const recipient = isMeta ? teacherPhone : String(booking.course_name || '').toLowerCase().includes('google ads') ? '555197152836' : null;
+    if (!googleManagerNotified && recipient) {
+      const [year,month,day]=booking.date.split('-');
+      const time=booking.time==='Manhã'?'08:30':booking.time==='Tarde'?'14:00':booking.time;
+      const notice=[`📢 ${rescheduled?'Curso reagendado':'Novo curso marcado'}`,`Professor: ${isMeta?booking.instructor:'Henrique'}`,`Curso: ${booking.course_name}`,`Aluno: ${booking.student_name}`,`Data: ${day}/${month}/${year}`,`Horário: ${time}`,'Consulte o dashboard para ver os detalhes do agendamento.'].join('\n');
+      googleManagerNotified=await sendMessageNow('google_manager_notification',recipient,notice);
     }
     // 2. Schedule future messages
     // Parse course date and time, adjusting for BRT (UTC-3)
@@ -175,12 +201,6 @@ Deno.serve(async (req) => {
     }
 
     const scheduledMessages = [
-      ...(!confirmationSent ? [{
-        booking_id: bookingId,
-        message_type: "confirmation",
-        scheduled_for: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
-        status: "pending",
-      }] : []),
       {
         booking_id: bookingId,
         message_type: "reminder_24h",
@@ -224,6 +244,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
+      confirmationSent,
       scheduled: validMessages.length,
       reminder24hSentImmediately,
       googleManagerNotified,

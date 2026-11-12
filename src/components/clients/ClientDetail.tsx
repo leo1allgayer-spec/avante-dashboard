@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { ClientWeeklyPerformance } from "./ClientWeeklyPerformance";
+import { useAuth } from "@/hooks/useAuth";
+import { isClientProfileEditor } from "@/lib/accessControl";
+import { useState, useEffect, useRef } from "react";
+import ClientContractLifecycle from "./ClientContractLifecycle";
 import { Client, getAlertStatus, getRetentionMonths, formatCurrency, getMonthlyContractValue, getTotalContractValue, MANAGERS } from "@/types/clients/client";
 import { StatusIndicator } from "@/components/clients/StatusIndicator";
 import { Button } from "@/components/ui/button";
@@ -8,6 +12,29 @@ import { ArrowLeft, Instagram, Plus, Building2, User, Calendar, DollarSign, Copy
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientReports } from "@/components/clients/ClientReports";
+import { ClientMetaAds } from "@/components/clients/ClientMetaAds";
+import { ClientChangeHistory } from "./ClientChangeHistory";
+
+const InfoCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
+      {children}
+    </div>
+  );
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className="space-y-1">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <div>{children}</div>
+    </div>
+  );
+
+function BalanceNoteInput({value, save}: {value:string; save:(value:string)=>void}) {
+  const [draft, setDraft] = useState(value);
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setDraft(value); }, [value]);
+  return <Input aria-label="Observação do Saldo" value={draft} onFocus={() => {focused.current=true;}} onChange={e => setDraft(e.target.value)} onBlur={() => {focused.current=false; if (draft !== value) save(draft);}} onKeyDown={e => {if (e.key === "Enter") e.currentTarget.blur();}} className="bg-input border-border" placeholder="Ex: R$2.000 adicionado" />;
+}
 
 interface ClientDetailProps {
   client: Client;
@@ -18,6 +45,10 @@ interface ClientDetailProps {
 }
 
 export function ClientDetail({ client, onBack, onUpdate, hideContractValues = false, managerOptions = MANAGERS }: ClientDetailProps) {
+  const { session } = useAuth();
+  const weeklyAllowed = ["digitalavante3@gmail.com", "nicolaspatzlaff02@gmail.com", "lucadsilva666@gmail.com", "leonardowebster.ja@gmail.com", "emanoelbull@gmail.com"].includes((session?.user.email || "").trim().toLowerCase());
+  const hideInternalFinancial = isClientProfileEditor(session?.user);
+  hideContractValues = hideContractValues || hideInternalFinancial;
   const [noteText, setNoteText] = useState("");
 
   const updateField = (field: keyof Client, value: any) => {
@@ -43,22 +74,10 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
     await navigator.clipboard.writeText(intakeUrl);
   };
 
-  const InfoCard = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div className="bg-card rounded-lg border border-border p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
-      {children}
-    </div>
-  );
-
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="space-y-1">
-      <label className="text-xs text-muted-foreground">{label}</label>
-      <div>{children}</div>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
+      <ClientContractLifecycle key={client.id} client={client} onUpdate={onUpdate}/>
+      <ClientChangeHistory clientId={client.id} />
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={onBack}>
@@ -104,9 +123,10 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
       </div>
 
       <Tabs defaultValue="cadastro" className="space-y-4">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="cadastro">Cadastro e contrato</TabsTrigger>
-          <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
+          <TabsTrigger value="relatorios">Relatórios de anúncios</TabsTrigger>
+          {weeklyAllowed && <TabsTrigger value="semanal">Resultados semanais</TabsTrigger>}
         </TabsList>
         <TabsContent value="cadastro">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -123,15 +143,16 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
               <Field label="Gestor responsável"><Select value={client.manager} onValueChange={(v) => updateField("manager", v)}><SelectTrigger className="bg-input border-border"><SelectValue /></SelectTrigger><SelectContent>{managerOptions.map((manager) => <SelectItem key={manager} value={manager}>{manager}</SelectItem>)}</SelectContent></Select></Field>
               <Field label="Tipos de serviços a serem prestados"><Textarea value={client.servicesDescription || ""} onChange={(e) => updateField("servicesDescription", e.target.value)} className="bg-input border-border min-h-20" placeholder="Descreva todos os serviços contratados" /></Field>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Tempo de contrato (meses)"><Input type="number" min={1} value={client.contractMonths} onChange={(e) => updateField("contractMonths", Math.max(1, Number(e.target.value)))} className="bg-input border-border" /></Field>
+                {!hideInternalFinancial && <Field label="Tempo de contrato (meses)"><Input type="number" min={1} value={client.contractMonths} onChange={(e) => updateField("contractMonths", Math.max(1, Number(e.target.value)))} className="bg-input border-border" /></Field>}
                 {!hideContractValues && <Field label="Valor do contrato"><Input type="number" min={0} step="0.01" value={client.contractValue} onChange={(e) => updateField("contractValue", Number(e.target.value))} className="bg-input border-border" /></Field>}
-                <Field label="Data de vencimento"><Input type="date" value={client.dueDate || ""} onChange={(e) => updateField("dueDate", e.target.value)} className="bg-input border-border" /></Field>
-                <Field label="Forma de pagamento"><Input value={client.paymentMethod || ""} onChange={(e) => updateField("paymentMethod", e.target.value)} className="bg-input border-border" placeholder="PIX, boleto, cartão..." /></Field>
+                {!hideInternalFinancial && <Field label="Data de vencimento"><Input type="date" value={client.dueDate || ""} onChange={(e) => updateField("dueDate", e.target.value)} className="bg-input border-border" /></Field>}
+                {!hideInternalFinancial && <Field label="Forma de pagamento"><Input value={client.paymentMethod || ""} onChange={(e) => updateField("paymentMethod", e.target.value)} className="bg-input border-border" placeholder="PIX, boleto, cartão..." /></Field>}
               </div>
             </InfoCard>
           </div>
         </TabsContent>
-        <TabsContent value="relatorios"><ClientReports clientId={client.id} /></TabsContent>
+        <TabsContent value="relatorios" className="space-y-4"><ClientMetaAds key={client.id} clientId={client.id} clientName={client.company || client.name} /><ClientReports clientId={client.id} historyOnly /></TabsContent>
+        {weeklyAllowed && <TabsContent value="semanal"><ClientWeeklyPerformance key={client.id} clientId={client.id} /></TabsContent>}
       </Tabs>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -187,6 +208,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
               className="bg-input border-border"
             />
           </Field>
+          {!hideInternalFinancial && <>
           <Field label="Dia de Pagamento">
             <Input
               type="number"
@@ -205,6 +227,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
               className="bg-input border-border"
             />
           </Field>
+          </>}
         </InfoCard>
 
         {/* Operations */}
@@ -221,12 +244,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
             </div>
           </Field>
           <Field label="Observação do Saldo">
-            <Input
-              value={client.balanceNote}
-              onChange={(e) => updateField("balanceNote", e.target.value)}
-              className="bg-input border-border"
-              placeholder="Ex: R$2.000 adicionado"
-            />
+            <BalanceNoteInput key={client.id} value={client.balanceNote} save={value => updateField("balanceNote",value)} />
           </Field>
           <Field label="Último Relatório">
             <div className="flex items-center gap-2">
@@ -253,7 +271,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
         </InfoCard>
 
         {/* Resumo */}
-        <InfoCard title="Resumo Financeiro">
+        {!hideInternalFinancial &&         <InfoCard title="Resumo Financeiro">
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-secondary rounded-lg p-3 text-center">
               <div className="text-xs text-muted-foreground">Orçamento</div>
@@ -272,7 +290,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
               <div className="text-lg font-bold text-primary">{retention} meses</div>
             </div>
           </div>
-        </InfoCard>
+        </InfoCard>}
       </div>
 
       {/* Notes */}
@@ -304,3 +322,4 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+import { useAgendaBlocks } from "@/hooks/clients/useAgendaBlocks";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/hooks/clients/useGestaoAuth";
 import { useTasks } from "@/hooks/clients/useTasks";
@@ -32,6 +33,7 @@ const FullTasks = () => {
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks();
   const { members, loading: membersLoading, addMember, updateMember, deleteMember } = useTeamMembers();
   const { meetings, loading: meetingsLoading, syncing: meetingsSyncing, refreshMeetings, addMeeting, updateMeeting, deleteMeeting } = useMeetings();
+  const { blocks: agendaBlocks, loading: blocksLoading, currentUserId, deleteBlock } = useAgendaBlocks();
   const { clients: metaClients, loading: metaClientsLoading } = useClients("meta_ads");
   const { clients: googleClients, loading: googleClientsLoading } = useClients("google_ads");
   const meetingClientNames = useMemo(() => [...new Set([...metaClients, ...googleClients].map((client) => client.name).filter(Boolean))].sort(), [metaClients, googleClients]);
@@ -43,7 +45,7 @@ const FullTasks = () => {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
 
-  const loading = tasksLoading || membersLoading || meetingsLoading || metaClientsLoading || googleClientsLoading;
+  const loading = tasksLoading || membersLoading || meetingsLoading || blocksLoading || metaClientsLoading || googleClientsLoading;
 
   const { signOut: signOutMain } = useMainAuth();
   const location = useLocation();
@@ -67,8 +69,8 @@ const FullTasks = () => {
 
   return (
     <DashboardLayout
-      title="Gestão de Tarefas"
-      subtitle="Organização de tarefas, equipe e reuniões"
+      title={location.pathname === "/reunioes" ? "Agenda Closer" : "Gestão de Tarefas"}
+      subtitle={location.pathname === "/reunioes" ? "Reuniões comerciais, resultados e próximos passos" : "Organização de tarefas, equipe e reuniões"}
       contentClassName="max-w-[96rem]"
     >
         <Tabs key={initialTab} defaultValue={initialTab} className="space-y-6">
@@ -83,7 +85,7 @@ const FullTasks = () => {
               <RefreshCw className="h-3.5 w-3.5" /> Diárias
             </TabsTrigger>
             <TabsTrigger value="meetings" className="h-9 gap-1.5 px-3">
-              <CalendarDays className="h-3.5 w-3.5" /> Reuniões
+              <CalendarDays className="h-3.5 w-3.5" /> Agenda Closer
             </TabsTrigger>
             <TabsTrigger value="team" className="h-9 gap-1.5 px-3">
               <Users2 className="h-3.5 w-3.5" /> Equipe
@@ -100,6 +102,7 @@ const FullTasks = () => {
             <TabsTrigger value="curso-meta" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Meta Ads
             </TabsTrigger>
+            <TabsTrigger value="curso-meta-online" className="h-9 gap-1.5 px-3"><GraduationCap className="h-3.5 w-3.5" /> Meta Online</TabsTrigger>
             <TabsTrigger value="curso-meta-avancado" className="h-9 gap-1.5 px-3">
               <GraduationCap className="h-3.5 w-3.5" /> Meta Avançado
             </TabsTrigger>
@@ -226,6 +229,9 @@ const FullTasks = () => {
           <TabsContent value="meetings">
             <MeetingsSection
               meetings={meetings.filter((meeting) => !meeting.agendaCategory || meeting.agendaCategory === "reunioes")}
+              blocks={agendaBlocks.filter(block => block.agendaCategory === "reunioes" || block.agendaCategory === "geral")}
+              currentUserId={currentUserId}
+              onDeleteBlock={deleteBlock}
               members={members}
               clientNames={meetingClientNames}
               onAdd={addMeeting}
@@ -257,6 +263,7 @@ const FullTasks = () => {
           <TabsContent value="curso-meta">
             <CourseSection courseType="meta_ads" />
           </TabsContent>
+          <TabsContent value="curso-meta-online"><CourseSection courseType="meta_ads_online" /></TabsContent>
           <TabsContent value="curso-meta-avancado">
             <CourseSection courseType="meta_ads_advanced" />
           </TabsContent>
@@ -283,11 +290,20 @@ const FullTasks = () => {
 
 const GoogleTasksOnly = () => (
   <DashboardLayout
-    title="Gestão Google Ads"
-    subtitle="Agenda e organização dos cursos de Google Ads"
+    title="Cursos Google e Meta Ads"
+    subtitle="Agenda dos cursos de Google Ads, Meta Ads básico e avançado"
     contentClassName="max-w-[96rem]"
   >
-    <CourseSection courseType="google" />
+    <Tabs defaultValue="google" className="space-y-4">
+      <TabsList className="flex h-auto flex-wrap justify-start gap-1">
+        <TabsTrigger value="google">Google Ads</TabsTrigger>
+        <TabsTrigger value="meta">Meta Ads básico</TabsTrigger>
+        <TabsTrigger value="meta-avancado">Meta Ads avançado</TabsTrigger>
+      </TabsList>
+      <TabsContent value="google"><CourseSection courseType="google" /></TabsContent>
+      <TabsContent value="meta"><CourseSection courseType="meta_ads" /></TabsContent>
+      <TabsContent value="meta-avancado"><CourseSection courseType="meta_ads_advanced" /></TabsContent>
+    </Tabs>
   </DashboardLayout>
 );
 

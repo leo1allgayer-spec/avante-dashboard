@@ -1,3 +1,8 @@
+import {COURSE_NAMES_BY_TYPE,findCourse} from '@/constants/courseCatalog';
+import { saveCourseStudent } from "@/lib/saveCourseStudent";
+import {transferCourseInstructor} from '@/lib/transferCourseInstructor';
+import {studentCourseIdentity} from '@/lib/surveyCourseOptions';
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, addWeeks, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -6,12 +11,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Loader2, GraduationCap, ChevronLeft, ChevronRight, X, Users, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+
+const financialEmails = new Set(["digitalavante3@gmail.com", "nicolaspatzlaff02@gmail.com", "lucadsilva666@gmail.com", "leonardowebster.ja@gmail.com"]);
+const paymentKey = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\bde\b/g, " ").replace(/\bmidia\b/g, "media").replace(/\s+/g, " ").trim();
+type CoursePayment = { student_name: string; course_name: string; remaining: number | null };
 
 interface AllEnrollment {
   id: string;
@@ -23,10 +35,13 @@ interface AllEnrollment {
   email: string;
   instagram: string;
   certificateName: string;
+  certificateReady: boolean;
   date: string;
   time: string;
   courseType: string;
+  instructor?: string;
   courseStatus?: string;
+  bookingStatus?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -37,55 +52,69 @@ const STATUS_COLORS: Record<string, string> = {
   "faltou": "bg-orange-500/15 text-orange-400 border-orange-500/30",
 };
 
-const COURSE_LABELS: Record<string, string> = {
-  google: "Google Ads",
-  social_media: "Social Media",
-  meta_ads: "Meta Ads",
-  meta_ads_advanced: "Meta Avançado",
-  canva: "Canva",
-  ia: "IA",
-  video: "Vídeo",
-};
+const COURSE_LABELS:Record<string,string> = COURSE_NAMES_BY_TYPE;
 
 const COURSE_COLORS: Record<string, string> = {
   google: "bg-blue-500/15 text-blue-400 border-blue-500/30",
   social_media: "bg-pink-500/15 text-pink-400 border-pink-500/30",
   meta_ads: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
+  meta_ads_online: "bg-teal-500/15 text-teal-400 border-teal-500/30",
   meta_ads_advanced: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   canva: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
   ia: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   video: "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
-const COURSE_TYPE_TO_NAME: Record<string, string> = {
-  google: "Curso Google Ads",
-  social_media: "Curso Social Media",
-  meta_ads: "Curso Meta Ads",
-  meta_ads_advanced: "Curso Meta Ads Avançado",
-  canva: "Curso Canva",
-  ia: "Curso Inteligência Artificial",
-  video: "Curso Captação e Edição de Vídeo",
-};
-
-const COURSE_NAME_TO_TYPE: Record<string, string> = {
-  "Curso Google Ads": "google",
-  "Curso Social Media": "social_media",
-  "Curso Meta Ads": "meta_ads",
-  "Curso Meta Ads Avançado": "meta_ads_advanced",
-  "Curso Canva": "canva",
-  "Curso Inteligência Artificial": "ia",
-  "Curso Captação e Edição de Vídeo": "video",
-};
+const COURSE_TYPE_TO_NAME:Record<string,string> = COURSE_NAMES_BY_TYPE;
+const courseTypeFromName=(name:string)=>findCourse(name)?.id||'other';
 
 const emptyForm = { studentName: "", contact: "", email: "", instagram: "", date: "", time: "" };
 
 export function AllCoursesSection() {
+  const { session } = useAuth();
+  const canSeePayments = financialEmails.has((session?.user.email || "").toLowerCase());
+  const payments = useQuery({
+    queryKey: ["course-payment-summary", session?.user.id],
+    enabled: canSeePayments,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("course_payment_summary");
+      if (error) throw error;
+      return data as CoursePayment[];
+    },
+  });
+  const paymentLabel = (enrollment: AllEnrollment) => {
+    if (payments.isPending) return "Carregando pagamento…";
+    if (payments.isError) return "Pagamento indisponível";
+    const matches = (payments.data || []).filter((p) => paymentKey(p.student_name) === paymentKey(enrollment.studentName) && studentCourseIdentity(p.course_name) === studentCourseIdentity(COURSE_TYPE_TO_NAME[enrollment.courseType] || enrollment.courseType));
+    if (matches.length !== 1 || matches[0].remaining === null) return "Pagamento não identificado";
+    const remaining = Number(matches[0].remaining);
+    return remaining === 0 ? "Pago integralmente" : `Falta pagar ${remaining.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`;
+  };
   const [enrollments, setEnrollments] = useState<AllEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { locale: ptBR }));
   const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date());
+  const [savingEdit, setSavingEdit] = useState(false);
   const [editing, setEditing] = useState<AllEnrollment | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [changingInstructor,setChangingInstructor]=useState<AllEnrollment|null>(null);
+  const [selectedInstructorBookings,setSelectedInstructorBookings]=useState<string[]>([]);
+  const [nextInstructor,setNextInstructor]=useState('');
+  const [savingInstructor,setSavingInstructor]=useState(false);
+  const [instructorError,setInstructorError]=useState('');
+  const shiftKey=(time:string)=>/^(manhã|manha)$/i.test(time.trim())||(/^\d{2}:\d{2}/.test(time.trim())&&Number(time.trim().slice(0,2))<12)?'Manhã':'Tarde';
+  const instructorClass=changingInstructor?enrollments.filter(row=>row.bookingId&&row.bookingStatus==='confirmed'&&row.courseType===changingInstructor.courseType&&row.date===changingInstructor.date&&shiftKey(row.time)===shiftKey(changingInstructor.time)&&row.instructor===changingInstructor.instructor&&!['cancelado','concluído','concluido','realizado','faltou'].includes(row.courseStatus||'')):[];
+  const saveInstructor=async()=>{
+    if(!changingInstructor?.bookingId||!nextInstructor||savingInstructor||!selectedInstructorBookings.length)return;
+    setSavingInstructor(true);setInstructorError('');
+    try{
+      const result=await transferCourseInstructor(supabase,selectedInstructorBookings[0],nextInstructor,changingInstructor.instructor,changingInstructor.date,changingInstructor.time,selectedInstructorBookings);
+      if(result.warning)toast.warning('Professor alterado; aviso não confirmado',{description:result.warning});
+      else toast.success(result.changed?`Professor alterado para ${nextInstructor}. Aviso enviado por WhatsApp.`:'A turma já está com esse professor.');
+      setChangingInstructor(null);await fetchAll();
+    }catch(error){setInstructorError(error instanceof Error?error.message:'Não foi possível trocar o professor.');}
+    finally{setSavingInstructor(false);}
+  };
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -93,7 +122,7 @@ export function AllCoursesSection() {
       supabase.from("course_enrollments").select("*").order("date", { ascending: false }),
       supabase
         .from("course_bookings")
-        .select("id,student_name,course_name,date,time,course_status,email,phone,instagram,certificate_name")
+        .select("id,student_name,course_name,date,time,course_status,status,email,phone,instagram,certificate_name,certificate_ready,instructor")
         .order("date", { ascending: false }),
     ]);
     if (error && bookingsError) {
@@ -107,35 +136,40 @@ export function AllCoursesSection() {
       toast.warning("Alguns agendamentos podem não ter carregado");
     }
 
-      const statusMap = new Map<string, string>();
-      const certificateMap = new Map<string, string>();
+      const bookingMap = new Map<string, any>();
       (bookings || []).forEach((b: any) => {
-        const t = COURSE_NAME_TO_TYPE[b.course_name] || "other";
+        const t = courseTypeFromName(b.course_name);
         const key = `${b.student_name}|${t}|${b.date}|${b.time}`;
-        statusMap.set(key, b.course_status);
-        certificateMap.set(key, b.certificate_name || b.student_name || "");
+        bookingMap.set(key, b);
       });
-      const enrollmentRows: AllEnrollment[] = (data || []).map((r: any) => ({
-        id: r.id,
-        enrollmentId: r.id,
-        source: "enrollment",
-        studentName: r.student_name,
-        contact: r.contact || "",
-        email: r.email || "",
-        instagram: r.instagram || "",
-        certificateName: certificateMap.get(`${r.student_name}|${r.course_type}|${r.date}|${r.time}`) || r.student_name || "",
-        date: r.date || "",
-        time: r.time || "",
-        courseType: r.course_type,
-        courseStatus: statusMap.get(`${r.student_name}|${r.course_type}|${r.date}|${r.time}`),
-      }));
+      const enrollmentRows: AllEnrollment[] = (data || []).map((r: any) => {
+        const booking = bookingMap.get(`${r.student_name}|${r.course_type}|${r.date}|${r.time}`);
+        return {
+          id: r.id,
+          enrollmentId: r.id,
+          bookingId: booking?.id,
+          source: "enrollment",
+          studentName: r.student_name,
+          contact: r.contact || "",
+          email: r.email || "",
+          instagram: r.instagram || "",
+          certificateName: booking?.certificate_name || r.student_name || "",
+          certificateReady: Boolean(booking?.certificate_ready ?? r.certificate_ready),
+          date: r.date || "",
+          time: r.time || "",
+          courseType: r.course_type,
+          courseStatus: booking?.course_status,
+          bookingStatus: booking?.status,
+          instructor: booking?.instructor || undefined,
+        };
+      });
 
       const enrollmentKeys = new Set(
         enrollmentRows.map(e => `${e.studentName.trim().toLowerCase()}|${e.courseType}|${e.date}|${e.time}`)
       );
       const bookingRows: AllEnrollment[] = (bookings || [])
         .map((b: any) => {
-          const courseType = COURSE_NAME_TO_TYPE[b.course_name] || "other";
+          const courseType = courseTypeFromName(b.course_name);
           return {
             id: `booking:${b.id}`,
             bookingId: b.id,
@@ -145,10 +179,13 @@ export function AllCoursesSection() {
             email: b.email || "",
             instagram: b.instagram || "",
             certificateName: b.certificate_name || b.student_name || "",
+            certificateReady: Boolean(b.certificate_ready),
             date: b.date || "",
             time: b.time || "",
             courseType,
+            instructor: b.instructor || undefined,
             courseStatus: b.course_status || "a confirmar",
+            bookingStatus: b.status,
           };
         })
         .filter((b: AllEnrollment) => {
@@ -208,6 +245,24 @@ export function AllCoursesSection() {
     fetchAll();
   };
 
+  const handleCertificateReady = async (enrollment: AllEnrollment, checked: boolean) => {
+    setEnrollments((current) => current.map((item) => item.id === enrollment.id ? { ...item, certificateReady: checked } : item));
+    const updates: Array<PromiseLike<{ error: unknown }>> = [];
+    if (enrollment.enrollmentId) {
+      updates.push(supabase.from("course_enrollments").update({ certificate_ready: checked }).eq("id", enrollment.enrollmentId));
+    }
+    if (enrollment.bookingId) {
+      updates.push(supabase.from("course_bookings").update({ certificate_ready: checked }).eq("id", enrollment.bookingId));
+    }
+    const results = await Promise.all(updates);
+    if (results.some((result) => result.error)) {
+      setEnrollments((current) => current.map((item) => item.id === enrollment.id ? { ...item, certificateReady: !checked } : item));
+      toast.error("Não foi possível atualizar o certificado");
+      return;
+    }
+    toast.success(checked ? "Certificado marcado como pronto" : "Certificado marcado como pendente");
+  };
+
   const openEdit = (e: AllEnrollment) => {
     setEditing(e);
     setForm({
@@ -221,65 +276,17 @@ export function AllCoursesSection() {
   };
 
   const handleSaveEdit = async () => {
-    if (!editing || !form.studentName.trim()) return;
-    if (editing.source === "booking" && editing.bookingId) {
-      const { error } = await supabase
-        .from("course_bookings")
-        .update({
-          student_name: form.studentName,
-          phone: form.contact,
-          email: form.email,
-          instagram: form.instagram,
-          date: form.date,
-          time: form.time,
-        })
-        .eq("id", editing.bookingId);
-      if (error) {
-        toast.error("Erro ao atualizar agendamento");
-        return;
-      }
-      toast.success("Agendamento atualizado");
+    if (!editing || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      const result = await saveCourseStudent(supabase, editing, form);
+      if (result.warning) toast.warning(result.warning);
+      else toast.success(result.rescheduled ? "Nova data salva e enviada pelo WhatsApp" : "Aluno atualizado");
       setEditing(null);
-      fetchAll();
-      return;
-    }
-
-    const { error } = await supabase
-      .from("course_enrollments")
-      .update({
-        student_name: form.studentName,
-        contact: form.contact,
-        email: form.email,
-        instagram: form.instagram,
-        date: form.date,
-        time: form.time,
-      })
-      .eq("id", editing.id);
-    if (error) {
-      toast.error("Erro ao atualizar inscrição");
-      return;
-    }
-    // Also update the matching course_booking (match by original values)
-    const courseName = COURSE_TYPE_TO_NAME[editing.courseType];
-    if (courseName) {
-      await supabase
-        .from("course_bookings")
-        .update({
-          student_name: form.studentName,
-          phone: form.contact,
-          email: form.email,
-          instagram: form.instagram,
-          date: form.date,
-          time: form.time,
-        })
-        .eq("course_name", courseName)
-        .eq("student_name", editing.studentName)
-        .eq("date", editing.date)
-        .eq("time", editing.time);
-    }
-    toast.success("Aluno atualizado");
-    setEditing(null);
-    fetchAll();
+      await fetchAll();
+    } catch (error) {
+      toast.error("Erro ao atualizar aluno", { description: error instanceof Error ? error.message : "Tente novamente." });
+    } finally { setSavingEdit(false); }
   };
 
   const enrollmentsByDate = useMemo(() => {
@@ -399,18 +406,22 @@ export function AllCoursesSection() {
               <div className="space-y-2">
                 {selectedEnrollments.map((e) => (
                   <div key={e.id} className="flex flex-col sm:flex-row gap-2 sm:gap-3 md:gap-4 p-2 sm:p-3 md:p-4 rounded-md bg-muted/50 border">
-                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[100px_1fr_1fr_1.4fr_1fr_1fr_70px_110px] gap-2 sm:gap-2 md:gap-3 text-xs sm:text-sm md:text-sm">
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[90px_1fr_1fr_1.35fr_0.9fr_1fr_90px_100px_100px] gap-2 sm:gap-2 md:gap-3 text-xs sm:text-sm md:text-sm">
                       <div className="min-w-0">
                         <span className="text-muted-foreground text-[10px] sm:text-xs">Curso</span>
                         <div className="mt-0.5">
-                          <Badge variant="outline" className={cn("text-[10px] sm:text-xs md:text-xs", COURSE_COLORS[e.courseType])}>
+                          <Badge variant="outline" className={cn("max-w-full whitespace-normal break-words text-left leading-tight text-[10px] sm:text-xs md:text-xs", COURSE_COLORS[e.courseType])}>
                             {COURSE_LABELS[e.courseType] || e.courseType}
                           </Badge>
+                          {e.instructor && <p className="mt-1 text-xs font-medium text-sky-400">Prof. {e.instructor}</p>}
+                          {canSeePayments&&e.bookingId&&e.bookingStatus==='confirmed'&&['meta_ads','meta_ads_advanced','meta_ads_online','video'].includes(e.courseType)&&!['cancelado','concluído','concluido','realizado','faltou'].includes(e.courseStatus||'')&&<button type="button" className="mt-1 text-left text-[11px] text-primary underline underline-offset-2" onClick={()=>{setChangingInstructor(e);setSelectedInstructorBookings([e.bookingId!]);setNextInstructor(e.instructor||'');setInstructorError('');}} aria-label={`Trocar professor da turma de ${e.studentName}`}>Trocar professor</button>}
+                          {e.courseType === 'meta_ads_online' && <Badge variant="outline" className="mt-1 border-teal-500/40 bg-teal-500/15 text-teal-400 text-[10px] sm:text-xs">Online</Badge>}
                         </div>
                       </div>
                       <div className="min-w-0">
                         <span className="text-muted-foreground text-[10px] sm:text-xs">Aluno</span>
                         <p className="font-medium break-words md:leading-tight">{e.studentName}</p>
+                        {canSeePayments && <p className={cn("mt-1 text-xs font-semibold", paymentLabel(e) === "Pago integralmente" ? "text-emerald-400" : "text-amber-400")}>{paymentLabel(e)}</p>}
                       </div>
                       <div className="min-w-0">
                         <span className="text-muted-foreground text-[10px] sm:text-xs">Contato</span>
@@ -455,6 +466,19 @@ export function AllCoursesSection() {
                           )}
                         </div>
                       </div>
+                      <div className="min-w-0">
+                          <span className="text-muted-foreground text-[10px] sm:text-xs">Certificado pronto</span>
+                          <label className="mt-1 flex cursor-pointer items-center gap-2">
+                            <Checkbox
+                              checked={e.certificateReady}
+                              onCheckedChange={(checked) => handleCertificateReady(e, checked === true)}
+                              aria-label={`Certificado de ${e.studentName} pronto`}
+                            />
+                            <span className={cn("text-xs font-medium", e.certificateReady ? "text-emerald-400" : "text-muted-foreground")}>
+                              {e.certificateReady ? "Pronto" : "Pendente"}
+                            </span>
+                          </label>
+                        </div>
                     </div>
                     <div className="flex items-center justify-end sm:justify-start gap-1 shrink-0 ml-auto">
                       <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8" onClick={() => openEdit(e)}>
@@ -472,8 +496,22 @@ export function AllCoursesSection() {
         )}
       </CardContent>
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+      <Dialog open={!!changingInstructor} onOpenChange={open=>{if(!open&&!savingInstructor)setChangingInstructor(null);}}>
+        <DialogContent data-lenis-prevent className="max-h-[90dvh] overflow-y-auto"><DialogHeader><DialogTitle>Trocar professor dos alunos selecionados</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm">{COURSE_LABELS[changingInstructor?.courseType||'']} · {changingInstructor?.date.split('-').reverse().join('/')} · {changingInstructor?shiftKey(changingInstructor.time):''}</p>
+            <p className="text-sm text-muted-foreground">Professor atual: <strong>{changingInstructor?.instructor||'Não definido'}</strong>. Selecione os alunos que deseja transferir.</p>
+            <div className="space-y-2"><Button variant="outline" size="sm" disabled={savingInstructor} onClick={()=>setSelectedInstructorBookings(selectedInstructorBookings.length===instructorClass.length?[]:instructorClass.map(row=>row.bookingId!))}>{selectedInstructorBookings.length===instructorClass.length?"Desmarcar todos":"Selecionar todos"}</Button><div className="max-h-48 overflow-y-auto space-y-2">{instructorClass.map(row=><label key={row.id} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={savingInstructor} checked={selectedInstructorBookings.includes(row.bookingId!)} onChange={event=>setSelectedInstructorBookings(ids=>event.target.checked?[...ids,row.bookingId!]:ids.filter(id=>id!==row.bookingId))}/>{row.studentName}</label>)}</div><p className="text-xs text-muted-foreground">{selectedInstructorBookings.length} aluno(s) selecionado(s). Os demais continuam com o professor atual.</p></div>
+            <label className="block text-sm font-medium" htmlFor="new-course-instructor">Novo professor</label>
+            <Select value={nextInstructor} onValueChange={setNextInstructor} disabled={savingInstructor}><SelectTrigger id="new-course-instructor"><SelectValue placeholder="Selecione o professor"/></SelectTrigger><SelectContent><SelectItem value="Nicolas">Nicolas</SelectItem>{changingInstructor?.courseType!=="video"&&<SelectItem value="Henrique">Henrique</SelectItem>}</SelectContent></Select>
+            <p className="text-xs text-muted-foreground">O novo professor precisa estar disponível neste curso, dia e turno. Após salvar, ele receberá o aviso por WhatsApp com curso, data, horário e apenas os alunos selecionados.</p>
+            {instructorError&&<p role="alert" className="text-sm text-destructive">{instructorError}</p>}
+          </div>
+          <DialogFooter><Button variant="outline" disabled={savingInstructor} onClick={()=>setChangingInstructor(null)}>Cancelar</Button><Button disabled={savingInstructor||!selectedInstructorBookings.length||!nextInstructor||nextInstructor===changingInstructor?.instructor} onClick={saveInstructor}>{savingInstructor?'Salvando e avisando…':'Salvar e avisar professor'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!editing} onOpenChange={(open) => !open && !savingEdit && setEditing(null)}>
+        <DialogContent data-lenis-prevent className="course-student-edit max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y">
           <DialogHeader>
             <DialogTitle>Editar Aluno</DialogTitle>
           </DialogHeader>
@@ -499,7 +537,7 @@ export function AllCoursesSection() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Data</label>
-                <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                <Input aria-label="Data do curso" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Horário</label>
@@ -508,11 +546,13 @@ export function AllCoursesSection() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
-            <Button onClick={handleSaveEdit}>Salvar</Button>
+            <Button variant="outline" disabled={savingEdit} onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button disabled={savingEdit} onClick={handleSaveEdit}>{savingEdit ? "Salvando…" : "Salvar"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
   );
 }
+
+

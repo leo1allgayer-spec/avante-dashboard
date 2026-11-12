@@ -22,7 +22,7 @@ export interface Task {
   userId: string;
 }
 
-export type AgendaCategory = "reunioes" | "captacao" | "social_media";
+export type AgendaCategory = "reunioes" | "captacao" | "social_media" | "geral";
 
 export interface AgendaBlock {
   id: string;
@@ -38,15 +38,19 @@ export interface AgendaBlock {
 }
 
 export interface Meeting {
+  recurrence?: import("@/lib/captureRecurrence").CaptureRecurrence;
   id: string;
   agendaCategory?: AgendaCategory;
   title: string;
   meetingType?: string;
   clientName?: string;
+  clientPhone?: string;
+  notifyClient?: boolean;
   date: string;
   time: string;
   durationMinutes?: number;
   responsible?: string;
+  responsibles?: string[];
   professional?: string;
   participants: string[];
   description: string;
@@ -54,7 +58,7 @@ export interface Meeting {
   outcome: "positive" | "negative" | null;
   origin: string;
   service: string;
-  modality: "presencial" | "online";
+  modality: "presencial" | "online" | "nao_informado";
   hasClosed: boolean;
   closingStatus?: "pending" | "closed" | "not_closed";
   objection?: string;

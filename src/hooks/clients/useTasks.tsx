@@ -1,3 +1,4 @@
+import {uploadTaskFile} from "@/lib/taskAttachments";
 import { useState, useEffect, useCallback } from "react";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { useAuth } from "./useGestaoAuth";
@@ -68,8 +69,14 @@ export function useTasks() {
     };
   }, [session?.user?.id, fetchTasks]);
 
-  const addTask = async (task: Omit<Task, "id" | "createdAt" | "startedAt" | "completedAt" | "userId">) => {
-    if (!session?.user?.id) return;
+  const notifyAssignment = async(taskId:string)=>{
+    try { const {data,error}=await supabase.functions.invoke('whatsapp-trigger',{body:{action:'task_assignment',taskId}});
+    if(error||data?.error||!data?.sent)toast.warning('Tarefa salva; aviso por WhatsApp não confirmado',{description:data?.error||data?.reason||'Confira o telefone do responsável.'});
+    }catch{toast.warning('Tarefa salva; não foi possível confirmar o aviso por WhatsApp.');}
+  };
+
+  const addTask = async (task: Omit<Task, "id" | "createdAt" | "startedAt" | "completedAt" | "userId">, files:File[] = []) => {
+    if (!session?.user?.id) throw new Error("Sessão expirada. Entre novamente.");
     const { data, error } = await supabase
       .from("tasks" as any)
       .insert({
@@ -86,14 +93,21 @@ export function useTasks() {
       .single();
 
     if (error) {
-      toast.error("Erro ao criar tarefa");
+      throw new Error(error.message || "Erro ao criar tarefa");
     } else {
       setTasks((prev) => [rowToTask(data), ...prev]);
+      const failed:string[]=[];
+      for(const file of files){try{await uploadTaskFile(supabase,(data as any).id,session.user.id,file);}catch{failed.push(file.name);}}
       toast.success("Tarefa criada!");
+      if(failed.length)toast.warning("Alguns anexos não foram enviados",{description:failed.join(', ')+'. Abra a tarefa para anexá-los novamente.'});
+      if(task.assigneeId)await notifyAssignment((data as any).id);
+      return rowToTask(data);
     }
   };
 
   const updateTask = async (task: Task) => {
+    const previousStatus=tasks.find(item=>item.id===task.id)?.status;
+    const previousAssignee=tasks.find(item=>item.id===task.id)?.assigneeId;
     const now = new Date().toISOString();
     const updates: any = {
       title: task.title,
@@ -126,15 +140,23 @@ export function useTasks() {
       task = { ...task, startedAt: null, completedAt: null };
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("tasks" as any)
       .update(updates)
-      .eq("id", task.id);
+      .eq("id", task.id).select().single();
 
     if (error) {
       toast.error("Erro ao atualizar tarefa");
     } else {
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? rowToTask(data) : t)));
+      if(task.assigneeId && previousAssignee!==task.assigneeId)await notifyAssignment(task.id);
+      if(task.status==='Concluída'&&previousStatus!=='Concluída'){
+        try{
+          const {data:notice,error:noticeError}=await supabase.functions.invoke('whatsapp-trigger',{body:{action:'task_completion',taskId:task.id}});
+          if(noticeError||!notice?.sent)toast.warning('Tarefa concluída; aviso ao solicitante não confirmado',{description:notice?.reason||notice?.error||'Confira o WhatsApp de quem solicitou.'});
+          else toast.success('Tarefa concluída! Quem solicitou foi avisado por WhatsApp.');
+        }catch{toast.warning('Tarefa concluída; não foi possível confirmar o aviso ao solicitante.');}
+      }
     }
   };
 

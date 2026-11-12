@@ -1,3 +1,4 @@
+import {courseDisplayName} from '@/constants/courseCatalog';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -36,12 +37,17 @@ export interface SurveyResponse {
   nota_indicacao: number | null;
   roleta_girada: boolean | null;
   bonus_roleta: string | null;
+  support_group_created: boolean;
+  aluno_futuro_id?: string | null;
+  aluno_futuro_item?: string | null;
   created_at: string;
 }
 
 export function useSurveyResponses() {
   return useQuery({
     queryKey: ["survey-responses"],
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
     queryFn: async () => {
       const pageSize = 1000;
       const allRows: SurveyResponse[] = [];
@@ -59,7 +65,29 @@ export function useSurveyResponses() {
         if (rows.length < pageSize) break;
       }
 
-      return allRows;
+      return allRows.map(row=>({...row,curso_realizado:row.curso_realizado?courseDisplayName(row.curso_realizado):row.curso_realizado}));
+    },
+  });
+}
+
+export function useSurveyResponseCount(since: string, until: string) {
+  return useQuery({
+    queryKey: ["survey-response-count", since, until],
+    enabled: Boolean(since && until),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    queryFn: async () => {
+      const [year, month, day] = until.split("-").map(Number);
+      const nextDate = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+      const start = new Date(`${since}T00:00:00-03:00`).toISOString();
+      const end = new Date(`${nextDate}T00:00:00-03:00`).toISOString();
+      const { count, error } = await supabase
+        .from("survey_responses")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", start)
+        .lt("created_at", end);
+      if (error) throw error;
+      return count || 0;
     },
   });
 }
@@ -80,6 +108,7 @@ export function useUpdateSurveyResponse() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["survey-responses"] });
       qc.invalidateQueries({ queryKey: ["survey-insights"] });
+      qc.invalidateQueries({ queryKey: ["survey-response-count"] });
     },
   });
 }
@@ -94,6 +123,7 @@ export function useDeleteSurveyResponse() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["survey-responses"] });
       qc.invalidateQueries({ queryKey: ["survey-insights"] });
+      qc.invalidateQueries({ queryKey: ["survey-response-count"] });
     },
   });
 }

@@ -1,9 +1,10 @@
+import {COURSE_CATALOG} from '@/constants/courseCatalog';
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
-import { useCursosDados, useCreateCursoDado, useDeleteCursoDado, useUpdateCursoDado, type CursoDado } from "@/hooks/useCursosDados";
+import { useCursosDados, useCreateCursoDado, useDeleteCursoDado, useUpdateCursoDado, getCourseInstructor, getCourseInstructorOptions, type CursoDado } from "@/hooks/useCursosDados";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -19,16 +20,7 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 
-const TIPOS_CURSO = [
-  "Curso de Meta Ads",
-  "Curso de Google Ads",
-  "Curso de TikTok Ads",
-  "Curso de YouTube Ads",
-  "Curso de Social Media",
-  "Curso de Edição e Captação de Vídeos",
-  "Curso de Inteligência Artificial",
-  "Curso Canva para Empreendedores",
-];
+const TIPOS_CURSO=COURSE_CATALOG.map(course=>course.name);
 
 const CHART_COLORS = [
   "hsl(270, 70%, 60%)",
@@ -49,7 +41,15 @@ const formatBRL = (v: number) =>
 const CursosDadosPage = () => {
   const { data: allCursos = [], isLoading } = useCursosDados();
   const dateFilter = useLocalDateFilter();
-  const cursos = dateFilter.filterByDate(allCursos);
+  const [courseFilter, setCourseFilter] = useState("todos");
+  const courseOptions = useMemo(
+    () => [...new Set([...TIPOS_CURSO, ...allCursos.map((item) => item.tipo_curso).filter(Boolean)])].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [allCursos],
+  );
+  const cursosNoPeriodo = dateFilter.filterByDate(allCursos);
+  const cursos = courseFilter === "todos"
+    ? cursosNoPeriodo
+    : cursosNoPeriodo.filter((item) => item.tipo_curso === courseFilter);
   const createCurso = useCreateCursoDado();
   const deleteCurso = useDeleteCursoDado();
   const updateCurso = useUpdateCursoDado();
@@ -120,7 +120,7 @@ const CursosDadosPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session?.user?.id) return;
+    if (!session?.user?.id || !form.instrutor || !form.tipo_curso) return;
     createCurso.mutate(
       { user_id: session.user.id, ...form },
       {
@@ -180,12 +180,12 @@ const CursosDadosPage = () => {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">Instrutor</Label>
-                    <Input value={form.instrutor} onChange={(e) => setForm((p) => ({ ...p, instrutor: e.target.value }))} required placeholder="Quem deu o curso" className="bg-secondary/30 border-border/30" />
+                    <Select value={form.instrutor} onValueChange={(instrutor) => setForm((p) => ({ ...p, instrutor }))}><SelectTrigger><SelectValue placeholder="Selecione o instrutor" /></SelectTrigger><SelectContent>{getCourseInstructorOptions(form.tipo_curso).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent></Select>
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Tipo do Curso</Label>
-                  <Select value={form.tipo_curso} onValueChange={(v) => setForm((p) => ({ ...p, tipo_curso: v }))}>
+                  <Select value={form.tipo_curso} onValueChange={(v) => setForm((p) => ({ ...p, tipo_curso: v, instrutor: getCourseInstructor(v, p.instrutor) }))}>
                     <SelectTrigger className="bg-secondary/30 border-border/30"><SelectValue placeholder="Selecione o curso" /></SelectTrigger>
                     <SelectContent>
                       {TIPOS_CURSO.map((c) => (
@@ -210,7 +210,23 @@ const CursosDadosPage = () => {
           </Dialog>
         }
       >
-        <DateFilterBar mode={dateFilter.mode} onModeChange={dateFilter.setMode} label={dateFilter.label} onBack={dateFilter.goBack} onForward={dateFilter.goForward} />
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <DateFilterBar mode={dateFilter.mode} onModeChange={dateFilter.setMode} label={dateFilter.label} onBack={dateFilter.goBack} onForward={dateFilter.goForward} />
+          <div className="flex items-center gap-2">
+            <Label className="shrink-0 text-xs text-muted-foreground">Curso dado</Label>
+            <Select value={courseFilter} onValueChange={setCourseFilter}>
+              <SelectTrigger className="w-full border-border/40 bg-card/70 sm:w-[280px]">
+                <SelectValue placeholder="Todos os cursos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os cursos</SelectItem>
+                {courseOptions.map((course) => (
+                  <SelectItem key={course} value={course}>{course}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {/* Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
@@ -317,17 +333,17 @@ const CursosDadosPage = () => {
                   <TableHead className="text-xs font-semibold text-muted-foreground">Tipo do Curso</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground">Nome do Aluno</TableHead>
                   <TableHead className="text-xs font-semibold text-muted-foreground text-right">Comissão Extra</TableHead>
-                  <TableHead className="text-xs font-semibold text-muted-foreground w-10"></TableHead>
+                  <TableHead>Comissão paga</TableHead><TableHead>Data do pagamento</TableHead><TableHead className="text-xs font-semibold text-muted-foreground w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Carregando...</TableCell>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">Carregando...</TableCell>
                   </TableRow>
                 ) : cursos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum curso registrado</TableCell>
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">Nenhum curso registrado</TableCell>
                   </TableRow>
                 ) : (
                   cursos.map((c) => (
@@ -341,14 +357,13 @@ const CursosDadosPage = () => {
                         />
                       </TableCell>
                       <TableCell className="text-sm p-1">
-                        <Input
-                          defaultValue={c.instrutor}
-                          onBlur={(e) => e.target.value !== c.instrutor && persist(c.id, "instrutor", e.target.value)}
-                          className="h-8 bg-transparent border-transparent hover:border-border/40 focus:border-border text-sm"
-                        />
+                        <Select value={c.instrutor} onValueChange={(value) => value !== c.instrutor && persist(c.id, "instrutor", value)}>
+                          <SelectTrigger aria-label={`Instrutor de ${c.nome_aluno}`} className="h-8 bg-transparent border-transparent hover:border-border/40 focus:border-border text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>{getCourseInstructorOptions(c.tipo_curso).map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
+                        </Select>
                       </TableCell>
                       <TableCell className="text-sm p-1">
-                        <Select value={c.tipo_curso} onValueChange={(v) => v !== c.tipo_curso && persist(c.id, "tipo_curso", v)}>
+                        <Select value={c.tipo_curso} onValueChange={(v) => v !== c.tipo_curso && updateCurso.mutate({ id: c.id, tipo_curso: v, instrutor: getCourseInstructor(v, c.instrutor) }, { onError: (err) => toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" }) })}>
                           <SelectTrigger className="h-8 bg-transparent border-transparent hover:border-border/40 focus:border-border text-sm">
                             <SelectValue />
                           </SelectTrigger>
@@ -378,6 +393,8 @@ const CursosDadosPage = () => {
                           className="h-8 bg-transparent border-transparent hover:border-border/40 focus:border-border text-sm text-right font-semibold"
                         />
                       </TableCell>
+                      <TableCell><Input aria-label={'Comissão paga de '+c.nome_aluno} type="number" min="0" step="0.01" defaultValue={c.comissao_paga_valor||0} onBlur={e=>{const v=Number(e.target.value);if(Number.isFinite(v)&&v>=0&&v!==Number(c.comissao_paga_valor||0))persist(c.id,'comissao_paga_valor',v);}} className="h-8 w-32"/></TableCell>
+                      <TableCell><Input aria-label={'Data do pagamento da comissão de '+c.nome_aluno} type="date" defaultValue={c.data_pagamento_comissao||''} onBlur={e=>{if(e.target.value!==(c.data_pagamento_comissao||''))persist(c.id,'data_pagamento_comissao',e.target.value||null);}} className="h-8 w-40 [color-scheme:dark]"/></TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"

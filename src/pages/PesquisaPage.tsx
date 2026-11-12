@@ -1,3 +1,4 @@
+import {SURVEY_COURSE_OPTIONS,surveyCourseOption} from '@/lib/surveyCourseOptions';
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -60,14 +61,7 @@ const FORMA_ATENDIMENTO = [
 const VALOR_CURSO = ["Muito caro", "Preço justo", "Muito barato"];
 const COMMUNITY_GROUP_URL = "https://chat.whatsapp.com/Dv3za8lv0gz1QfU4wgPRj9?s=cl&p=a&ilr=1&amv=2";
 
-const CURSOS_REALIZADOS = [
-  "Curso de Meta Ads",
-  "Curso de Google Ads",
-  "Curso de Social Media",
-  "Curso de Inteligência Artificial",
-  "Curso Canva para Empreendedores",
-  "Curso de Edição e Captação de Vídeos",
-];
+const CURSOS_REALIZADOS = SURVEY_COURSE_OPTIONS;
 
 type FormData = {
   como_conheceu: string;
@@ -219,10 +213,11 @@ const PesquisaPage = () => {
         email: registration.email || current.email,
         instagram: registration.instagram || current.instagram,
         endereco: registration.address || current.endereco,
-        curso_realizado: registration.cursoRealizado || registration.course || current.curso_realizado,
+        curso_realizado: surveyCourseOption(registration.cursoRealizado || registration.course) || current.curso_realizado,
         data_curso: formatLocalDate(new Date()),
       }));
-      setCpfLookupMessage("Cadastro encontrado. Conferimos e preenchemos seus dados automaticamente.");
+      const registeredCourse=surveyCourseOption(registration.cursoRealizado || registration.course);
+      setCpfLookupMessage(registeredCourse?`Cadastro encontrado. Curso cadastrado: ${registeredCourse}. Confira o curso e a data da aula antes de continuar.`:"Cadastro encontrado. Conferimos e preenchemos seus dados automaticamente.");
     } catch {
       setCpfLookupMessage("Não foi possível consultar agora. Você pode preencher os dados manualmente.");
     } finally {

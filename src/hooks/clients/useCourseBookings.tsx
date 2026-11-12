@@ -6,6 +6,7 @@ export interface CourseBooking {
   id: string;
   slotId: string;
   courseName: string;
+  instructor?: string;
   studentName: string;
   email: string;
   phone: string;
@@ -23,6 +24,7 @@ function rowToBooking(r: any): CourseBooking {
     id: r.id,
     slotId: r.slot_id,
     courseName: r.course_name,
+    instructor: r.instructor || undefined,
     studentName: r.student_name,
     email: r.email,
     phone: r.phone,
@@ -40,8 +42,8 @@ export function useCourseBookings(courseName?: string) {
   const [bookings, setBookings] = useState<CourseBooking[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchBookings = useCallback(async () => {
-    setLoading(true);
+  const fetchBookings = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     let query = supabase.from("course_bookings").select("*").order("created_at", { ascending: false });
     if (courseName) query = query.eq("course_name", courseName);
     const { data, error } = await query;
@@ -51,6 +53,14 @@ export function useCourseBookings(courseName?: string) {
   }, [courseName]);
 
   useEffect(() => { fetchBookings(); }, [fetchBookings]);
+  useEffect(() => {
+    const refresh = () => { void fetchBookings(true); };
+    const channel = supabase.channel(`course-booking-completion-${courseName || 'all'}`)
+      .on('postgres_changes', {event:'*',schema:'public',table:'course_bookings'}, refresh).subscribe();
+    const timer = window.setInterval(refresh, 5 * 60_000);
+    window.addEventListener('focus', refresh);
+    return () => { void supabase.removeChannel(channel); window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [courseName,fetchBookings]);
 
   const createBooking = async (b: { slotId: string; courseName: string; studentName: string; email: string; phone: string; date: string; time: string }) => {
     const { data, error } = await supabase
@@ -64,7 +74,8 @@ export function useCourseBookings(courseName?: string) {
   };
 
   const updateBooking = async (id: string, updates: Partial<{ status: string; courseStatus: string; studentName: string; email: string; phone: string; instagram: string; certificateName: string; date: string; courseName: string; time: string }>) => {
-    const wasRescheduled = updates.date !== undefined || updates.courseName !== undefined || updates.time !== undefined;
+    const original=bookings.find(booking=>booking.id===id);
+    const wasRescheduled = (updates.date!==undefined&&updates.date!==original?.date)||(updates.courseName!==undefined&&updates.courseName!==original?.courseName)||(updates.time!==undefined&&updates.time!==original?.time);
     const mapped: any = {};
     if (updates.status !== undefined) mapped.status = updates.status;
     if (updates.courseStatus !== undefined) mapped.course_status = updates.courseStatus;
@@ -98,17 +109,17 @@ export function useCourseBookings(courseName?: string) {
         console.error("Erro ao cancelar avisos da data anterior:", cancelError);
       }
 
-      const { error: scheduleError } = await supabase.functions.invoke("whatsapp-trigger", {
+      const { data: notification, error: scheduleError } = await supabase.functions.invoke("whatsapp-trigger", {
         body: { bookingId: id, rescheduled: true },
       });
 
-      if (scheduleError) {
+      if (scheduleError||notification?.success!==true||notification?.confirmationSent!==true) {
         console.error("Erro ao reagendar avisos do WhatsApp:", scheduleError);
         toast.warning("Data atualizada, mas os avisos não foram reagendados", {
           description: "Tente salvar a nova data novamente ou envie os lembretes manualmente.",
         });
       } else {
-        toast.success("Avisos reagendados para a nova data");
+        toast.success("Nova data salva e confirmação enviada pelo WhatsApp");
       }
     }
     setBookings(prev => prev.map(x => x.id === id ? { ...x, ...updates } : x));
@@ -122,7 +133,7 @@ export function useCourseBookings(courseName?: string) {
     toast.success("Agendamento excluído");
   };
 
-  return { bookings, loading, createBooking, updateBooking, deleteBooking, refetch: fetchBookings };
+  return { bookings, loading, createBooking, updateBooking, deleteBooking, refetch: () => fetchBookings() };
 }
 
 export async function getBookingCountForSlot(slotId: string): Promise<number> {

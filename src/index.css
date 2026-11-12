@@ -260,3 +260,20 @@ html.lenis, html.lenis body {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.15) hsl(var(--background));
 }
+
+/* Native date/time controls must follow the agenda dialog theme. */
+.agenda-block-dialog input:is([type="date"], [type="time"]) {
+  color-scheme: light;
+  min-width: 0;
+}
+.dark .agenda-block-dialog input:is([type="date"], [type="time"]) {
+  color-scheme: dark;
+}
+.agenda-block-dialog input::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  cursor: pointer;
+}
+
+.course-student-edit input[type="date"] { color-scheme: light; min-width: 0; }
+.dark .course-student-edit input[type="date"] { color-scheme: dark; }
+.course-student-edit input::-webkit-calendar-picker-indicator { opacity: 1; cursor: pointer; }

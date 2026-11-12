@@ -1,5 +1,7 @@
+import {SUPPORT_RESPONSIBLES} from '@/lib/supportResponsibles';
+import SupportAvailabilityEditor from "@/components/SupportAvailabilityEditor";
 import { useMemo, useState } from "react";
-import { CalendarCheck2, Check, Clock3, Copy, GraduationCap, Link2, Loader2, Plus, Settings2, Trash2, Users, X } from "lucide-react";
+import { CalendarCheck2, Check, Clock3, Copy, GraduationCap, Link2, Loader2, Pencil, Plus, Settings2, Trash2, Users, X } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import MetricCard from "@/components/MetricCard";
@@ -24,18 +26,38 @@ const addDays = (date: Date, days: number) => { const next = new Date(date); nex
 const formatCpf = (value: string) => value.replace(/\D/g, "").slice(0, 11).replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 
 export default function SupportSchedulePage() {
-  const { data: rules = [], isLoading: loadingRules } = useSupportRules();
+  const { data: rules = [] } = useSupportRules();
+
   const { data: bookings = [], isLoading: loadingBookings } = useSupportBookings();
-  const createRule = useCreateSupportRule();
-  const updateRule = useUpdateSupportRule();
-  const deleteRule = useDeleteSupportRule();
+
+
+
   const updateBooking = useUpdateSupportBooking();
   const createBooking = useCreateSupportBooking();
   const { toast } = useToast();
-  const [weekday, setWeekday] = useState("1");
-  const [startTime, setStartTime] = useState("14:00");
-  const [capacity, setCapacity] = useState("1");
+
+
+
   const [bookingView, setBookingView] = useState<"agendado" | "concluido" | "cancelado">("agendado");
+  const [editing, setEditing] = useState<(typeof bookings)[number] | null>(null);
+  const [editSlot, setEditSlot] = useState("");
+  const saveEdit = async () => {
+    if (!editing || !editing.student_name.trim() || (editing.student_phone || "").replace(/\D/g, "").length < 10) {
+      toast({ title: "Informe nome e telefone válidos", variant: "destructive" }); return;
+    }
+    try {
+      const [date, time] = editSlot.split("|");
+      if (date !== editing.booking_date || time !== editing.start_time) {
+        const { data: slots, error } = await (supabase as any).rpc("list_support_slots", { p_from: date, p_to: date });
+        if (error) throw error;
+        if (!slots?.some((slot: any) => slot.slot_date === date && slot.start_time === time)) throw new Error("Horário indisponível. Selecione outro horário.");
+      }
+      await updateBooking.mutateAsync({ id: editing.id, student_name: editing.student_name.trim(), student_phone: editing.student_phone, modality: editing.modality, notes: editing.notes, booking_date: date, start_time: time });
+      setEditing(null); toast({ title: "Agendamento atualizado" });
+    } catch (error) {
+      toast({ title: "Erro ao salvar", description: String((error as { message?: string })?.message || error), variant: "destructive" });
+    }
+  };
   const [manualOpen, setManualOpen] = useState(false);
   const [manualCpf, setManualCpf] = useState("");
   const [manualName, setManualName] = useState("");
@@ -66,15 +88,6 @@ export default function SupportSchedulePage() {
     toast({ title: "Link da agenda copiado", description: publicLink });
   };
 
-  const addRule = async () => {
-    try {
-      await createRule.mutateAsync({ weekday: Number(weekday), start_time: startTime, capacity: Math.max(1, Number(capacity)) });
-      toast({ title: "Horário adicionado" });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast({ title: "Não foi possível adicionar", description: message.includes("duplicate") ? "Este dia e horário já existem." : message, variant: "destructive" });
-    }
-  };
 
   const changeBookingStatus = async (id: string, status: "agendado" | "concluido" | "cancelado") => {
     try {
@@ -108,7 +121,7 @@ export default function SupportSchedulePage() {
       <MetricCard title="Próximas aulas" value={upcoming.length} icon={<CalendarCheck2 className="h-5 w-5" />} variant="primary" countUp />
       <MetricCard title="Alunos atendidos" value={uniqueStudents} icon={<Users className="h-5 w-5" />} variant="accent" countUp />
       <MetricCard title="Aulas concluídas" value={completed} icon={<GraduationCap className="h-5 w-5" />} variant="success" countUp />
-      <MetricCard title="Horários ativos" value={rules.filter((rule) => rule.active).length} icon={<Clock3 className="h-5 w-5" />} variant="warning" countUp />
+      <MetricCard title="Horários semanais ativos" value={rules.filter((rule) => rule.active).length} icon={<Clock3 className="h-5 w-5" />} variant="warning" countUp />
     </div>
 
     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-xs uppercase tracking-wider text-muted-foreground">Link exclusivo para os alunos</p><p className="mt-1 truncate font-medium">{publicLink}</p></div><Button variant="outline" onClick={copyLink} className="gap-2"><Link2 className="h-4 w-4" /> Copiar</Button></div></div>
@@ -128,18 +141,30 @@ export default function SupportSchedulePage() {
               </div>
             </div>
           </div>
-          <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Horário</TableHead><TableHead>Modalidade</TableHead><TableHead>Aluno</TableHead><TableHead>CPF</TableHead><TableHead>Telefone</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>
-            {loadingBookings ? <TableRow><TableCell colSpan={8} className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></TableCell></TableRow> : visibleBookings.length === 0 ? <TableRow><TableCell colSpan={8} className="py-10 text-center text-muted-foreground">Nenhum agendamento nesta categoria.</TableCell></TableRow> : visibleBookings.map((booking) => <TableRow key={booking.id} className={booking.status === "cancelado" ? "opacity-50" : ""}><TableCell className="font-medium capitalize">{formatDate(booking.booking_date)}</TableCell><TableCell>{formatTime(booking.start_time)}</TableCell><TableCell><Badge variant="outline" className="capitalize">{booking.modality || "presencial"}</Badge></TableCell><TableCell className="font-semibold">{booking.student_name}</TableCell><TableCell>{booking.cpf_limpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</TableCell><TableCell className="whitespace-nowrap">{booking.student_phone || "—"}</TableCell><TableCell><Badge variant={booking.status === "concluido" ? "default" : booking.status === "cancelado" ? "destructive" : "secondary"} className={booking.status === "concluido" ? "bg-success text-success-foreground" : ""}>{booking.status}</Badge></TableCell><TableCell><div className="flex justify-end gap-1">{booking.status !== "concluido" && booking.status !== "cancelado" && <Button size="sm" variant="outline" className="gap-1 text-success" onClick={() => void changeBookingStatus(booking.id, "concluido")}><Check className="h-4 w-4" /> Concluir</Button>}{booking.status !== "cancelado" && <Button size="icon" variant="ghost" className="text-destructive" onClick={() => void changeBookingStatus(booking.id, "cancelado")} title="Cancelar"><X className="h-4 w-4" /></Button>}{booking.status === "cancelado" && <Button size="sm" variant="outline" onClick={() => void changeBookingStatus(booking.id, "agendado")}>Reabrir</Button>}</div></TableCell></TableRow>)}
+          <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Horário</TableHead><TableHead>Modalidade</TableHead><TableHead>Responsáveis</TableHead><TableHead>Aluno</TableHead><TableHead>CPF</TableHead><TableHead>Telefone</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ações</TableHead></TableRow></TableHeader><TableBody>
+            {loadingBookings ? <TableRow><TableCell colSpan={9} className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" /></TableCell></TableRow> : visibleBookings.length === 0 ? <TableRow><TableCell colSpan={9} className="py-10 text-center text-muted-foreground">Nenhum agendamento nesta categoria.</TableCell></TableRow> : visibleBookings.map((booking) => <TableRow key={booking.id} className={booking.status === "cancelado" ? "opacity-50" : ""}><TableCell className="font-medium capitalize">{formatDate(booking.booking_date)}</TableCell><TableCell>{formatTime(booking.start_time)}</TableCell><TableCell><Badge variant="outline" className="capitalize">{booking.modality || "presencial"}</Badge></TableCell><TableCell className="whitespace-nowrap text-xs">{SUPPORT_RESPONSIBLES.map(name=><p key={name}>{name}</p>)}</TableCell><TableCell className="font-semibold">{booking.student_name}</TableCell><TableCell>{booking.cpf_limpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}</TableCell><TableCell className="whitespace-nowrap">{booking.student_phone || "—"}</TableCell><TableCell><Badge variant={booking.status === "concluido" ? "default" : booking.status === "cancelado" ? "destructive" : "secondary"} className={booking.status === "concluido" ? "bg-success text-success-foreground" : ""}>{booking.status}</Badge></TableCell><TableCell><div className="flex justify-end gap-1"><Button size="icon" variant="ghost" title="Editar agendamento" aria-label="Editar agendamento" onClick={() => { setEditing({ ...booking }); setEditSlot(`${booking.booking_date}|${booking.start_time}`); }}><Pencil className="h-4 w-4" /></Button>{booking.status !== "concluido" && booking.status !== "cancelado" && <Button size="sm" variant="outline" className="gap-1 text-success" onClick={() => void changeBookingStatus(booking.id, "concluido")}><Check className="h-4 w-4" /> Concluir</Button>}{booking.status !== "cancelado" && <Button size="icon" variant="ghost" className="text-destructive" onClick={() => void changeBookingStatus(booking.id, "cancelado")} title="Cancelar"><X className="h-4 w-4" /></Button>}{booking.status === "cancelado" && <Button size="sm" variant="outline" onClick={() => void changeBookingStatus(booking.id, "agendado")}>Reabrir</Button>}</div></TableCell></TableRow>)}
           </TableBody></Table></div>
         </div>
       </TabsContent>
 
-      <TabsContent value="config" className="space-y-4">
-        <div className="rounded-xl border border-border/40 bg-card/70 p-5"><h2 className="font-display text-lg font-bold">Adicionar disponibilidade semanal</h2><p className="mt-1 text-sm text-muted-foreground">O horário ficará disponível semanalmente nos próximos 60 dias.</p><div className="mt-4 grid gap-3 sm:grid-cols-[1fr_160px_130px_auto]"><div><Label>Dia da semana</Label><Select value={weekday} onValueChange={setWeekday}><SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger><SelectContent>{WEEKDAYS.map((day, index) => <SelectItem key={day} value={String(index)}>{day}</SelectItem>)}</SelectContent></Select></div><div><Label>Horário</Label><Input className="mt-1.5" type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} /></div><div><Label>Vagas por horário</Label><Input className="mt-1.5" type="number" min="1" max="50" value={capacity} onChange={(event) => setCapacity(event.target.value)} /></div><Button className="mt-auto gap-2" onClick={() => void addRule()} disabled={createRule.isPending}><Plus className="h-4 w-4" /> Adicionar</Button></div></div>
-        <div className="overflow-hidden rounded-xl border border-border/40 bg-card/70"><div className="border-b border-border/40 p-4"><h2 className="font-display text-lg font-bold">Horários configurados</h2></div><Table><TableHeader><TableRow><TableHead>Dia</TableHead><TableHead>Horário</TableHead><TableHead>Vagas</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Ação</TableHead></TableRow></TableHeader><TableBody>{loadingRules ? <TableRow><TableCell colSpan={5} className="py-10 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow> : rules.length === 0 ? <TableRow><TableCell colSpan={5} className="py-10 text-center text-muted-foreground">Nenhum horário configurado.</TableCell></TableRow> : rules.map((rule) => <TableRow key={rule.id}><TableCell className="font-semibold">{WEEKDAYS[rule.weekday]}</TableCell><TableCell>{formatTime(rule.start_time)}</TableCell><TableCell><Input type="number" min="1" max="50" value={rule.capacity} className="h-8 w-20" onChange={(event) => void updateRule.mutateAsync({ id: rule.id, capacity: Math.max(1, Number(event.target.value)) })} /></TableCell><TableCell><Select value={rule.active ? "active" : "inactive"} onValueChange={(value) => void updateRule.mutateAsync({ id: rule.id, active: value === "active" })}><SelectTrigger className="h-8 w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Ativo</SelectItem><SelectItem value="inactive">Pausado</SelectItem></SelectContent></Select></TableCell><TableCell className="text-right"><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remover este horário?</AlertDialogTitle><AlertDialogDescription>Agendamentos já feitos serão preservados, mas novas datas deixarão de aparecer aos alunos.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => void deleteRule.mutateAsync(rule.id)}>Remover</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></TableCell></TableRow>)}</TableBody></Table></div>
-      </TabsContent>
+      <TabsContent value="config" className="space-y-4"><SupportAvailabilityEditor /></TabsContent>
     </Tabs>
 
+    <Dialog open={!!editing} onOpenChange={(open) => { if (!open && !updateBooking.isPending) setEditing(null); }}>
+      <DialogContent><DialogHeader><DialogTitle>Editar agendamento de suporte</DialogTitle><DialogDescription>Atualize os dados e escolha um horário disponível para remarcar.</DialogDescription></DialogHeader>
+        {editing && <div className="grid gap-4">
+          <div><Label htmlFor="edit-support-name">Aluno</Label><Input id="edit-support-name" value={editing.student_name} onChange={e => setEditing({ ...editing, student_name: e.target.value })} /></div>
+          <div><Label htmlFor="edit-support-phone">Telefone</Label><Input id="edit-support-phone" value={editing.student_phone || ""} onChange={e => setEditing({ ...editing, student_phone: e.target.value })} /></div>
+          <div><Label>Modalidade</Label><Select value={editing.modality} onValueChange={(modality: "online" | "presencial") => setEditing({ ...editing, modality })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="presencial">Presencial</SelectItem><SelectItem value="online">Online</SelectItem></SelectContent></Select></div>
+          <div><Label>Data e horário</Label><Select value={editSlot} onValueChange={setEditSlot}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+            <SelectItem value={editing.booking_date + "|" + editing.start_time}>{formatDate(editing.booking_date)} às {formatTime(editing.start_time)} (atual)</SelectItem>
+            {availableSlots.filter(slot => slot.slot_date !== editing.booking_date || slot.start_time !== editing.start_time).map(slot => <SelectItem key={slot.slot_date + slot.start_time} value={slot.slot_date + "|" + slot.start_time}>{formatDate(slot.slot_date)} às {formatTime(slot.start_time)}</SelectItem>)}
+          </SelectContent></Select></div>
+          <div><Label htmlFor="edit-support-notes">Observações</Label><Input id="edit-support-notes" value={editing.notes || ""} onChange={e => setEditing({ ...editing, notes: e.target.value })} /></div>
+        </div>}
+        <DialogFooter><Button variant="outline" disabled={updateBooking.isPending} onClick={() => setEditing(null)}>Cancelar</Button><Button disabled={updateBooking.isPending} onClick={() => void saveEdit()}>{updateBooking.isPending ? "Salvando..." : "Salvar alterações"}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={manualOpen} onOpenChange={setManualOpen}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader><DialogTitle>Adicionar reunião manualmente</DialogTitle><DialogDescription>Use um horário disponível da agenda. O limite de três atendimentos e a capacidade do horário serão validados automaticamente.</DialogDescription></DialogHeader>

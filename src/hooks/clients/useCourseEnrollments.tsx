@@ -1,3 +1,5 @@
+import {findCourse} from '@/constants/courseCatalog';
+import { saveCourseStudent } from '@/lib/saveCourseStudent';
 import { useState, useCallback, useEffect } from "react";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { useAuth } from "@/hooks/clients/useGestaoAuth";
@@ -32,29 +34,9 @@ function rowToEnrollment(r: any): CourseEnrollment {
   };
 }
 
-const normalizeCourseName = (value?: string | null) => (value || "")
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "")
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, " ")
-  .trim();
+const matchesCourseType=(courseName:string,courseType:string)=>findCourse(courseName)?.id===courseType;
 
-const COURSE_NAME_ALIASES: Record<string, string[]> = {
-  google: ["curso google ads", "curso de google ads", "google ads"],
-  social_media: ["curso social media", "curso de social media", "curso social midia", "social media", "social midia"],
-  meta_ads: ["curso meta ads", "curso de meta ads", "curso trafego pago meta ads", "curso de trafego pago meta ads", "meta ads"],
-  meta_ads_advanced: ["curso meta ads avancado", "curso de meta ads avancado", "meta ads avancado", "gestor pro", "curso de trafego gestor pro"],
-  canva: ["curso canva", "curso de canva", "curso canva para empreendedores", "canva"],
-  ia: ["curso inteligencia artificial", "curso de inteligencia artificial", "curso de ia", "curso ia", "inteligencia artificial"],
-  video: ["curso captacao e edicao de video", "curso de captacao e edicao de video", "curso captacao edicao", "captacao e edicao de video"],
-};
-
-const matchesCourseType = (courseName: string, courseType: string) => {
-  const normalized = normalizeCourseName(courseName);
-  return (COURSE_NAME_ALIASES[courseType] || []).some((alias) => normalizeCourseName(alias) === normalized);
-};
-
-export function useCourseEnrollments(courseType: "google" | "social_media" | "meta_ads" | "meta_ads_advanced" | "canva" | "ia" | "video") {
+export function useCourseEnrollments(courseType: "google" | "social_media" | "meta_ads" | "meta_ads_advanced" | "meta_ads_online" | "canva" | "ia" | "video") {
   const { session } = useAuth();
   const [enrollments, setEnrollments] = useState<CourseEnrollment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,23 +107,12 @@ export function useCourseEnrollments(courseType: "google" | "social_media" | "me
 
   const updateEnrollment = async (e: CourseEnrollment) => {
     if (e.source === "booking" && e.bookingId) {
-      const { error } = await supabase
-        .from("course_bookings")
-        .update({
-          student_name: e.studentName,
-          phone: e.contact,
-          email: e.email,
-          instagram: e.instagram,
-          date: e.date,
-          time: e.time,
-        })
-        .eq("id", e.bookingId);
-      if (error) {
-        toast.error("Erro ao atualizar agendamento");
-      } else {
-        setEnrollments((prev) => prev.map((x) => (x.id === e.id ? e : x)));
-        toast.success("Agendamento atualizado");
-      }
+      const original=enrollments.find(item=>item.id===e.id)||e;
+      try{
+        const result=await saveCourseStudent(supabase,{id:e.id,bookingId:e.bookingId,source:'booking',date:original.date,time:original.time},{studentName:e.studentName,contact:e.contact,email:e.email,instagram:e.instagram,date:e.date,time:e.time});
+        setEnrollments(prev=>prev.map(x=>x.id===e.id?e:x));
+        if(result.warning)toast.warning(result.warning);else toast.success(result.rescheduled?'Nova data salva e enviada pelo WhatsApp':'Agendamento atualizado');
+      }catch(error){toast.error(error instanceof Error?error.message:'Erro ao atualizar agendamento');}
       return;
     }
 
@@ -190,6 +161,7 @@ export function useCourseEnrollments(courseType: "google" | "social_media" | "me
         meta_ads: "Curso Meta Ads",
         canva: "Curso Canva",
         meta_ads_advanced: "Curso Meta Ads Avançado",
+        meta_ads_online: "Curso Meta Ads Online",
         ia: "Curso Inteligência Artificial",
         video: "Curso Captação e Edição de Vídeo",
       };

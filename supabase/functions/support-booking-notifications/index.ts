@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
+import { supportNotificationExpired } from "../_shared/whatsapp-delivery-policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,11 +31,22 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
+    const { data: leonardo } = await supabase.from("team_members").select("phone")
+      .eq("name", "Leonardo Allgayer").maybeSingle();
+    const leonardoPhone = String(leonardo?.phone || "").trim();
+
+    const { data: emanoel } = await supabase.from("team_members").select("phone")
+      .eq("name", "Emanoel Bull").order("created_at", { ascending: true }).limit(1).maybeSingle();
+    const emanoelPhone = String(emanoel?.phone || "").trim();
+    const { data: kauan } = await supabase.from("team_members").select("phone")
+      .eq("name", "Kauan").order("created_at", { ascending: true }).limit(1).maybeSingle();
+    const kauanPhone = String(kauan?.phone || "").trim();
 
     let query = supabase
       .from("support_notification_jobs")
-      .select("id,booking_id,message_type,attempts")
+      .select("id,booking_id,message_type,attempts,scheduled_for")
       .eq("status", "pending")
+      .eq("attempts", 0)
       .lte("scheduled_for", new Date().toISOString())
       .order("scheduled_for", { ascending: true })
       .limit(50);
@@ -45,11 +57,25 @@ Deno.serve(async (req) => {
 
     let sent = 0;
     for (const job of jobs || []) {
+      if (job.message_type.startsWith("admin_emanoel_") && !emanoelPhone) {
+        continue;
+      }
+      if (job.message_type.startsWith("admin_kauan_") && !kauanPhone) {
+        continue;
+      }
+      // A missing team phone must not create failed sends or consume the job.
+      if (job.message_type === "admin_leonardo_reminder_1h" && !leonardoPhone) {
+        if (Date.now() - Date.parse(job.scheduled_for) > 15 * 60_000) {
+          await supabase.from("support_notification_jobs").update({ status: "cancelled", last_error: "Lembrete expirado sem telefone cadastrado para Leonardo Allgayer." }).eq("id", job.id).eq("status", "pending");
+        }
+        continue;
+      }
       const { data: claimed } = await supabase
         .from("support_notification_jobs")
         .update({ status: "processing", attempts: Number(job.attempts || 0) + 1 })
         .eq("id", job.id)
         .eq("status", "pending")
+        .eq("attempts", 0)
         .select("id")
         .maybeSingle();
       if (!claimed) continue;
@@ -61,8 +87,8 @@ Deno.serve(async (req) => {
           .eq("id", job.booking_id)
           .single();
         if (bookingError || !booking) throw new Error("Agendamento não encontrado");
-        if (booking.status !== "agendado") {
-          await supabase.from("support_notification_jobs").update({ status: "cancelled" }).eq("id", job.id);
+        if (booking.status !== "agendado" || supportNotificationExpired(job.message_type, job.scheduled_for, booking.booking_date, booking.start_time)) {
+          await supabase.from("support_notification_jobs").update({ status: "cancelled", last_error: "Aviso expirado ou agendamento encerrado; não reenviar." }).eq("id", job.id);
           continue;
         }
 
@@ -85,11 +111,11 @@ Deno.serve(async (req) => {
           message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte foi agendada com sucesso.", `📅 ${when}`, `📍 Modalidade: ${modality}`, "", "Você receberá outro aviso 1 hora antes."].join("\n");
         } else if (job.message_type === "student_reminder_1h") {
           message = [`Olá, ${booking.student_name}! 👋`, "", "Sua aula de suporte começa em 1 hora.", `📅 ${when}`, `📍 Modalidade: ${modality}`, "", "Até breve!"].join("\n");
-        } else if (job.message_type === "admin_reminder_1h") {
-          phone = NICOLAS_PHONE;
+        } else if (["admin_reminder_1h", "admin_leonardo_reminder_1h", "admin_emanoel_reminder_1h", "admin_kauan_reminder_1h"].includes(job.message_type)) {
+          phone = job.message_type === "admin_emanoel_reminder_1h" ? emanoelPhone : job.message_type === "admin_kauan_reminder_1h" ? kauanPhone : job.message_type === "admin_leonardo_reminder_1h" ? leonardoPhone : NICOLAS_PHONE;
           message = ["⏰ Aula de suporte em 1 hora", "", "Aluno: " + booking.student_name, "Telefone: " + studentPhone, "Data: " + when, "Modalidade: " + modality].join("\n");
         } else {
-          phone = NICOLAS_PHONE;
+          phone = job.message_type === "admin_emanoel_notice" ? emanoelPhone : job.message_type === "admin_kauan_notice" ? kauanPhone : NICOLAS_PHONE;
           message = ["🔔 Nova aula de suporte agendada", "", `Aluno: ${booking.student_name}`, `Telefone: ${studentPhone}`, `Data: ${when}`, `Modalidade: ${modality}`].join("\n");
         }
 
@@ -103,9 +129,10 @@ Deno.serve(async (req) => {
             studentName: booking.student_name,
             courseName: `Suporte:${booking.id}:${job.message_type}`,
           }),
+          signal: AbortSignal.timeout(90000),
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || result?.success === false) throw new Error(result?.error || "Falha no envio do WhatsApp");
+        if (!response.ok || result?.success !== true) throw new Error(result?.error || "Envio não confirmado; revisar antes de reenviar.");
 
         await supabase.from("support_notification_jobs").update({
           status: "sent", sent_at: new Date().toISOString(), last_error: null,
@@ -113,7 +140,7 @@ Deno.serve(async (req) => {
         sent += 1;
       } catch (error) {
         await supabase.from("support_notification_jobs").update({
-          status: "pending",
+          status: "error",
           last_error: error instanceof Error ? error.message : String(error),
         }).eq("id", job.id);
       }

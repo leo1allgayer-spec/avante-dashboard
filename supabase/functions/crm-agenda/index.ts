@@ -1,3 +1,8 @@
+import { crmModality } from "../_shared/crm-modality.ts";
+import { crmContactPhone } from "../_shared/crm-contact.ts";
+import { crmResponsibleName } from "../_shared/crm-responsible.ts";
+import { selectedCallTotals } from "../_shared/crm-calls.ts";
+import { resolveCrmResponsible } from "../_shared/crm-assignment.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -167,6 +172,24 @@ const splitDateTime = (row: JsonObject) => {
 const normalizeAppointment = (row: JsonObject, index: number) => {
   const relatedRecords = collectRelatedRecords(row);
   const contact = asObject(row.contact ?? row.lead ?? row.customer ?? row.client);
+  const rawLeadSummary = row.lead_summary ?? contact.lead_summary;
+  const leadSummary = asObject(rawLeadSummary);
+  const hasLeadSummary = rawLeadSummary !== null && typeof rawLeadSummary === "object" && !Array.isArray(rawLeadSummary);
+  const leadSummaryLines = hasLeadSummary
+    ? [
+        ["Sócios", leadSummary.socios],
+        ["Tipo de negócio", leadSummary.tipo_negocio],
+        ["Faturamento", leadSummary.faturamento],
+        ["Interesse (curso/assessoria)", leadSummary.interesse],
+      ].map(([label, value]) => {
+        const displayed = value === null || value === undefined || String(value).trim() === ""
+          ? "Não informado"
+          : typeof value === "boolean"
+            ? (value ? "Sim" : "Não")
+            : String(value).trim();
+        return `${label}: ${displayed}`;
+      })
+    : [];
   const participant = asObject(row.participant ?? row.person ?? row.prospect);
   const owner = asObject(row.owner ?? row.user ?? row.assignee ?? row.responsible);
   const professional = asObject(row.professional ?? row.agent ?? row.attendant);
@@ -199,17 +222,21 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
   return {
     id: `crm:${id}`,
     externalId: id,
+    leadId: linkedLeadIdentifier(row),
+    createdAt: firstString(row, ['created_at', 'createdAt']),
     title,
     meetingType: firstString(row, ["appointment_type", "meeting_type", "type"]) || "reuniao",
     clientName: personName || title,
+    clientPhone: crmContactPhone(row, [contact, participant, ...relatedRecords]),
+    notifyClient: row.notify_client !== false,
     date,
     time,
     durationMinutes: Number(row.duration_minutes ?? row.duration ?? 60) || 60,
-    agendaCategory: "reunioes",
-    responsible: "Leonardo Webster",
+    agendaCategory: crmResponsibleName(row).trim().toLowerCase().replace(/\s+/g, ' ') === 'leonardo webster' && ["reuniao","reuniao_vendas","reuniao_cliente"].includes(firstString(row, ["appointment_type", "meeting_type", "type"]) || "reuniao") ? 'reunioes' : 'geral',
+    responsible: crmResponsibleName(row),
     professional: firstString(professional, ["name", "full_name"]),
     participants: [...new Set(participantNames)],
-    description: firstString(row, ["description", "notes", "note", "details"]),
+    description: [firstString(row, ["description", "notes", "note", "details"]), ...leadSummaryLines].filter(Boolean).join("\n"),
     status: ["cancelled", "canceled", "cancelado", "cancelada"].includes(statusRaw)
       ? "cancelled"
       : ["completed", "done", "finished", "realizado", "realizada", "concluido", "concluído", "concluida", "concluída"].includes(statusRaw)
@@ -218,7 +245,7 @@ const normalizeAppointment = (row: JsonObject, index: number) => {
     outcome: null,
     origin: firstString(row, ["origin", "source"]) || "CRM",
     service: firstString(row, ["service_name", "service"]) || firstString(serviceRecord, ["name", "title"]),
-    modality: firstString(row, ["modality", "type", "location_type"]).toLowerCase().includes("online") ? "online" : "presencial",
+    modality: crmModality(row),
     hasClosed: Boolean(row.has_closing) || firstString(row, ["closing_status"]) === "closed",
     closingStatus: firstString(row, ["closing_status"]) || (Boolean(row.has_closing) ? "closed" : "pending"),
     objection: firstString(row, ["objection", "objection_reason", "lost_reason"]),
@@ -231,10 +258,54 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("SOLAIRE_API_KEY")?.trim();
-    if (!apiKey) throw new Error("SOLAIRE_API_KEY não configurada.");
     const body = await request.json().catch(() => ({}));
     const action = typeof body?.action === "string" ? body.action : "list";
+    if (action === 'set_closing') {
+      const {createClient}=await import('https://esm.sh/@supabase/supabase-js@2.100.0');
+      const db=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const token=(request.headers.get('Authorization')||'').replace(/^Bearer /,'');
+      const {data:{user},error:authError}=await db.auth.getUser(token);
+      if(authError||!user)return new Response(JSON.stringify({error:'Entre novamente para salvar.'}),{status:401,headers:{...corsHeaders,'Content-Type':'application/json'}});
+      const status=String(body.closingStatus||'');
+      const objection=String(body.objection||'').trim();
+      if(!['pending','closed','not_closed'].includes(status)||objection.length>5000||status==='not_closed'&&!objection)throw new Error('Informe o fechamento e o motivo quando não fechou.');
+      let lookup=db.from('meetings').select('id,user_id,agenda_category');
+      if(body.externalId)lookup=lookup.eq('external_id',String(body.externalId));
+      else lookup=lookup.eq('id',String(body.meetingId));
+      const {data:record,error:lookupError}=await lookup.maybeSingle();
+      if(lookupError)throw lookupError;
+      if(!record)throw new Error('A reunião ainda não foi sincronizada. Atualize a agenda e tente novamente.');
+      const managers=['digitalavante3@gmail.com','nicolaspatzlaff02@gmail.com','lucadsilva666@gmail.com','leonardowebster.ja@gmail.com','abreuconsultoriaempresarial@gmail.com'];
+      const email=(user.email||'').toLowerCase();
+      const social=['beatrizfsavante@gmail.com','avantegabriela51@gmail.com'].includes(email);
+      const allowed=record.user_id===user.id||managers.includes(email)||social&&['geral','captacao'].includes(record.agenda_category);
+      if(!allowed)return new Response(JSON.stringify({error:'Seu perfil não pode alterar o fechamento desta reunião.'}),{status:403,headers:{...corsHeaders,'Content-Type':'application/json'}});
+      const {data:saved,error:saveError}=await db.from('meetings').update({closing_status:status,has_closing:status==='closed',objection:status==='not_closed'?objection:''}).eq('id',record.id).select('id,closing_status,has_closing,objection').single();
+      if(saveError)throw saveError;
+      return new Response(JSON.stringify({ok:true,meeting:saved}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
+    }
+    const apiKey = Deno.env.get("SOLAIRE_API_KEY")?.trim();
+    if (!apiKey) throw new Error("SOLAIRE_API_KEY não configurada.");
+    if (action === 'calls') {
+      const fetchPeriod = async (period:string) => {
+        const response = await fetch(`${CRM_BASE_URL}/calls?period=${period}`, {headers:{Authorization:`Bearer ${apiKey}`,Accept:'application/json'}});
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error?.message || `CRM HTTP ${response.status} ao consultar ligações`);
+        return { sellers: selectedCallTotals(result), period: result.period };
+      };
+      const [today,month] = await Promise.all([fetchPeriod('today'),fetchPeriod('month')]);
+      return new Response(JSON.stringify({today,month}), {headers:{...corsHeaders,'Content-Type':'application/json'}});
+    }
+    if (["create", "update"].includes(action)) {
+      const meeting = asObject(body.meeting);
+      const category = firstString(meeting,["agendaCategory","agenda_category"]);
+      const type = firstString(meeting,["meetingType","meeting_type"]) || "reuniao";
+      const title = firstString(meeting,["title"]).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+      const importedGeneralUpdate = action === 'update' && firstString(meeting, ['origin']).toUpperCase() === 'CRM' && Boolean(firstString(meeting, ['externalId', 'external_id']));
+      if (!importedGeneralUpdate && (category !== "reunioes" || type !== "reuniao_vendas" || /\b(interna|interno|internas|internos)\b/.test(title))) {
+        return new Response(JSON.stringify({error:"Somente reuniões da Agenda Closer podem ser enviadas ao CRM."}),{status:400,headers:{...corsHeaders,"Content-Type":"application/json"}});
+      }
+    }
     const since = typeof body?.since === "string" ? body.since : "";
     const until = typeof body?.until === "string" ? body.until : "";
     const buildQuery = (page: number, dateStyle: "start" | "range" | "from" | "none" = "start") => {
@@ -271,8 +342,9 @@ Deno.serve(async (request) => {
     let bestRowCount = -1;
     const errors: string[] = [];
     const attempts: Array<Record<string, unknown>> = [];
-    for (const endpoint of ["appointments", "commitments", "agenda", "calendar", "schedules"]) {
-      for (const dateStyle of ["start", "range", "from", "none"] as const) {
+    // A integração Solaire utiliza /agenda. Não sondar rotas inexistentes a cada atualização.
+    for (const endpoint of ["agenda"]) {
+      for (const dateStyle of ["start"] as const) {
         const response = await fetch(`${CRM_BASE_URL}/${endpoint}?${buildQuery(1, dateStyle).toString()}`, {
           headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
         });
@@ -343,6 +415,14 @@ Deno.serve(async (request) => {
       if (!isCreate && !externalId) throw new Error("Identificador do compromisso não informado.");
       const target = `${CRM_BASE_URL}/${selectedEndpoint}${isCreate ? "" : `/${encodeURIComponent(externalId)}`}`;
       const isDelete = action === "delete";
+      let assignedTo: string | null = null;
+      if (!isDelete) {
+        const teamResponse = await fetch(`${CRM_BASE_URL}/calls?period=today`, {headers:{Authorization:`Bearer ${apiKey}`,Accept:'application/json'}});
+        const teamResult = await teamResponse.json().catch(() => null);
+        if (!teamResponse.ok || !Array.isArray(teamResult?.data)) throw new Error('Não foi possível consultar os responsáveis do CRM');
+        assignedTo = resolveCrmResponsible(teamResult.data, crmPayload.responsible);
+        Object.assign(crmPayload, {assigned_to:assignedTo});
+      }
       const headers = {
         Authorization: `Bearer ${apiKey}`,
         Accept: "application/json",
@@ -374,9 +454,8 @@ Deno.serve(async (request) => {
         };
         const updateAttempts = [
           { method: "PATCH", payload: crmPayload },
-          { method: "PATCH", payload: schedulePayload },
+          { method: "PATCH", payload: { ...schedulePayload, assigned_to: assignedTo } },
           { method: "PUT", payload: crmPayload },
-          { method: "PUT", payload: schedulePayload },
         ];
         let lastResponse: Response | null = null;
         let lastResult: unknown = null;
@@ -390,12 +469,17 @@ Deno.serve(async (request) => {
         response = lastResponse!;
         result = lastResult;
       }
-      if (!response.ok) {
+      if (!response.ok && !(isDelete && [404, 410].includes(response.status))) {
         const resultObject = asObject(result);
         const nestedErrors = asObject(resultObject.errors);
         const apiMessage = firstString(resultObject, ["message", "error", "detail"])
           || Object.values(nestedErrors).flat().filter((value) => typeof value === "string").join("; ");
         throw new Error(apiMessage || `CRM HTTP ${response.status} ao ${isDelete ? "excluir" : isCreate ? "criar" : "editar"} compromisso.`);
+      }
+      if (!isDelete) {
+        const rootResult = asObject(result);
+        const saved = asObject(rootResult.data ?? rootResult.appointment ?? rootResult);
+        if (!Object.prototype.hasOwnProperty.call(saved, 'assigned_to') || (saved.assigned_to ?? null) !== assignedTo) throw new Error('O CRM não confirmou a alteração do responsável. Atualize a agenda e tente novamente.');
       }
       return new Response(JSON.stringify({ ok: true, appointment: result }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -414,23 +498,27 @@ Deno.serve(async (request) => {
     const totalPages = hasDeclaredTotal
       ? Math.min(Math.max(totalPagesRaw, 1), 100)
       : bestRowCount >= 100 ? 100 : 1;
+    let complete = hasDeclaredTotal ? totalPagesRaw <= 100 : bestRowCount < 100;
     let previousPageSignature = JSON.stringify(allRows.slice(0, 3).map((row) => firstIdentifier(row, ["id", "appointment_id", "commitment_id", "uuid"])));
     for (let page = 2; page <= totalPages; page += 1) {
       const response = await fetch(`${CRM_BASE_URL}/${selectedEndpoint}?${buildQuery(page, selectedDateStyle).toString()}`, {
         headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
       });
-      if (!response.ok) break;
+      if (!response.ok) { complete = false; break; }
       const nextPayload = await response.json().catch(() => null);
+      if (!nextPayload) { complete = false; break; }
       const rows = extractRows(nextPayload);
-      if (!rows.length) break;
+      if (!rows.length) { complete = true; break; }
       const pageSignature = JSON.stringify(rows.slice(0, 3).map((row) => firstIdentifier(row, ["id", "appointment_id", "commitment_id", "uuid"])));
-      if (pageSignature === previousPageSignature) break;
+      if (pageSignature === previousPageSignature) { complete = false; break; }
       previousPageSignature = pageSignature;
       allRows.push(...rows);
-      if (!hasDeclaredTotal && rows.length < 100) break;
+      if (!hasDeclaredTotal && rows.length < 100) { complete = true; break; }
     }
 
-    const leadIds = [...new Set(allRows.map(linkedLeadIdentifier).filter(Boolean))];
+    // A agenda já inclui lead_name; consultar o lead apenas quando falta o nome.
+    const leadIds = [...new Set(allRows.filter((row) => !firstString(row, ["lead_name", "contact_name", "client_name"]) || !crmContactPhone(row, collectRelatedRecords(row)))
+      .map(linkedLeadIdentifier).filter(Boolean))];
     const leadMap = new Map<string, JsonObject>();
     for (let offset = 0; offset < leadIds.length; offset += 10) {
       const batch = leadIds.slice(offset, offset + 10);
@@ -470,7 +558,7 @@ Deno.serve(async (request) => {
       const leadId = linkedLeadIdentifier(row);
       return leadId && leadMap.has(leadId) ? { ...row, lead: leadMap.get(leadId) } : row;
     });
-    console.log("CRM_AGENDA_SCHEMA", JSON.stringify({
+    if (Deno.env.get("CRM_AGENDA_DEBUG") === "true") console.log("CRM_AGENDA_SCHEMA", JSON.stringify({
       selectedEndpoint,
       selectedDateStyle,
       rowCount: allRows.length,
@@ -488,7 +576,7 @@ Deno.serve(async (request) => {
         seen.add(item.id);
         return true;
       });
-    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint, dateStyle: selectedDateStyle, pages: totalPages }), {
+    return new Response(JSON.stringify({ appointments, endpoint: selectedEndpoint, dateStyle: selectedDateStyle, pages: totalPages, complete }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

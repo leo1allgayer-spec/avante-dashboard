@@ -1,13 +1,15 @@
+import {saleCourseDisplayName} from '@/constants/courseCatalog';
+import {registeredPaidCommission,commissionPaymentDate,commissionPaymentShare} from "@/lib/salesCommissionPayments";
+import {groupSalesCommissionBalances,salesInCommissionPeriod} from '@/lib/salesCommissionBalance';
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Download } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import { useVendas } from "@/hooks/useVendas";
-import { useCursosDados } from "@/hooks/useCursosDados";
 import { useFechamentosDiarios } from "@/hooks/useFechamentosDiarios";
 import { usePagamentosVariaveis } from "@/hooks/usePagamentosVariaveis";
 import { useClients } from "@/hooks/clients/useGestaoClients";
@@ -24,23 +26,17 @@ import PagamentosVariaveis from "@/components/PagamentosVariaveis";
 const PESSOAS = [
   { label: "Lucas Pilger", match: ["lucas"] },
   { label: "Nicolas Patizlaff", match: ["nicolas"] },
+  { label: "Emanoel Bull", match: ["emanoel"] },
   { label: "Leonardo Webster", match: ["webster", "leonardo webster"] },
   { label: "Leonardo Allgayer", match: ["leo", "léo"] },
   { label: "Ana", match: [] },
 ];
 
-const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Nicolas Patizlaff", "Leonardo Allgayer", "Leonardo Webster"];
-const PESSOAS_COM_TABELA_CURSOS_DADOS = ["Leonardo Allgayer", "Lucas Pilger", "Nicolas Patizlaff"];
+const PESSOAS_COM_TABELA_CURSOS = ["Lucas Pilger", "Leonardo Allgayer", "Leonardo Webster"];
 const PERCENTUAL_COMISSAO_CURSOS_VENDIDOS = 0.15;
-const DIVISOR_COMISSAO_CURSOS_VENDIDOS = 4;
-const PESSOAS_COM_COMISSAO_CLIENTES = ["Leonardo Allgayer", "Nicolas Patizlaff", "Lucas Pilger"];
-const DIVISOR_COMISSAO_CLIENTES = 3;
-const DIVISOR_COMISSAO_CURSOS_DADOS: Record<string, number> = {
-  "Leonardo Allgayer": 3,
-  "Lucas Pilger": 3,
-  "Nicolas Patizlaff": 3,
-};
-
+const DIVISOR_COMISSAO_CURSOS_VENDIDOS = PESSOAS_COM_TABELA_CURSOS.length;
+const PESSOAS_COM_COMISSAO_CLIENTES = ["Nicolas Patizlaff", "Emanoel Bull"];
+const DIVISOR_COMISSAO_CLIENTES = PESSOAS_COM_COMISSAO_CLIENTES.length;
 const MESES_PT: Record<string, string> = {
   "01": "Janeiro", "02": "Fevereiro", "03": "Março", "04": "Abril",
   "05": "Maio", "06": "Junho", "07": "Julho", "08": "Agosto",
@@ -66,7 +62,6 @@ const matchPessoa = (vendedor: string, matchTerms: string[]) => {
   return matchTerms.some((term) => v.startsWith(term));
 };
 
-const VALOR_CURSO_META_ADS_DADO = 100;
 
 const filterByDateRange = (dataStr: string, dateFrom?: Date, dateTo?: Date) => {
   if (dateFrom && dataStr < format(dateFrom, "yyyy-MM-dd")) return false;
@@ -77,6 +72,8 @@ const filterByDateRange = (dataStr: string, dateFrom?: Date, dateTo?: Date) => {
 const filterByPaymentPeriod = (day: number, period: string) => {
   if (period === "todos") return true;
   if (!Number.isFinite(day) || day < 1) return false;
+  if (period === "dia-15") return day === 15;
+  if (period === "dia-30") return day === 30;
   return period === "ate-15" ? day <= 15 : day > 15;
 };
 
@@ -84,7 +81,6 @@ const getDayFromDate = (dataStr: string) => Number(dataStr.split("-")[2] || 0);
 
 const PagamentosPage = () => {
   const { data: vendas = [], isLoading } = useVendas();
-  const { data: cursosDados = [] } = useCursosDados();
   const { data: fechamentos = [] } = useFechamentosDiarios();
   const { data: pagVariaveis = [] } = usePagamentosVariaveis();
   const { clients, loading: clientsLoading } = useClients("meta_ads");
@@ -98,6 +94,9 @@ const PagamentosPage = () => {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "vendas" }, () => {
         queryClient.invalidateQueries({ queryKey: ["vendas"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "fechamentos_diarios" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["fechamentos_diarios"] });
       })
       .subscribe();
     return () => {
@@ -141,13 +140,24 @@ const PagamentosPage = () => {
     );
   };
   const showCursosTable = PESSOAS_COM_TABELA_CURSOS.includes(pessoaFilter);
-  const showCursosDadosTable = PESSOAS_COM_TABELA_CURSOS_DADOS.includes(pessoaFilter);
+  const commissionBalances=useMemo(()=>groupSalesCommissionBalances(vendas,fechamentos),[vendas,fechamentos]);
+  const pendingCommissions=useMemo(()=>{
+    if(!showCursosTable)return [];
+    const monthStart=`${mesFilter}-01`;
+    const start=dateFrom&&format(dateFrom,'yyyy-MM-dd')>monthStart?format(dateFrom,'yyyy-MM-dd'):monthStart;
+    const lastDay=format(new Date(Number(mesFilter.slice(0,4)),Number(mesFilter.slice(5,7)),0),'yyyy-MM-dd');
+    const end=dateTo&&format(dateTo,'yyyy-MM-dd')<lastDay?format(dateTo,'yyyy-MM-dd'):lastDay;
+    const recipientIndex=PESSOAS_COM_TABELA_CURSOS.indexOf(pessoaFilter);
+    if(start>end)return [];
+    const eligible=salesInCommissionPeriod(vendas,fechamentos,start,end,!dateFrom&&!dateTo)
+      .filter(sale=>!['cancelada','cancelado'].includes((sale.status||'').toLowerCase())&&filterByPaymentPeriod(getDayFromDate(sale.data),filterDiaPagamento));
+    return groupSalesCommissionBalances(eligible,fechamentos).filter(balance=>balance.pending>0)
+      .map(balance=>({...balance,individual:commissionPaymentShare(balance.pending,recipientIndex,DIVISOR_COMISSAO_CURSOS_VENDIDOS)})).sort((a,b)=>a.items[0].cliente.localeCompare(b.items[0].cliente,'pt-BR'));
+  },[vendas,fechamentos,showCursosTable,mesFilter,dateFrom,dateTo,filterDiaPagamento,pessoaFilter]);
+  const pendingTotal=pendingCommissions.reduce((sum,balance)=>sum+balance.pending,0);
+  const pendingIndividual=pendingCommissions.reduce((sum,balance)=>sum+balance.individual,0);
 
-  // --- Comissão de Vendas ---
-  // Inclui:
-  // 1) vendas cujo vendedor bate com pessoa com tabela de cursos, OU
-  //    cujo cliente foi cadastrado em cursos_dados por instrutor dessas pessoas;
-  // 2) cursos_dados de instrutores válidos que NÃO têm venda lançada (R$ 0).
+  // Paid sales commissions share the actual payment dates with Vendas.
   type LinhaCurso = {
     id: string;
     data: string;
@@ -163,153 +173,47 @@ const PagamentosPage = () => {
   const nameKey = (s: string) => normalizeName(s).split(" ").slice(0, 2).join(" ");
 
   const collectedBySaleId = useMemo(() => {
-    const result = new Map<string, number>();
-    const groups = new Map<string, typeof vendas>();
-
-    vendas.forEach((sale) => {
-      const key = [sale.data, normalizeName(sale.cliente), normalizeName(sale.vendedor)].join("|");
-      groups.set(key, [...(groups.get(key) || []), sale]);
-    });
-
-    groups.forEach((sales) => {
-      const reference = sales[0];
-      const totalSold = sales.reduce((sum, sale) => sum + Math.max(Number(sale.valor || 0), 0), 0);
-      const totalCollected = Math.min(
-        totalSold,
-        fechamentos
-          .filter((item) =>
-            normalizeName(item.status || "") !== "cancelado" &&
-            normalizeName(item.cliente) === normalizeName(reference.cliente) &&
-            normalizeName(item.vendedor) === normalizeName(reference.vendedor)
-          )
-          .reduce((sum, item) => sum + Math.max(Number(item.valor_sinal || 0), 0), 0)
-      );
-
-      sales.forEach((sale) => {
-        const share = totalSold > 0 ? Math.max(Number(sale.valor || 0), 0) / totalSold : 0;
-        result.set(sale.id, Math.min(Number(sale.valor || 0), totalCollected * share));
-      });
-    });
-
+    const result = new Map<string,number>();
+    commissionBalances.forEach(balance=>balance.items.forEach(sale=>{
+      const share=balance.totalSold>0?Math.max(0,Number(sale.valor||0))/balance.totalSold:0;
+      result.set(sale.id,balance.net*share);
+    }));
     return result;
-  }, [vendas, fechamentos]);
-
+  },[commissionBalances]);
+  const paidSalesInPeriod = useMemo(()=>vendas.filter(sale=>{
+    const date=commissionPaymentDate(sale);
+    return registeredPaidCommission(sale)>0 && !!date && getMonthKey(date)===mesFilter && filterByDateRange(date,dateFrom,dateTo) && filterByPaymentPeriod(getDayFromDate(date),filterDiaPagamento);
+  }),[vendas,mesFilter,dateFrom,dateTo,filterDiaPagamento]);
+  const totalPaidSalesInPeriod=paidSalesInPeriod.reduce((sum,sale)=>sum+registeredPaidCommission(sale),0);
+  const undatedCommissionPayments=vendas.filter(sale=>registeredPaidCommission(sale)>0&&!commissionPaymentDate(sale));
   const vendasCursos = useMemo<LinhaCurso[]>(() => {
-    if (!showCursosTable) return [];
-    const instrutoresValidos = ["lucas", "nicolas", "leonardo", "leo", "léo"];
-
-    const cursosFiltrados = cursosDados.filter((c) => {
-      const inst = normalizeName(c.instrutor || "");
-      return instrutoresValidos.some((i) => inst.startsWith(normalizeName(i)));
-    });
-
-    // 1) Vendas vinculadas ao curso pelo aluno. Quando o curso acontece em uma
-    // quinzena diferente da venda, a linha segue a data do curso sem perder os
-    // valores financeiros do lançamento original.
-    const getCourseDateForSale = (sale: (typeof vendas)[number]) =>
-      cursosFiltrados.find((course) =>
-        nameKey(course.nome_aluno) === nameKey(sale.cliente) &&
-        getMonthKey(course.data) === mesFilter
-      )?.data || sale.data;
-
-    const linhasVendas: LinhaCurso[] = vendas
-      .filter((v) => {
-        const displayDate = getCourseDateForSale(v);
-        if (getMonthKey(displayDate) !== mesFilter) return false;
-        if (!filterByDateRange(displayDate, dateFrom, dateTo)) return false;
-        if (!filterByPaymentPeriod(getDayFromDate(displayDate), filterDiaPagamento)) return false;
-        return true;
-      })
-      .map((v) => {
-        const coletado = collectedBySaleId.get(v.id) || 0;
-        return {
-          id: v.id,
-          data: getCourseDateForSale(v),
-          cliente: v.cliente,
-          produto: [v.produto, v.servico].filter(Boolean).join(" / ") || "—",
-          valor_liquido: coletado,
-          comissao: +((coletado * PERCENTUAL_COMISSAO_CURSOS_VENDIDOS) / DIVISOR_COMISSAO_CURSOS_VENDIDOS).toFixed(2),
-        };
-      });
-
-    // 2) cursos_dados sem venda correspondente
-    const clientesComVenda = new Set(linhasVendas.map((l) => nameKey(l.cliente)));
-    const linhasSemVenda: LinhaCurso[] = cursosFiltrados
-      .filter((c) => {
-        if (getMonthKey(c.data) !== mesFilter) return false;
-        if (!filterByDateRange(c.data, dateFrom, dateTo)) return false;
-        if (!filterByPaymentPeriod(getDayFromDate(c.data), filterDiaPagamento)) return false;
-        return !clientesComVenda.has(nameKey(c.nome_aluno));
-      })
-      .map((c) => ({
-        id: `cd-${c.id}`,
-        data: c.data,
-        cliente: c.nome_aluno,
-        produto: `${c.tipo_curso || "Curso"} (sem venda lançada)`,
-        valor_liquido: 0,
-        comissao: 0,
-        sem_venda: true,
-      }));
-
-    return [...linhasVendas, ...linhasSemVenda].sort((a, b) => a.data.localeCompare(b.data));
-  }, [vendas, cursosDados, showCursosTable, mesFilter, dateFrom, dateTo, filterDiaPagamento, collectedBySaleId]);
+    if(!showCursosTable)return [];
+    const recipientIndex=PESSOAS_COM_TABELA_CURSOS.indexOf(pessoaFilter);
+    return paidSalesInPeriod.map(sale=>({id:sale.id,data:commissionPaymentDate(sale),cliente:sale.cliente,produto:[sale.produto,sale.servico].filter(Boolean).map(saleCourseDisplayName).join(' / ')||'—',valor_liquido:collectedBySaleId.get(sale.id)||0,comissao:commissionPaymentShare(registeredPaidCommission(sale),recipientIndex,DIVISOR_COMISSAO_CURSOS_VENDIDOS)})).sort((a,b)=>a.data.localeCompare(b.data));
+  },[paidSalesInPeriod,showCursosTable,pessoaFilter,collectedBySaleId]);
 
   const totalComissaoCursos = useMemo(
     () => vendasCursos.reduce((s, v) => s + v.comissao, 0),
     [vendasCursos]
   );
 
-  // --- Cursos Dados ---
-  type LinhaCursoDado = {
-    id: string;
-    data: string;
-    aluno: string;
-    tipo: string;
-    instrutor: string;
-    valor: number;
-    comissao: number;
-  };
-
-  const cursosDadosPessoa = useMemo<LinhaCursoDado[]>(() => {
-    if (!showCursosDadosTable) return [];
-    const divisor = DIVISOR_COMISSAO_CURSOS_DADOS[pessoaFilter] || 1;
-
-    return cursosDados
-      .filter((c) => {
-        if (getMonthKey(c.data) !== mesFilter) return false;
-        if (!filterByDateRange(c.data, dateFrom, dateTo)) return false;
-        if (!filterByPaymentPeriod(getDayFromDate(c.data), filterDiaPagamento)) return false;
-        return normalizeName(c.tipo_curso || "").includes("meta ads");
-      })
-      .map((c) => ({
-        id: c.id,
-        data: c.data,
-        aluno: c.nome_aluno,
-        tipo: c.tipo_curso || "Curso",
-        instrutor: c.instrutor,
-        valor: VALOR_CURSO_META_ADS_DADO,
-        comissao: +(VALOR_CURSO_META_ADS_DADO / divisor).toFixed(2),
-      }))
-      .sort((a, b) => a.data.localeCompare(b.data));
-  }, [cursosDados, showCursosDadosTable, pessoaFilter, mesFilter, dateFrom, dateTo, filterDiaPagamento]);
-
-  const totalComissaoCursosDados = useMemo(
-    () => cursosDadosPessoa.reduce((s, c) => s + c.comissao, 0),
-    [cursosDadosPessoa]
-  );
-
   // --- Available months ---
   const availableMonths = useMemo(() => {
-    const months = new Set(vendas.map((v) => getMonthKey(v.data)));
+    const months = new Set([defaultMonth,...vendas.map((v) => getMonthKey(v.data)),...vendas.map(commissionPaymentDate).filter(Boolean).map(getMonthKey)]);
     return [...months].sort((a, b) => b.localeCompare(a));
   }, [vendas]);
 
   // --- Pagamentos Variáveis total ---
-  const totalPagVariaveis = useMemo(() => {
-    let items = pagVariaveis.filter((p) => p.pessoa === pessoaFilter && p.mes_ano === mesFilter);
-    items = items.filter((p) => filterByPaymentPeriod(Number(p.dia_pagamento), filterDiaPagamento));
-    return items.reduce((s, p) => s + p.valor, 0);
-  }, [pagVariaveis, pessoaFilter, mesFilter, filterDiaPagamento]);
+  const filteredVariablePayments = useMemo(
+    () => pagVariaveis
+      .filter((payment) => payment.pessoa === pessoaFilter && payment.mes_ano === mesFilter)
+      .filter((payment) => filterByPaymentPeriod(Number(payment.dia_pagamento), filterDiaPagamento)),
+    [pagVariaveis, pessoaFilter, mesFilter, filterDiaPagamento],
+  );
+  const totalPagVariaveis = useMemo(
+    () => filteredVariablePayments.reduce((sum, payment) => sum + payment.valor, 0),
+    [filteredVariablePayments],
+  );
 
   const clientCommissions = useMemo(() => clients
     .filter((client) => client.status === "Ativo" && Number(client.commissionValue || 0) > 0)
@@ -329,7 +233,48 @@ const PagamentosPage = () => {
   const totalClientCommission = showClientCommissions
     ? clientCommissions.reduce((sum, client) => sum + client.comissaoIndividual, 0)
     : 0;
-  const totalComissao = totalComissaoCursos + totalComissaoCursosDados + totalPagVariaveis + totalClientCommission;
+  const totalComissao = totalComissaoCursos + totalPagVariaveis + totalClientCommission;
+
+  const exportPayments = () => {
+    type ExportRow = { categoria: string; data: string; nome: string; detalhe: string; valorBase: number; valorPagamento: number };
+    const rows: ExportRow[] = [
+      ...vendasCursos.map((sale) => ({ categoria: "Comissão de Vendas", data: formatDate(sale.data), nome: sale.cliente, detalhe: sale.produto, valorBase: sale.valor_liquido, valorPagamento: sale.comissao })),
+      ...pendingCommissions.map(balance=>({categoria:'Comissão de Vendas a Pagar',data:formatDate(balance.items[0].data),nome:balance.items[0].cliente,detalhe:balance.items.map(sale=>saleCourseDisplayName(sale.servico||sale.produto)).join(' / '),valorBase:balance.net,valorPagamento:balance.individual})),
+      ...(showClientCommissions ? clientCommissions.map((client) => ({ categoria: "Comissão dos Clientes", data: "Dia " + (client.diaPagamento || "—"), nome: client.cliente, detalhe: "Gestor: " + (client.gestor || "—") + " · Status: " + client.statusPagamento, valorBase: client.comissaoTotal, valorPagamento: client.comissaoIndividual })) : []),
+      ...filteredVariablePayments.map((payment) => ({ categoria: "Pagamentos Variáveis", data: "Dia " + payment.dia_pagamento, nome: payment.cliente, detalhe: payment.tipo === "servico" ? "Serviço" : "Cliente", valorBase: payment.valor, valorPagamento: payment.valor })),
+    ];
+    if (rows.length === 0) return;
+
+    const csvValue = (value: string | number) => '"' + String(value).replace(/"/g, '""') + '"';
+    const moneyValue = (value: number) => Number(value || 0).toFixed(2).replace(".", ",");
+    const lines: string[] = [["Categoria", "Data / Dia", "Nome", "Detalhe", "Valor base", "Valor para " + pessoaFilter].map(csvValue).join(";")];
+    ["Comissão de Vendas", "Comissão de Vendas a Pagar", "Comissão dos Clientes", "Pagamentos Variáveis"].forEach((category) => {
+      const categoryRows = rows.filter((row) => row.categoria === category);
+      if (categoryRows.length === 0) return;
+      categoryRows.forEach((row) => lines.push([row.categoria, row.data, row.nome, row.detalhe, moneyValue(row.valorBase), moneyValue(row.valorPagamento)].map(csvValue).join(";")));
+      lines.push(["Subtotal", "", category, "", "", moneyValue(categoryRows.reduce((sum, row) => sum + row.valorPagamento, 0))].map(csvValue).join(";"), "");
+    });
+    lines.push(["TOTAL REGISTRADO (SEM PENDÊNCIAS DE VENDAS)", "", pessoaFilter, getMonthLabel(mesFilter), "", moneyValue(totalComissao)].map(csvValue).join(";"));
+    if(showCursosTable)lines.push(["TOTAL DE VENDAS A PAGAR", "", pessoaFilter, getMonthLabel(mesFilter), "", moneyValue(pendingIndividual)].map(csvValue).join(";"));
+
+    const csv = ["sep=;", ...lines].join("\r\n");
+    const bytes = new Uint8Array(2 + csv.length * 2);
+    bytes[0] = 0xff;
+    bytes[1] = 0xfe;
+    for (let index = 0; index < csv.length; index += 1) {
+      const code = csv.charCodeAt(index);
+      bytes[2 + index * 2] = code & 0xff;
+      bytes[3 + index * 2] = code >> 8;
+    }
+    const url = URL.createObjectURL(new Blob([bytes], { type: "text/csv;charset=utf-16le;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "pagamentos_" + pessoaFilter.toLowerCase().replace(/\s+/g, "_") + "_" + mesFilter + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <DashboardLayout title="Pagamentos">
@@ -343,6 +288,9 @@ const PagamentosPage = () => {
                 <p className="text-muted-foreground text-sm">Comissões e valores por vendedor</p>
               </div>
               <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" className="gap-2" onClick={exportPayments} disabled={totalComissao <= 0&&pendingIndividual<=0}>
+                  <Download className="h-4 w-4" /> Exportar lista
+                </Button>
                 <div className="w-48">
                   <Select value={mesFilter} onValueChange={setMesFilter}>
                     <SelectTrigger><SelectValue placeholder="Filtrar por mês" /></SelectTrigger>
@@ -405,6 +353,8 @@ const PagamentosPage = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todos os dias</SelectItem>
+                    <SelectItem value="dia-15">Dia 15</SelectItem>
+                    <SelectItem value="dia-30">Dia 30</SelectItem>
                     <SelectItem value="ate-15">Até dia 15</SelectItem>
                     <SelectItem value="apos-15">Depois do dia 15</SelectItem>
                   </SelectContent>
@@ -424,20 +374,40 @@ const PagamentosPage = () => {
             </div>
           </div>
 
-          <Card className="bg-card/80 backdrop-blur border-border/40">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Comissão</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold text-emerald-400">{formatBRL(totalComissao)}</p>
-            </CardContent>
-          </Card>
+          {showCursosTable&&<div className="space-y-3">
+            <h2 className="text-base font-semibold">Comissões de vendas de {pessoaFilter}</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="bg-card/80 border-emerald-500/25">
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Já recebido por {pessoaFilter}</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold text-emerald-400">{formatBRL(totalComissaoCursos)}</p><p className="mt-2 text-xs text-muted-foreground">Comissão de vendas já paga a {pessoaFilter} no período selecionado. É a parte individual, já dividida entre os três vendedores.</p></CardContent>
+              </Card>
+              <Card className="bg-card/80 border-amber-500/25">
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Ainda a receber por {pessoaFilter}</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold text-amber-500">{formatBRL(pendingIndividual)}</p><p className="mt-2 text-xs text-muted-foreground">Comissão de vendas que falta pagar a {pessoaFilter}, sobre dinheiro já recebido dos clientes. É a parte individual, já dividida entre os três vendedores.</p></CardContent>
+              </Card>
+            </div>
+          </div>}
+          {(!showCursosTable||totalPagVariaveis+totalClientCommission>0)&&<Card className="bg-card/80 backdrop-blur border-border/40">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{showCursosTable?'Outros valores cadastrados':'Comissões de clientes e outros valores'} — {pessoaFilter}</CardTitle></CardHeader>
+            <CardContent><p className="text-2xl font-bold">{formatBRL(totalPagVariaveis+totalClientCommission)}</p><p className="mt-2 text-xs text-muted-foreground">Comissões de clientes e pagamentos variáveis cadastrados. Este valor não indica confirmação de pagamento.</p></CardContent>
+          </Card>}
 
+          {showCursosTable&&<Card className="bg-card/80 backdrop-blur border-border/40">
+            <CardHeader><CardTitle className="text-base">Comissões de vendas a pagar</CardTitle>
+              <p className="text-xs text-muted-foreground">Cursos e serviços: comissão sobre o que os clientes já pagaram, menos a comissão já paga aos vendedores. Não inclui comissão futura sobre o saldo dos clientes.</p>
+              <p className="text-xs text-muted-foreground">Mesmo período da lista de Vendas, incluindo recebimentos e pendências de meses anteriores. O filtro de quinzena usa a data da venda para as comissões a pagar.</p>
+            </CardHeader>
+            <CardContent className="p-0"><div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border/30 bg-muted/30 px-4 py-3 text-xs"><span className="text-sm">Parte de {pessoaFilter} ainda a receber: <strong className="text-amber-500">{formatBRL(pendingIndividual)}</strong></span><span className="text-muted-foreground">Total dos três vendedores a receber: <strong>{formatBRL(pendingTotal)}</strong></span><span className="text-muted-foreground">Sua parte já está incluída nesse total.</span></div>
+              <Table><TableHeader><TableRow><TableHead>Data da venda</TableHead><TableHead>Cliente</TableHead><TableHead>Produto / Serviço</TableHead><TableHead className="text-right">Recebido líquido do cliente</TableHead><TableHead className="text-right">Comissão a receber — total dos três</TableHead><TableHead className="text-right">Parte de {pessoaFilter} a receber</TableHead></TableRow></TableHeader>
+              <TableBody>{pendingCommissions.map(balance=><TableRow key={balance.id}><TableCell>{formatDate(balance.items[0].data)}</TableCell><TableCell className="font-medium">{balance.items[0].cliente}</TableCell><TableCell>{balance.items.map(sale=>saleCourseDisplayName(sale.servico||sale.produto)).join(' / ')}</TableCell><TableCell className="text-right">{formatBRL(balance.net)}</TableCell><TableCell className="text-right">{formatBRL(balance.pending)}</TableCell><TableCell className="text-right font-semibold text-amber-500">{formatBRL(balance.individual)}</TableCell></TableRow>)}{!pendingCommissions.length&&<TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">{isLoading?'Carregando comissões…':'Nenhuma comissão a pagar nessa seleção.'}</TableCell></TableRow>}</TableBody></Table>
+            </CardContent></Card>}
           {/* Comissão de Vendas */}
           {showCursosTable && (
             <Card className="bg-card/80 backdrop-blur border-border/40">
               <CardHeader>
-                <CardTitle className="text-base">Comissão de Vendas</CardTitle>
+                <CardTitle className="text-base">Comissões de vendas já pagas</CardTitle>
+                <p className="text-xs text-muted-foreground">Mesma base de “Comissão paga no período” em Vendas: valores pagos pela data do pagamento, incluindo vendas antigas. Abaixo aparece somente a cota de {pessoaFilter}.</p>
+                {undatedCommissionPayments.length>0&&<p className="text-xs text-amber-500">{undatedCommissionPayments.length} pagamentos antigos de comissão ({formatBRL(undatedCommissionPayments.reduce((sum,sale)=>sum+registeredPaidCommission(sale),0))}) estão sem data de pagamento e ficam fora dos totais por período. A data real desses pagamentos precisa ser conferida para conciliá-los.</p>}
               </CardHeader>
               <CardContent className="p-0">
                 {isLoading ? (
@@ -445,21 +415,21 @@ const PagamentosPage = () => {
                     <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
                   </div>
                 ) : vendasCursos.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm">Nenhum curso vendido neste mês.</div>
+                  <div className="text-center py-8 text-muted-foreground text-sm">Nenhuma comissão paga no período selecionado.</div>
                 ) : (
                   <>
-                    <div className="px-4 py-2 bg-muted/30 border-b border-border/30 flex items-center justify-end gap-4 text-xs">
-                      <span>Comissão: <span className="text-emerald-400 font-semibold">{formatBRL(totalComissaoCursos)}</span></span>
-                      <span>Divisão: <span className="font-semibold">15% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS}</span></span>
+                    <div className="px-4 py-3 bg-muted/30 border-b border-border/30 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                      <span className="text-sm">Parte de {pessoaFilter} já recebida: <strong className="text-emerald-400">{formatBRL(totalComissaoCursos)}</strong></span><span className="text-muted-foreground">Total dos três vendedores já recebido: <strong>{formatBRL(totalPaidSalesInPeriod)}</strong></span>
+                      <span className="text-muted-foreground">Sua parte já está incluída nesse total.</span>
                     </div>
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Data</TableHead>
+                          <TableHead>Data do pagamento</TableHead>
                           <TableHead>Cliente</TableHead>
                           <TableHead>Produto / Serviço</TableHead>
-                          <TableHead className="text-right">Valor Líquido</TableHead>
-                          <TableHead className="text-right">Comissão (15% / {DIVISOR_COMISSAO_CURSOS_VENDIDOS})</TableHead>
+                          <TableHead className="text-right">Recebido líquido do cliente</TableHead>
+                          <TableHead className="text-right">Parte de {pessoaFilter} já recebida</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -474,55 +444,6 @@ const PagamentosPage = () => {
                             <TableCell className="text-right text-sm font-semibold text-emerald-400">
                               {formatBRL(v.comissao)}
                             </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Cursos Dados */}
-          {showCursosDadosTable && (
-            <Card className="bg-card/80 backdrop-blur border-border/40">
-              <CardHeader>
-                <CardTitle className="text-base">Cursos Dados</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  </div>
-                ) : cursosDadosPessoa.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm">Nenhum curso dado neste mês.</div>
-                ) : (
-                  <>
-                    <div className="px-4 py-2 bg-muted/30 border-b border-border/30 flex items-center justify-end gap-4 text-xs">
-                      <span>Comissão: <span className="text-emerald-400 font-semibold">{formatBRL(totalComissaoCursosDados)}</span></span>
-                      <span>Divisão: <span className="font-semibold">valor / {DIVISOR_COMISSAO_CURSOS_DADOS[pessoaFilter]}</span></span>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Data</TableHead>
-                          <TableHead>Aluno</TableHead>
-                          <TableHead>Tipo de Curso</TableHead>
-                          <TableHead>Instrutor</TableHead>
-                          <TableHead className="text-right">Valor</TableHead>
-                          <TableHead className="text-right">Comissão</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {cursosDadosPessoa.map((c) => (
-                          <TableRow key={c.id}>
-                            <TableCell className="text-sm">{formatDate(c.data)}</TableCell>
-                            <TableCell className="text-sm font-medium">{c.aluno}</TableCell>
-                            <TableCell className="text-sm">{c.tipo}</TableCell>
-                            <TableCell className="text-sm">{c.instrutor}</TableCell>
-                            <TableCell className="text-right text-sm font-semibold">{formatBRL(c.valor)}</TableCell>
-                            <TableCell className="text-right text-sm font-semibold text-emerald-400">{formatBRL(c.comissao)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -551,7 +472,7 @@ const PagamentosPage = () => {
                       <span>Divisão: <span className="font-semibold">comissão cadastrada / {DIVISOR_COMISSAO_CLIENTES}</span></span>
                     </div>
                     <Table>
-                      <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Gestor</TableHead><TableHead>Dia do pagamento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Comissão cadastrada</TableHead><TableHead className="text-right">Comissão individual (÷ 3)</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>Cliente</TableHead><TableHead>Gestor</TableHead><TableHead>Dia do pagamento</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Comissão cadastrada</TableHead><TableHead className="text-right">Comissão individual (÷ 2)</TableHead></TableRow></TableHeader>
                       <TableBody>{clientCommissions.map((client) => (
                         <TableRow key={client.id}>
                           <TableCell className="text-sm font-medium">{client.cliente}</TableCell>
@@ -581,3 +502,6 @@ const PagamentosPage = () => {
 };
 
 export default PagamentosPage;
+
+
+

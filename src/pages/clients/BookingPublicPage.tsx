@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import {BOOKABLE_COURSES} from '@/constants/courseCatalog';
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,16 +15,9 @@ import {
   CalendarDays, Sun, CloudSun, ChevronLeft, ChevronRight, CheckCircle2, Loader2,
 } from "lucide-react";
 import avanteLogo from "@/assets/logo-full.svg";
+import { courseShiftDisabled } from "@/lib/courseWeekAvailability";
 
-const COURSES: { id: string; slug: string; label: string; subtitle?: string }[] = [
-  { id: "Curso Meta Ads", slug: "meta-ads", label: "Curso Tráfego Pago Meta Ads", subtitle: "Facebook e Instagram" },
-  { id: "Curso Meta Ads Avançado", slug: "gestor-pro", label: "Curso de Tráfego Gestor PRO+", subtitle: "Facebook e Instagram" },
-  { id: "Curso Google Ads", slug: "google-ads", label: "Curso Tráfego Pago Google Ads" },
-  { id: "Curso Social Media", slug: "social-media", label: "Curso Social Media" },
-  { id: "Curso Canva", slug: "canva", label: "Curso Canva" },
-  { id: "Curso Inteligência Artificial", slug: "ia", label: "Curso Inteligência Artificial" },
-  { id: "Curso Captação e Edição de Vídeo", slug: "captacao-edicao-video", label: "Curso Captação e Edição de Vídeo" },
-];
+const COURSES=BOOKABLE_COURSES.map(course=>({id:course.name,slug:course.slug,label:course.name,subtitle:'subtitle' in course?course.subtitle:undefined}));
 
 const MAX_STUDENTS = 5;
 const DAYS_AHEAD = 60;
@@ -49,6 +43,12 @@ const normalizeShift = (time: string) => {
   if (time === "Tarde" || time === "14:00") return "Tarde";
   return time;
 };
+const shiftBucket = (time: string) => {
+  if (["Manhã", "08:30"].includes(time)) return "Manhã";
+  if (["Tarde", "14:00"].includes(time)) return "Tarde";
+  const hour = Number(time.slice(0, 2));
+  return Number.isFinite(hour) ? hour < 12 ? "Manhã" : "Tarde" : time;
+};
 
 interface ExistingCourseBooking {
   bookingId: string;
@@ -65,6 +65,7 @@ interface DateShift {
 }
 
 export default function BookingPublic() {
+  const birthDateInput = useRef<HTMLInputElement>(null);
   const { courseSlug } = useParams();
   const lockedCourse = useMemo(() => COURSES.find(c => c.slug === courseSlug), [courseSlug]);
   const [step, setStep] = useState<"course" | "form" | "date" | "confirm" | "loading" | "registered" | "done" | "rescheduleSent">(() => lockedCourse ? "form" : "course");
@@ -123,12 +124,21 @@ export default function BookingPublic() {
         "Curso Meta Ads Avançado": "Curso Meta Ads",
       };
       const siblingCourse = EXCLUSIVE_PAIRS[selectedCourse] || null;
+      const sharedCourses = selectedCourse === "Curso Google Ads"
+        ? ["Curso Meta Ads", "Curso Meta Ads Avançado"]
+        : siblingCourse ? ["Curso Google Ads"] : [];
+
 
       const fetchPromises = [
         supabase.from("course_blocked_dates").select("*"),
         supabase.from("course_disabled_days").select("*").eq("course_name", selectedCourse),
         supabase.rpc("get_booking_counts", { p_course_name: selectedCourse }),
         supabase.from("booking_settings").select("*").limit(1).maybeSingle(),
+        (supabase as any).from("course_day_overrides").select("*").eq("course_name", selectedCourse).gte('date', format(new Date(), 'yyyy-MM-dd')).lte('date', format(addDays(new Date(), DAYS_AHEAD), 'yyyy-MM-dd')),
+        (supabase as any).rpc('get_course_online_conflicts',{p_course_name:selectedCourse}),
+        (supabase as any).rpc('get_course_instructor_calendar',{p_course:selectedCourse,p_start:format(new Date(),'yyyy-MM-dd'),p_end:format(addDays(new Date(),DAYS_AHEAD),'yyyy-MM-dd')}),
+        (supabase as any).from("course_slots").select("id,date,time,max_students").eq("course_name", selectedCourse).gte("date", format(new Date(), "yyyy-MM-dd")).lte("date", format(addDays(new Date(), DAYS_AHEAD), "yyyy-MM-dd")),
+        (supabase as any).rpc("get_course_slot_booking_counts", { p_course_name: selectedCourse }),
       ] as const;
 
       const baseResults = await Promise.all(fetchPromises);
@@ -136,7 +146,9 @@ export default function BookingPublic() {
       const { data: disabledData } = baseResults[1];
       const { data: countsData } = baseResults[2];
       const { data: settingsData } = baseResults[3];
+      const customSlots = ((baseResults[7].data || []) as any[]).filter(slot => !["Manhã", "Tarde", "08:30", "14:00"].includes(String(slot.time).slice(0, 5)));
 
+      const onlineConflicts=new Set((baseResults[5].data||[]).map((r:any)=>`${r.booking_date}|${r.booking_shift}`));
       const baseError = baseResults.find((result) => result.error)?.error;
       if (baseError) throw baseError;
 
@@ -155,6 +167,28 @@ export default function BookingPublic() {
         const siblingError = countsRes.error || slotsRes.error || exceptionsRes.error;
         if (siblingError) throw siblingError;
       }
+      const sharedBookedSet = new Set<string>();
+      const sharedBookedExactSet = new Set<string>();
+      if (sharedCourses.length) {
+        const sharedResults = await Promise.all([
+          ...sharedCourses.map(course => (supabase as any).rpc("get_course_slot_booking_counts", { p_course_name: course })),
+          supabase.from("course_slots").select("date,time").in("course_name", sharedCourses),
+        ]);
+        const sharedError = sharedResults.find(result => result.error)?.error;
+        if (sharedError) throw sharedError;
+        sharedResults.slice(0, -1).forEach(result => {
+          (result.data || []).forEach((booking: any) => {
+            if (Number(booking.booking_count) > 0) {
+              sharedBookedExactSet.add(`${String(booking.booking_date).slice(0, 10)}|${String(booking.booking_time).slice(0, 5)}`);
+              sharedBookedSet.add(`${booking.booking_date}|${shiftBucket(String(booking.booking_time))}`);
+            }
+          });
+        });
+        (sharedResults[sharedResults.length - 1].data || []).forEach((slot: any) => {
+          sharedBookedExactSet.add(`${String(slot.date).slice(0, 10)}|${String(slot.time).slice(0, 5)}`);
+          sharedBookedSet.add(`${slot.date}|${shiftBucket(String(slot.time))}`);
+        });
+      }
       const exceptionSet = new Set<string>();
       (exceptionsData || []).forEach((e: any) => {
         if (e.shift) exceptionSet.add(`${e.date}|${normalizeShift(e.shift)}`);
@@ -166,35 +200,36 @@ export default function BookingPublic() {
       // Count bookings per date+shift
       const countMap: Record<string, number> = {};
       (countsData || []).forEach((b: any) => {
-        const key = `${b.booking_date}|${normalizeShift(b.booking_time)}`;
+        const key = `${b.booking_date}|${shiftBucket(String(b.booking_time))}`;
         countMap[key] = (b.booking_count || 0);
       });
+      const exactCountMap: Record<string, number> = {};
+      (baseResults[8].data || []).forEach((b: any) => { exactCountMap[`${String(b.booking_date).slice(0, 10)}|${String(b.booking_time).slice(0, 5)}`] = Number(b.booking_count || 0); });
 
       // Sibling course - block if has bookings OR a slot is already scheduled
       const siblingBookedSet = new Set<string>();
       if (siblingCountsData) {
         (siblingCountsData as any[]).forEach((b: any) => {
           if ((b.booking_count || 0) > 0) {
-            const shiftLabel = normalizeShift(b.booking_time);
+            const shiftLabel = shiftBucket(String(b.booking_time));
             siblingBookedSet.add(`${b.booking_date}|${shiftLabel}`);
           }
         });
       }
       if (siblingSlotsData) {
         siblingSlotsData.forEach((s: any) => {
-          const shiftLabel = normalizeShift(s.time);
+          const shiftLabel = shiftBucket(String(s.time));
           siblingBookedSet.add(`${s.date}|${shiftLabel}`);
         });
       }
 
       // Disabled weekdays for this course (with shift support)
       const disabledEntries = (disabledData || []) as Array<{ day_of_week: number; shift: string | null }>;
-      const isWeekdayShiftDisabled = (dayOfWeek: number, shift: string, shiftTime: string) => {
-        return disabledEntries.some(d =>
-          d.day_of_week === dayOfWeek &&
-          (d.shift === null || normalizeShift(d.shift) === shift || d.shift === shiftTime)
-        );
-      };
+      const instructorCalendar=new Map((baseResults[6].data||[]).map((row:any)=>[`${row.booking_date}|${row.booking_shift}`,row.instructor]));
+      const metaWithInstructor=['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online'].includes(selectedCourse);
+      const isWeekdayShiftDisabled = (date: string, shiftTime: string) => metaWithInstructor
+        ? !instructorCalendar.get(`${date}|${shiftTime==='08:30'?'Manhã':'Tarde'}`)
+        : courseShiftDisabled(disabledEntries, baseResults[4].data || [], selectedCourse, date, shiftTime);
 
       // Check if a date+shift is blocked
       const isBlocked = (date: string, shift: string) => {
@@ -223,10 +258,12 @@ export default function BookingPublic() {
           const shiftDateTime = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
           if (shiftDateTime.getTime() - now.getTime() < minAdvanceMs) continue;
 
-          if (isWeekdayShiftDisabled(dayOfWeek, shift, shiftTime)) continue;
+          if (isWeekdayShiftDisabled(dateStr, shiftTime)) continue;
           if (isBlocked(dateStr, shift)) continue;
+          if (onlineConflicts.has(`${dateStr}|${shift}`)) continue;
           // Mutual exclusion: if sibling course has bookings, block this slot (unless exception)
           const siblingKey = `${dateStr}|${shift}`;
+          if (sharedBookedSet.has(siblingKey)) continue;
           if (siblingBookedSet.has(siblingKey) && !exceptionSet.has(siblingKey)) continue;
           const key = `${dateStr}|${shift}`;
           const booked = countMap[key] || 0;
@@ -237,6 +274,22 @@ export default function BookingPublic() {
             available: booked < MAX_STUDENTS,
           });
         }
+      }
+
+      for (const slot of customSlots) {
+        const dateStr = String(slot.date).slice(0, 10);
+        const time = String(slot.time).slice(0, 5);
+        const bucket = shiftBucket(time);
+        const slotDateTime = new Date(`${dateStr}T${time}:00`);
+        if (slotDateTime.getTime() - now.getTime() < minAdvanceMs) continue;
+        if (isBlocked(dateStr, bucket) || onlineConflicts.has(`${dateStr}|${bucket}`)) continue;
+        const siblingKey = `${dateStr}|${bucket}`;
+        if (sharedBookedExactSet.has(`${dateStr}|${time}`)) continue;
+        if (siblingBookedSet.has(siblingKey) && !exceptionSet.has(siblingKey)) continue;
+        if (metaWithInstructor && !instructorCalendar.get(`${dateStr}|${bucket}`)) continue;
+        if (shifts.some(item => item.date === dateStr && item.shift === time)) continue;
+        const booked = exactCountMap[`${dateStr}|${time}`] || 0;
+        shifts.push({ date: dateStr, shift: time, bookedCount: booked, available: booked < Number(slot.max_students || MAX_STUDENTS) });
       }
 
       if (!cancelled) setDateShifts(shifts);
@@ -254,6 +307,12 @@ export default function BookingPublic() {
     })();
     return () => { cancelled = true; };
   }, [selectedCourse, availabilityReload]);
+  useEffect(() => {
+    if (!selectedCourse) return;
+    const interval = window.setInterval(() => setAvailabilityReload(value => value + 1), 30_000);
+    return () => window.clearInterval(interval);
+  }, [selectedCourse]);
+
 
   const handleSelectCourse = (c: string) => {
     setSelectedCourse(c);
@@ -270,8 +329,7 @@ export default function BookingPublic() {
     const e = { name: "", birthDate: "", email: "", phone: "", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" };
     if (!form.name.trim()) e.name = "Nome é obrigatório";
     if (!form.birthDate) e.birthDate = "Data de nascimento é obrigatória";
-    if (!form.email.trim()) e.email = "E-mail é obrigatório";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = "E-mail inválido";
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = "E-mail inválido";
     if (!form.phone.trim() || form.phone.length < 12) e.phone = "Telefone deve ter pelo menos 12 dígitos (55 + DDD + número)";
     const cleanCpf = form.cpf.replace(/\D/g, "");
     if (cleanCpf.length !== 11) e.cpf = "Informe um CPF com 11 dígitos";
@@ -311,7 +369,7 @@ export default function BookingPublic() {
       }));
       setExistingRegistration(data.registeredCourse !== false);
       setErrors({ name: "", birthDate: "", email: "", phone: "", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
-      setLookupMessage(data.email ? "Cadastro localizado. Seus dados foram preenchidos." : "Cadastro localizado. Confirme apenas o e-mail antes de escolher a data.");
+      setLookupMessage(data.email ? "Cadastro localizado. Seus dados foram preenchidos." : "Cadastro localizado. Confira seus dados antes de escolher a data.");
     } catch (error) {
       setExistingRegistration(false);
       setLookupMessage(`Não foi possível consultar o cadastro: ${getSupabaseErrorMessage(error)}`);
@@ -357,7 +415,12 @@ export default function BookingPublic() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      const {data:existing,error:checkError}=await supabase.functions.invoke('reschedule-booking-request',{body:{action:'check',courseName:selectedCourse,studentName:form.name.trim(),email:form.email.trim(),phone:form.phone.trim(),cpf:form.cpf}});
+      if(checkError || existing?.error || typeof existing?.exists !== 'boolean') throw new Error(existing?.error || 'Não foi possível verificar sua inscrição. Tente novamente antes de continuar.');
+      if(existing.exists && existing.currentBooking){
+        setExistingCourseBooking(existing.currentBooking);
+        setLookupMessage('Você já possui este curso agendado. Escolha uma nova data para confirmar a troca, sem gerar outra venda.');
+      } else await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
       localStorage.setItem(SAVED_REGISTRATION_KEY, JSON.stringify({ course: selectedCourse, form }));
       setSubmitting(false);
       setStep(scheduleNow ? "date" : "registered");
@@ -394,10 +457,11 @@ export default function BookingPublic() {
         cpf: form.cpf,
         instagram: form.instagram.trim(),
         certificateName: form.certificateName.trim() || form.name.trim(),
+        bookingId: existingCourseBooking.bookingId,
         action: "reschedule",
       };
       const { data, error } = await supabase.functions.invoke("reschedule-booking-request", { body: bookingPayload });
-      if (error || !data?.rescheduled) {
+      if (error || (!data?.rescheduled && !data?.kept)) {
         throw new Error(data?.error || getSupabaseErrorMessage(error) || "Não foi possível remarcar o curso.");
       }
       setShowExistingBooking(false);
@@ -429,7 +493,8 @@ export default function BookingPublic() {
         body: { ...bookingPayload, cpf: form.cpf, action: "check" },
       });
 
-      if (!existingBookingError && existingBookingCheck?.exists && existingBookingCheck?.currentBooking) {
+      if(existingBookingError || existingBookingCheck?.error || typeof existingBookingCheck?.exists !== 'boolean') throw new Error(existingBookingCheck?.error || 'Não foi possível verificar se você já tem este curso. Tente novamente.');
+      if (existingBookingCheck?.exists && existingBookingCheck?.currentBooking) {
         setExistingCourseBooking(existingBookingCheck.currentBooking);
         setShowExistingBooking(true);
         setSubmitting(false);
@@ -534,7 +599,8 @@ export default function BookingPublic() {
   const shiftIcon = (shift: string) =>
     shift === "Manhã" ? <Sun className="h-4 w-4" /> : <CloudSun className="h-4 w-4" />;
 
-  const shiftTime = (shift: string) => shift === "Manhã" ? "8:30" : "14:00";
+  const shiftTime = (shift: string) => shift === "Manhã" ? "8:30" : shift === "Tarde" ? "14:00" : shift;
+  const shiftDescription = (shift: string) => ["Manhã", "Tarde"].includes(shift) ? `${shift} — ${shiftTime(shift)}` : shift;
 
   const calendarDays = (() => {
     const monthStart = startOfMonth(calendarMonth);
@@ -743,7 +809,7 @@ export default function BookingPublic() {
                               }`}
                             >
                               {shiftIcon(s.shift)}
-                              {shiftTime(s.shift)}
+                              {shiftDescription(s.shift)}
                               {s.available
                                 ? <span className="text-xs text-muted-foreground">(Disponível)</span>
                                 : <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">Lotado</Badge>}
@@ -810,17 +876,25 @@ export default function BookingPublic() {
                   {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Data de nascimento <span className="text-destructive">*</span></label>
-                  <Input type="date" value={form.birthDate} onChange={e => { setForm({ ...form, birthDate: e.target.value }); setErrors({ ...errors, birthDate: "" }); }} max={format(new Date(), "yyyy-MM-dd")} className={errors.birthDate ? "border-destructive" : ""} />
+                  <label htmlFor="booking-birth-date" className="text-sm font-medium">Data de nascimento <span className="text-destructive">*</span></label>
+                  <div className="flex flex-wrap gap-2">
+                    <Input ref={birthDateInput} id="booking-birth-date" type="date" autoComplete="bday" aria-invalid={!!errors.birthDate} value={form.birthDate} onChange={e => { setForm({ ...form, birthDate: e.target.value }); setErrors({ ...errors, birthDate: "" }); }} max={format(new Date(), "yyyy-MM-dd")} className={`h-12 min-w-0 flex-1 basis-40 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:p-2 ${errors.birthDate ? "border-destructive" : ""}`} />
+                    <Button type="button" variant="outline" className="h-12 gap-2 border-primary/60 bg-primary/10 px-4 text-primary hover:bg-primary/20" onClick={() => {
+                      const input = birthDateInput.current;
+                      if (!input) return;
+                      try { if (typeof input.showPicker === 'function') input.showPicker(); else input.focus(); }
+                      catch { input.focus(); }
+                    }}><CalendarDays className="h-5 w-5" aria-hidden="true" />Abrir calendário</Button>
+                  </div>
                   {errors.birthDate && <p className="text-xs text-destructive mt-1">{errors.birthDate}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">E-mail <span className="text-destructive">*</span></label>
+                  <label className="text-sm font-medium">E-mail <span className="text-muted-foreground">(opcional)</span></label>
                   <Input
                     type="email"
                     value={form.email}
                     onChange={e => { setForm({ ...form, email: e.target.value }); setErrors({ ...errors, email: "" }); }}
-                    placeholder="seu@email.com"
+                    placeholder="seu@email.com (opcional)"
                     className={errors.email ? "border-destructive" : ""}
                   />
                   {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
@@ -917,7 +991,7 @@ export default function BookingPublic() {
           {step === "confirm" && selectedShift && (
             <div className="space-y-4">
               <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="mr-1 h-4 w-4" /> Voltar</Button>
-              <Card className="rounded-2xl border-primary/20 bg-primary/10"><CardContent className="p-5"><div className="text-xs text-muted-foreground">Confirme seu agendamento:</div><div className="mt-1 font-semibold">{selectedCourseInfo?.label || selectedCourse}</div><div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDate(selectedShift.date)}</span><span className="flex items-center gap-1.5">{shiftIcon(selectedShift.shift)}{selectedShift.shift} — {shiftTime(selectedShift.shift)}</span></div></CardContent></Card>
+              <Card className="rounded-2xl border-primary/20 bg-primary/10"><CardContent className="p-5"><div className="text-xs text-muted-foreground">Confirme seu agendamento:</div><div className="mt-1 font-semibold">{selectedCourseInfo?.label || selectedCourse}</div><div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDate(selectedShift.date)}</span><span className="flex items-center gap-1.5">{shiftIcon(selectedShift.shift)}{shiftDescription(selectedShift.shift)}</span></div></CardContent></Card>
               <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar agendamento</Button>
             </div>
           )}
@@ -956,7 +1030,7 @@ export default function BookingPublic() {
                     </span>
                     <span className="flex items-center gap-1.5">
                       {shiftIcon(selectedShift.shift)}
-                      {selectedShift.shift} — {shiftTime(selectedShift.shift)}
+                      {shiftDescription(selectedShift.shift)}
                     </span>
                   </div>
                 )}
@@ -986,7 +1060,7 @@ export default function BookingPublic() {
                     </span>
                     <span className="flex items-center gap-1.5">
                       {shiftIcon(selectedShift.shift)}
-                      {selectedShift.shift} — {shiftTime(selectedShift.shift)}
+                      {shiftDescription(selectedShift.shift)}
                     </span>
                   </div>
                 )}
@@ -1004,23 +1078,23 @@ export default function BookingPublic() {
           <DialogHeader>
             <DialogTitle>Você já possui este curso agendado</DialogTitle>
             <DialogDescription>
-              Encontramos uma inscrição ativa para o mesmo curso pelo CPF ou nome informado.
+              Encontramos uma inscrição ativa para este curso. Você pode manter o agendamento ou trocar a data e a modalidade, sem criar outra venda.
             </DialogDescription>
           </DialogHeader>
           {existingCourseBooking && selectedShift && (
             <div className="grid gap-3 py-2 sm:grid-cols-2">
               <Card className="border-border/70">
                 <CardContent className="p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data atual</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data atual</p><p className="text-sm">{existingCourseBooking.courseName}</p>
                   <p className="mt-2 font-semibold capitalize">{formatDate(existingCourseBooking.date)}</p>
-                  <p className="text-sm text-muted-foreground">{normalizeShift(existingCourseBooking.shift)} — {shiftTime(normalizeShift(existingCourseBooking.shift))}</p>
+                  <p className="text-sm text-muted-foreground">{shiftDescription(normalizeShift(existingCourseBooking.shift))}</p>
                 </CardContent>
               </Card>
               <Card className="border-primary/40 bg-primary/5">
                 <CardContent className="p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">Nova data escolhida</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">Nova data escolhida</p><p className="text-sm">{selectedCourse}</p>
                   <p className="mt-2 font-semibold capitalize">{formatDate(selectedShift.date)}</p>
-                  <p className="text-sm text-muted-foreground">{selectedShift.shift} — {shiftTime(selectedShift.shift)}</p>
+                  <p className="text-sm text-muted-foreground">{shiftDescription(selectedShift.shift)}</p>
                 </CardContent>
               </Card>
             </div>

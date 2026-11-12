@@ -65,7 +65,7 @@ const DashboardLayout = ({ children, title, subtitle, actions, contentClassName 
           <div className="flex-1 relative">
             <div className="absolute inset-0 dot-pattern opacity-30 pointer-events-none" />
             <main className="relative z-10 p-3 sm:p-6">
-              <div className={cn("mx-auto max-w-7xl space-y-5", contentClassName)}>
+              <div className={cn("mx-auto w-full max-w-[110rem] space-y-5", contentClassName)}>
                 {children}
               </div>
             </main>

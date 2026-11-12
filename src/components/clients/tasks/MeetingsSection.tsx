@@ -1,4 +1,9 @@
+import {emptyMeetingLeadFields,readMeetingLeadFields,writeMeetingLeadFields,type MeetingLeadFields} from "@/lib/meetingLeadFields";
+import { useNavigate } from 'react-router-dom';
+import { isCourseMeeting,AGENDA_LABELS,AGENDA_DESCRIPTIONS,AGENDA_DESTINATIONS,isSupportMeeting,meetingAgendaLabel } from '@/lib/agendaPresentation';
+import { crmMeetingAgenda, isCloserResponsible, localMeetingAgenda } from '@/lib/crmMeetingAgenda';
 import { useEffect, useState, useMemo } from "react";
+import MeetingClosingSelect from './MeetingClosingSelect';
 import { AgendaBlock, AgendaCategory, Meeting, TeamMember } from "@/types/clients/task";
 import { useMeetingMonthlyMetrics, useSaveMeetingMonthlyMetrics } from "@/hooks/clients/useMeetingMetrics";
 import { toast } from "sonner";
@@ -14,8 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Calendar, Clock, Users, Pencil, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw, BarChart3, Loader2, LockKeyhole } from "lucide-react";
-import { format, parseISO, startOfWeek, endOfWeek, addWeeks, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
+import { Plus, Trash2, Calendar, Clock, Users, Pencil, Repeat, CheckCircle2, ThumbsUp, ThumbsDown, History, ChevronLeft, ChevronRight, Filter, MapPin, Video, Handshake, RefreshCw, BarChart3, Loader2, LockKeyhole } from "lucide-react";
+import { meetingScheduleLabel } from '@/lib/meetingScheduleLabel';
+import { format, parseISO, startOfWeek, endOfWeek, addDays, addWeeks, eachDayOfInterval, isSameDay, isWithinInterval } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Props {
@@ -83,9 +89,12 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
     <div className="rounded-md border border-border bg-card p-2 space-y-1 text-xs">
       <div className="flex items-start justify-between gap-1">
         <span className="font-medium leading-tight">{m.title}</span>
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">{isCourseMeeting(m) ? <Button variant="ghost" size="sm" className="h-6 px-1 text-[10px]" onClick={() => onEdit(m)}>Ver curso</Button> : <>
           {m.status === "pending" && (
             <>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-primary" onClick={() => onEdit(m)} title="Remarcar reunião">
+                <Repeat className="h-2.5 w-2.5" />
+              </Button>
               <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onEdit(m)}>
                 <Pencil className="h-2.5 w-2.5 text-muted-foreground" />
               </Button>
@@ -105,11 +114,11 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
           <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDelete(m.id)} title="Excluir do dashboard e do CRM">
             <Trash2 className="h-2.5 w-2.5 text-muted-foreground" />
           </Button>
-        </div>
+        </>}</div>
       </div>
-      {m.time && (
+      {meetingScheduleLabel(m) && (
         <span className="flex items-center gap-1 text-muted-foreground">
-          <Clock className="h-2.5 w-2.5" />{m.time}{m.durationMinutes ? ` · ${m.durationMinutes} min` : ""}
+          <Clock className="h-2.5 w-2.5" />{meetingScheduleLabel(m)}
         </span>
       )}
       {m.status === "completed" && m.outcome && (
@@ -126,13 +135,13 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
       <div className="flex flex-wrap gap-1">
         {m.agendaCategory && (
           <Badge className="text-[9px] h-4 bg-primary/80">
-            {m.agendaCategory === "reunioes" ? "Reuniões" : m.agendaCategory === "captacao" ? "Captação" : "Social Media"}
+            {meetingAgendaLabel(m)}
           </Badge>
         )}
         {m.modality && (
           <Badge variant="outline" className="text-[9px] h-4 gap-0.5">
             {m.modality === "online" ? <Video className="h-2 w-2" /> : <MapPin className="h-2 w-2" />}
-            {m.modality === "online" ? "Online" : "Presencial"}
+            {m.modality === "online" ? "Online" : m.modality === "presencial" ? "Presencial" : "Modalidade não informada"}
           </Badge>
         )}
         {m.origin && (
@@ -140,7 +149,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
         )}
         {m.service && <Badge variant="outline" className="text-[9px] h-4">{m.service}</Badge>}
         {m.meetingType && <Badge variant="secondary" className="text-[9px] h-4 capitalize">{m.meetingType.replace("_", " ")}</Badge>}
-        {m.responsible && <Badge variant="outline" className="text-[9px] h-4">Resp. {m.responsible}</Badge>}
+        {m.responsible && <Badge variant="outline" className="text-[9px] h-4">Resp. {m.responsibles?.length?m.responsibles.join(' e '):m.responsible}</Badge>}
         {m.source === "crm" && <Badge className="text-[9px] h-4 bg-violet-600">Sincronizado</Badge>}
         {m.hasClosed && (
           <Badge variant="default" className="text-[9px] h-4 gap-0.5 bg-green-600">
@@ -150,6 +159,7 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
         {m.closingStatus === "not_closed" && <Badge variant="destructive" className="text-[9px] h-4">Não fechou</Badge>}
 
       </div>
+      {!isCourseMeeting(m)&&!isSupportMeeting(m)&&((m.agendaCategory || 'reunioes') === 'reunioes' || m.origin === 'CRM') && <MeetingClosingSelect meeting={m} onUpdate={onUpdate}/>}
       {m.participants.length > 0 && (
         <div className="text-muted-foreground truncate">
           <Users className="h-2.5 w-2.5 inline mr-1" />
@@ -158,16 +168,17 @@ function MeetingCard({ m, compact, onEdit, onDelete, onComplete, onUpdate }: {
       )}
       {m.closingStatus === "not_closed" && m.objection && !compact && <p className="text-amber-500 line-clamp-2"><strong>Objeção:</strong> {m.objection}</p>}
       {m.description && !compact && (
-        <p className="text-muted-foreground line-clamp-2">{m.description}</p>
+        <p className={isCourseMeeting(m) ? "text-muted-foreground whitespace-pre-line break-words" : "text-muted-foreground line-clamp-2"}>{m.description}</p>
       )}
     </div>
   );
 }
 
-export function MeetingsSection({ meetings, blocks = [], currentUserId = "", members, agendaTitle = "Agenda Reuniões", agendaCategory = "reunioes", clientNames = [], onAdd, onUpdate, onDelete, onAddBlock, onDeleteBlock, onRefresh, syncing }: Props) {
+export function MeetingsSection({ meetings, blocks = [], currentUserId = "", members, agendaTitle = "Agenda Closer", agendaCategory = "reunioes", clientNames = [], onAdd, onUpdate, onDelete, onAddBlock, onDeleteBlock, onRefresh, syncing }: Props) {
+  const navigate=useNavigate();
   const [showDialog, setShowDialog] = useState(false);
   const [showBlockDialog, setShowBlockDialog] = useState(false);
-  const [blockCategory, setBlockCategory] = useState<AgendaCategory>(agendaCategory === "all" ? "reunioes" : agendaCategory);
+  const [blockCategory, setBlockCategory] = useState<AgendaCategory>(agendaCategory === "all" ? "geral" : agendaCategory);
   const [blockResponsible, setBlockResponsible] = useState("");
   const [blockStartDate, setBlockStartDate] = useState("");
   const [blockEndDate, setBlockEndDate] = useState("");
@@ -178,25 +189,32 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
   const [blockError, setBlockError] = useState("");
 
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
-  const [selectedAgendaCategory, setSelectedAgendaCategory] = useState<AgendaCategory>(agendaCategory === "all" ? "reunioes" : agendaCategory);
+  const [selectedAgendaCategory, setSelectedAgendaCategory] = useState<AgendaCategory>(agendaCategory === "all" ? "geral" : agendaCategory);
   const [title, setTitle] = useState("");
   const [meetingType, setMeetingType] = useState("reuniao");
   const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [notifyClient, setNotifyClient] = useState(true);
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [responsible, setResponsible] = useState("");
   const [professional, setProfessional] = useState("");
   const [date, setDate] = useState("");
+  const [recurrenceDays, setRecurrenceDays] = useState("none");
+  const [recurrenceUntil, setRecurrenceUntil] = useState("");
+  const [saving, setSaving] = useState(false);
   const [time, setTime] = useState("");
   const [description, setDescription] = useState("");
+  const [leadFields,setLeadFields] = useState<MeetingLeadFields>(emptyMeetingLeadFields);
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [origin, setOrigin] = useState("");
   const [service, setService] = useState("");
-  const [modality, setModality] = useState<"presencial" | "online">("presencial");
+  const [modality, setModality] = useState<Meeting["modality"]>("presencial");
   const [closingStatus, setClosingStatus] = useState<"pending" | "closed" | "not_closed">("pending");
   const [objection, setObjection] = useState("");
   const [conflictMsg, setConflictMsg] = useState<string | null>(null);
 
   // Filters
+  const [filterResponsible, setFilterResponsible] = useState("");
   const [filterParticipant, setFilterParticipant] = useState("");
   const [filterOutcome, setFilterOutcome] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
@@ -230,20 +248,21 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
     }
   };
 
-  // Week navigation
-  const [currentWeekStart, setCurrentWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
-
+  const [calendarMode, setCalendarMode] = useState<"week" | "day">("week");
+  const [selectedDay, setSelectedDay] = useState(() => new Date());
+  const currentWeekStart = startOfWeek(selectedDay, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: currentWeekStart, end: weekEnd });
-
-  const prevWeek = () => setCurrentWeekStart((w) => addWeeks(w, -1));
-  const nextWeek = () => setCurrentWeekStart((w) => addWeeks(w, 1));
-  const goToday = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const visibleDays = calendarMode === "day" ? [selectedDay] : weekDays;
+  const moveCalendar = (direction: number) => setSelectedDay(day =>
+    calendarMode === "day" ? addDays(day, direction) : addWeeks(day, direction)
+  );
+  const goToday = () => setSelectedDay(new Date());
 
   const applyFilters = (list: Meeting[]) => {
     return list.filter((m) => {
+      const assignedResponsibles=m.responsibles?.length?m.responsibles:[m.responsible||''];
+      if (filterResponsible === "__unassigned" ? assignedResponsibles.some(name=>name.trim()) : filterResponsible && !assignedResponsibles.some(name=>matchesPersonName(name,filterResponsible))) return false;
       if (filterParticipant) {
         const assignedPeople = [m.responsible || "", m.professional || "", ...m.participants];
         if (!assignedPeople.some((person) => matchesPersonName(person, filterParticipant))) return false;
@@ -266,17 +285,17 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
   const pendingMeetings = useMemo(() => {
     const filtered = applyFilters(meetings.filter((m) => m.status === "pending"));
     return filtered;
-  }, [meetings, filterParticipant, filterOutcome, filterMonth]);
+  }, [meetings, filterResponsible, filterParticipant, filterOutcome, filterMonth]);
 
   const completedMeetings = useMemo(() => {
     const filtered = applyFilters(meetings.filter((m) => m.status === "completed"));
     return filtered.sort((a, b) => b.date.localeCompare(a.date));
-  }, [meetings, filterParticipant, filterOutcome, filterMonth]);
+  }, [meetings, filterResponsible, filterParticipant, filterOutcome, filterMonth]);
 
   const cancelledMeetings = useMemo(() => {
     const filtered = applyFilters(meetings.filter((m) => m.status === "cancelled"));
     return filtered.sort((a, b) => b.date.localeCompare(a.date));
-  }, [meetings, filterParticipant, filterOutcome, filterMonth]);
+  }, [meetings, filterResponsible, filterParticipant, filterOutcome, filterMonth]);
 
   const meetingsByDay = useMemo(() => {
     const map = new Map<string, Meeting[]>();
@@ -297,22 +316,23 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
     // Sort each day by time
     map.forEach((arr) => arr.sort((a, b) => (a.time || "").localeCompare(b.time || "")));
     return map;
-  }, [meetings, currentWeekStart, filterParticipant, filterOutcome, filterMonth]);
+  }, [meetings, currentWeekStart, filterResponsible, filterParticipant, filterOutcome, filterMonth]);
 
   const blocksByDay = useMemo(() => {
     const map = new Map<string, AgendaBlock[]>();
     weekDays.forEach((day) => map.set(format(day, "yyyy-MM-dd"), []));
     blocks.forEach((block) => {
+      if (filterResponsible === "__unassigned" ? Boolean(block.responsible?.trim()) : filterResponsible && !matchesPersonName(block.responsible || "", filterResponsible)) return;
       weekDays.forEach((day) => {
         const key = format(day, "yyyy-MM-dd");
         if (key >= block.startDate && key <= block.endDate) map.get(key)?.push(block);
       });
     });
     return map;
-  }, [blocks, currentWeekStart]);
+  }, [blocks, currentWeekStart, filterResponsible]);
 
   const openBlock = () => {
-    setBlockCategory(agendaCategory === "all" ? "reunioes" : agendaCategory);
+    setBlockCategory(agendaCategory === "all" ? "geral" : agendaCategory);
     setBlockResponsible(""); setBlockStartDate(""); setBlockEndDate("");
     setBlockStartTime(""); setBlockEndTime(""); setBlockAllDay(true); setBlockReason(""); setBlockError("");
     setShowBlockDialog(true);
@@ -320,31 +340,34 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
 
   const saveBlock = () => {
     const endDate = blockEndDate || blockStartDate;
-    if (!blockResponsible || !blockStartDate) { setBlockError("Informe o respons�vel e a data."); return; }
-    if (endDate < blockStartDate) { setBlockError("A data final deve ser igual ou posterior � inicial."); return; }
-    if (!blockAllDay && (!blockStartTime || !blockEndTime)) { setBlockError("Informe o hor�rio inicial e final."); return; }
-    if (!blockAllDay && endDate === blockStartDate && blockEndTime <= blockStartTime) { setBlockError("O hor�rio final deve ser posterior ao inicial."); return; }
+    if (!blockResponsible || !blockStartDate) { setBlockError("Informe o responsável e a data."); return; }
+    if (endDate < blockStartDate) { setBlockError("A data final deve ser igual ou posterior à inicial."); return; }
+    if (!blockAllDay && (!blockStartTime || !blockEndTime)) { setBlockError("Informe o horário inicial e final."); return; }
+    if (!blockAllDay && endDate === blockStartDate && blockEndTime <= blockStartTime) { setBlockError("O horário final deve ser posterior ao inicial."); return; }
     onAddBlock?.({ agendaCategory: blockCategory, startDate: blockStartDate, endDate, startTime: blockStartTime, endTime: blockEndTime, allDay: blockAllDay, responsible: blockResponsible, reason: blockReason.trim() });
     setShowBlockDialog(false);
   };
 
   const openAdd = () => {
+    setRecurrenceDays("none"); setRecurrenceUntil("");
     setEditingMeeting(null);
-    setTitle(""); setMeetingType("reuniao"); setClientName(""); setDate(""); setTime(""); setDurationMinutes(60);
-    setResponsible(""); setProfessional(""); setDescription("");
+    setTitle(""); setMeetingType(agendaCategory === "captacao" ? "captacao" : agendaCategory === "reunioes" ? "reuniao_vendas" : "reuniao"); setClientName(""); setClientPhone(""); setNotifyClient(true); setDate(""); setTime(""); setDurationMinutes(60);
+    setResponsible(""); setProfessional(""); setDescription(""); setLeadFields(emptyMeetingLeadFields());
     setSelectedParticipants([]); setOrigin(""); setService(""); setModality("presencial");
     setClosingStatus("pending"); setObjection("");
-    setSelectedAgendaCategory(agendaCategory === "all" ? "reunioes" : agendaCategory);
+    setSelectedAgendaCategory(agendaCategory === "all" ? "geral" : agendaCategory);
     setConflictMsg(null);
     setShowDialog(true);
   };
 
   const openEdit = (m: Meeting) => {
+    if(isCourseMeeting(m)){navigate("/tasks");return;}if(isSupportMeeting(m)){navigate("/agenda-suporte");return;}
+    setRecurrenceDays("none"); setRecurrenceUntil("");
     setEditingMeeting(m);
-    setTitle(m.title); setMeetingType(m.meetingType || "reuniao"); setClientName(m.clientName || m.title);
+    setTitle(m.title); setMeetingType(m.meetingType || "reuniao"); setClientName(m.clientName || m.title); setClientPhone(m.clientPhone || ""); setNotifyClient(m.notifyClient !== false);
     setDate(m.date); setTime(m.time); setDurationMinutes(m.durationMinutes || 60);
     setResponsible(m.responsible || ""); setProfessional(m.professional || "");
-    setDescription(m.description); setSelectedParticipants(m.participants);
+    const lead=readMeetingLeadFields(m.description); setDescription(lead.notes); setLeadFields(lead.fields); setSelectedParticipants(m.participants);
     setOrigin(m.origin); setService(m.service || ""); setModality(m.modality);
     setClosingStatus(m.closingStatus || (m.hasClosed ? "closed" : "pending")); setObjection(m.objection || "");
     setSelectedAgendaCategory(m.agendaCategory || "reunioes");
@@ -352,22 +375,24 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
     setShowDialog(true);
   };
 
+  const updateAgendaMeeting=(m:Meeting)=>{if(isCourseMeeting(m)){navigate("/tasks");return;}if(isSupportMeeting(m)){navigate("/agenda-suporte");return;}onUpdate(m);};
+  const deleteAgendaMeeting=(id:string)=>{if(id.startsWith("course-")){navigate("/tasks");return;}if(id.startsWith("support-")){navigate("/agenda-suporte");return;}onDelete(id);};
   const completeMeeting = (m: Meeting, outcome: "positive" | "negative") => {
-    onUpdate({ ...m, status: "completed", outcome });
+    updateAgendaMeeting({ ...m, status: "completed", outcome });
   };
 
-  const checkConflict = (): string | null => {
+  const checkConflict = (dateToCheck = date): string | null => {
     if (!time) return null;
     const assignedPeople = [responsible, professional, ...selectedParticipants].filter(Boolean);
     const meetingStart = Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
     const meetingEnd = meetingStart + durationMinutes;
     for (const block of blocks) {
-      if (block.agendaCategory !== selectedAgendaCategory || date < block.startDate || date > block.endDate) continue;
+      if ((block.agendaCategory !== "geral" && block.agendaCategory !== selectedAgendaCategory) || dateToCheck < block.startDate || dateToCheck > block.endDate) continue;
       if (!assignedPeople.some((person) => matchesPersonName(person, block.responsible))) continue;
       const blockStart = Number(block.startTime.slice(0, 2)) * 60 + Number(block.startTime.slice(3, 5));
       const blockEnd = Number(block.endTime.slice(0, 2)) * 60 + Number(block.endTime.slice(3, 5));
       if (block.allDay || (meetingStart < blockEnd && meetingEnd > blockStart)) {
-        return block.responsible + " est� com a agenda bloqueada" + (block.reason ? ": " + block.reason : ".");
+        return block.responsible + " está com a agenda bloqueada" + (block.reason ? ": " + block.reason : ".");
       }
     }
     if (selectedParticipants.length === 0) return null;
@@ -376,7 +401,7 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
     const otherMeetings = meetings.filter((mt) => {
       if (editingMeeting && mt.id === editingMeeting.id) return false;
       if (mt.status === "completed") return false;
-      return mt.date === date && mt.time;
+      return mt.date === dateToCheck && mt.time;
     });
     for (const mt of otherMeetings) {
       const [oh, om] = mt.time.split(":").map(Number);
@@ -392,18 +417,38 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
     return null;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (saving) return;
     if (!title.trim() || !date) return;
-    if (closingStatus === "not_closed" && !objection.trim()) { setConflictMsg("Informe a objeção ou o motivo pelo qual a venda não fechou."); return; }
-    const conflict = checkConflict();
-    if (conflict) { setConflictMsg(conflict); return; }
+    if(selectedAgendaCategory==="reunioes"&&responsible.trim()&&!isCloserResponsible(responsible)){setConflictMsg("A Agenda Closer é de Leonardo Webster. Para outro responsável, use Agenda Geral.");return;}
+    const destination = editingMeeting?.externalId || editingMeeting?.source === 'crm' ? crmMeetingAgenda(responsible, meetingType) : localMeetingAgenda(selectedAgendaCategory, responsible, meetingType);
+    if (notifyClient && clientPhone.trim() && destination === "reunioes") {
+      let digits = clientPhone.replace(/\D/g, "");
+      if (digits.length === 10 || digits.length === 11) digits = "55" + digits;
+      if (!/^55[1-9][0-9]{9,10}$/.test(digits)) { setConflictMsg("Informe um WhatsApp válido, com DDD."); return; }
+    }
+
+    if ((destination==="reunioes"||editingMeeting?.origin==="CRM") && closingStatus === "not_closed" && !objection.trim()) { setConflictMsg("Informe a objeção ou o motivo pelo qual a venda não fechou."); return; }
+    const recurrence = !editingMeeting && selectedAgendaCategory === "captacao" && recurrenceDays !== "none" ? { intervalDays: Number(recurrenceDays) as 7 | 15, until: recurrenceUntil } : undefined;
+    try {
+      for (const occurrence of captureDates(date, recurrence)) {
+        const conflict = checkConflict(occurrence);
+        if (conflict) { setConflictMsg(`${occurrence.split("-").reverse().join("/")}: ${conflict}`); return; }
+      }
+    } catch (error) { setConflictMsg((error as Error).message); return; }
+    const savedDescription = writeMeetingLeadFields(description, leadFields);
     setConflictMsg(null);
+    setSaving(true);
+    try {
     if (editingMeeting) {
-      onUpdate({ ...editingMeeting, agendaCategory: selectedAgendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
+      await onUpdate({ ...editingMeeting, agendaCategory: destination, title: title.trim(), meetingType, clientName, clientPhone, notifyClient, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description: savedDescription, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     } else {
-      onAdd({ agendaCategory: selectedAgendaCategory, title: title.trim(), meetingType, clientName, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description, status: "pending", outcome: null, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
+      await onAdd({ recurrence, agendaCategory: destination, title: title.trim(), meetingType, clientName, clientPhone, notifyClient, date, time, durationMinutes, responsible, professional, participants: selectedParticipants, description: savedDescription, status: "pending", outcome: null, origin, service, modality, hasClosed: closingStatus === "closed", closingStatus, objection: objection.trim() });
     }
     setShowDialog(false);
+    } catch (error) {
+      setConflictMsg(String((error as { message?: string })?.message || "Não foi possível salvar. Tente novamente."));
+    } finally { setSaving(false); }
   };
 
   const toggleParticipant = (name: string) => {
@@ -418,6 +463,15 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
     meetings.forEach((m) => m.participants.forEach((p) => set.add(p)));
     return Array.from(set).sort();
   }, [members, meetings]);
+
+  const responsibleOptions = useMemo(() => {
+    const names = new Map<string,string>();
+    [...members.map(member => member.name), ...meetings.flatMap(meeting => meeting.responsibles?.length?meeting.responsibles:[meeting.responsible || ""]), ...blocks.map(block => block.responsible || "")].forEach(name => {
+      const normalized = normalizePersonName(name);
+      if (normalized && !names.has(normalized)) names.set(normalized, name.trim());
+    });
+    return [...names.values()].sort((a,b) => a.localeCompare(b,"pt-BR"));
+  }, [members,meetings,blocks]);
 
   const monthOptions = useMemo(() => {
     const set = new Set<string>();
@@ -447,6 +501,10 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
           <div className="flex items-center gap-1 text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
           </div>
+          <Select value={filterResponsible || "all"} onValueChange={(value) => setFilterResponsible(value === "all" ? "" : value)}>
+            <SelectTrigger className="w-[180px] h-8 text-xs" aria-label="Filtrar por responsável"><SelectValue placeholder="Responsável" /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todos os responsáveis</SelectItem><SelectItem value="__unassigned">Sem responsável</SelectItem>{responsibleOptions.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
+          </Select>
           <Select value={filterParticipant} onValueChange={(v) => setFilterParticipant(v === "all" ? "" : v)}>
             <SelectTrigger className="w-[150px] h-8 text-xs">
               <SelectValue placeholder="Participante" />
@@ -482,7 +540,6 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={() => setShowMetricsDialog(true)}><BarChart3 className="h-4 w-4 mr-1" /> Lançar métricas</Button>
           {onAddBlock && <Button variant="outline" size="sm" onClick={openBlock} className="border-amber-500/50 text-amber-500 hover:text-amber-400"><LockKeyhole className="h-4 w-4 mr-1" /> Bloquear agenda</Button>}
           <Button size="sm" onClick={openAdd}>
             <Plus className="h-4 w-4 mr-1" /> Agendar
@@ -493,15 +550,6 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          ["Meta de agendamentos", Number(monthlyMetrics?.scheduling_goal || 0).toLocaleString("pt-BR")],
-          ["Custo por agendamento", Number(monthlyMetrics?.cost_per_scheduling || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })],
-          ["Reuniões marcadas", Number(monthlyMetrics?.meetings_scheduled || 0).toLocaleString("pt-BR")],
-          ["Reuniões realizadas", Number(monthlyMetrics?.meetings_held || 0).toLocaleString("pt-BR")],
-          ["Comparecimento em call", `${attendanceRate.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`],
-        ].map(([label, value]) => <Card key={label}><CardContent className="p-4"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-1 text-xl font-bold">{value}</p><p className="mt-1 text-[10px] capitalize text-muted-foreground">{formatMonthLabel(metricsMonth)}</p></CardContent></Card>)}
-      </div>
       <Tabs defaultValue="calendar" className="space-y-4">
         <TabsList>
           <TabsTrigger value="calendar" className="gap-1.5">
@@ -516,22 +564,27 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
         </TabsList>
 
         <TabsContent value="calendar" className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <Button variant="outline" size="sm" onClick={prevWeek}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">
-                {format(currentWeekStart, "dd/MM", { locale: ptBR })} - {format(weekEnd, "dd/MM/yyyy", { locale: ptBR })}
-              </span>
-              <Button variant="ghost" size="sm" onClick={goToday}>Hoje</Button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1" role="group" aria-label="Visão do calendário">
+              <Button size="sm" variant={calendarMode === "week" ? "default" : "outline"} aria-pressed={calendarMode === "week"} onClick={() => setCalendarMode("week")}>Semana</Button>
+              <Button size="sm" variant={calendarMode === "day" ? "default" : "outline"} aria-pressed={calendarMode === "day"} onClick={() => setCalendarMode("day")}>Dia</Button>
             </div>
-            <Button variant="outline" size="sm" onClick={nextWeek}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" aria-label={calendarMode === "day" ? "Dia anterior" : "Semana anterior"} onClick={() => moveCalendar(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+              <span className="text-sm font-medium">
+                {calendarMode === "day" ? format(selectedDay, "dd/MM/yyyy", { locale: ptBR }) : `${format(currentWeekStart, "dd/MM")} - ${format(weekEnd, "dd/MM/yyyy")}`}
+              </span>
+              <Button variant="outline" size="sm" aria-label={calendarMode === "day" ? "Próximo dia" : "Próxima semana"} onClick={() => moveCalendar(1)}><ChevronRight className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="sm" onClick={goToday}>Hoje</Button>
+              <Input type="date" aria-label="Data da agenda" className="w-40" value={format(selectedDay, "yyyy-MM-dd")} onChange={event => {
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(event.target.value)) return;
+                const date = parseISO(event.target.value);
+                if (!Number.isNaN(date.getTime())) setSelectedDay(date);
+              }} />
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
-            {weekDays.map((day) => {
+          <div className={calendarMode === "day" ? "grid grid-cols-1 gap-2" : "grid grid-cols-1 md:grid-cols-7 gap-2"}>
+            {visibleDays.map((day) => {
               const key = format(day, "yyyy-MM-dd");
               const dayMeetings = meetingsByDay.get(key) || [];
               const dayBlocks = blocksByDay.get(key) || [];
@@ -549,19 +602,20 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
                           {block.ownerId === currentUserId && onDeleteBlock && <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onDeleteBlock(block.id)}><Trash2 className="h-3 w-3" /></Button>}
                         </div>
                         <p className="mt-1">{block.responsible}</p>
-                        <p className="text-muted-foreground">{block.allDay ? "Dia inteiro" : block.startTime + "" + block.endTime}</p>
+                        <p className="text-muted-foreground">{block.allDay ? "Dia inteiro" : block.startTime + " – " + block.endTime}</p>
                         {block.reason && <p className="mt-1 text-muted-foreground">{block.reason}</p>}
                       </div>
                     ))}
+                    {calendarMode === "day" && dayMeetings.length === 0 && dayBlocks.length === 0 && <p className="py-6 text-sm text-muted-foreground">Nenhum compromisso ou bloqueio neste dia.</p>}
                     {dayMeetings.map((m) => (
                       <MeetingCard
                         key={m.id}
                         m={m}
-                        compact
+                        compact={calendarMode === "week"}
                         onEdit={openEdit}
-                        onDelete={onDelete}
+                        onDelete={deleteAgendaMeeting}
                         onComplete={completeMeeting}
-                        onUpdate={onUpdate}
+                        onUpdate={updateAgendaMeeting}
                       />
                     ))}
                   </div>
@@ -586,23 +640,23 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onUpdate({ ...m, status: "pending", outcome: null })}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateAgendaMeeting({ ...m, status: "pending", outcome: null })}>
                         <CheckCircle2 className="h-3 w-3 text-muted-foreground" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onDelete(m.id)}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteAgendaMeeting(m.id)}>
                         <Trash2 className="h-3 w-3 text-muted-foreground" />
                       </Button>
                     </div>
                   </div>
                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDateWithWeekday(m.date)}</span>
-                     {m.time && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{m.time}</span>}
+                     {meetingScheduleLabel(m) && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{meetingScheduleLabel(m)}</span>}
                    </div>
                    <div className="flex flex-wrap gap-1">
                      {m.modality && (
                        <Badge variant="outline" className="text-[10px] h-5 gap-0.5">
                          {m.modality === "online" ? <Video className="h-2.5 w-2.5" /> : <MapPin className="h-2.5 w-2.5" />}
-                         {m.modality === "online" ? "Online" : "Presencial"}
+                         {m.modality === "online" ? "Online" : m.modality === "presencial" ? "Presencial" : "Modalidade não informada"}
                        </Badge>
                      )}
                      {m.origin && <Badge variant="secondary" className="text-[10px] h-5">{m.origin}</Badge>}
@@ -612,6 +666,7 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
                        </Badge>
                      )}
                    </div>
+                   {!isCourseMeeting(m)&&!isSupportMeeting(m)&&((m.agendaCategory || 'reunioes') === 'reunioes' || m.origin === 'CRM') && <MeetingClosingSelect meeting={m} onUpdate={updateAgendaMeeting}/>}
                    {m.participants.length > 0 && (
                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                        <Users className="h-3 w-3" />
@@ -650,16 +705,16 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
       </Tabs>
 
       <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent data-lenis-prevent className="agenda-block-dialog max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y sm:max-w-lg">
           <DialogHeader><DialogTitle>Bloquear agenda</DialogTitle></DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
-            {agendaCategory === "all" && <div className="sm:col-span-2"><Label>Agenda</Label><Select value={blockCategory} onValueChange={(value) => setBlockCategory(value as AgendaCategory)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="reunioes">Reuni�es</SelectItem><SelectItem value="captacao">Capta��o</SelectItem><SelectItem value="social_media">Social Media</SelectItem></SelectContent></Select></div>}
-            <div className="sm:col-span-2"><Label>Respons�vel *</Label><Select value={blockResponsible} onValueChange={setBlockResponsible}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{members.map((member) => <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>)}</SelectContent></Select></div>
+            {agendaCategory === "all" && <div className="sm:col-span-2"><Label>Aplicar bloqueio em</Label><Select value={blockCategory} onValueChange={(value) => setBlockCategory(value as AgendaCategory)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="geral">Bloqueio geral · todas as categorias</SelectItem><SelectItem value="reunioes">Agenda Closer</SelectItem><SelectItem value="captacao">Agenda de Captação</SelectItem><SelectItem value="social_media">Agenda Social Media</SelectItem></SelectContent></Select></div>}
+            <div className="sm:col-span-2"><Label>Responsável *</Label><Select value={blockResponsible} onValueChange={setBlockResponsible}><SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger><SelectContent>{members.map((member) => <SelectItem key={member.id} value={member.name}>{member.name}</SelectItem>)}</SelectContent></Select></div>
             <div><Label>Data inicial *</Label><Input type="date" value={blockStartDate} onChange={(event) => { setBlockStartDate(event.target.value); if (!blockEndDate) setBlockEndDate(event.target.value); }} /></div>
             <div><Label>Data final</Label><Input type="date" value={blockEndDate} min={blockStartDate} onChange={(event) => setBlockEndDate(event.target.value)} /></div>
             <div className="sm:col-span-2 flex items-center gap-2 rounded-md border p-3"><Checkbox id="block-all-day" checked={blockAllDay} onCheckedChange={(checked) => setBlockAllDay(checked === true)} /><Label htmlFor="block-all-day" className="cursor-pointer">Bloquear o dia inteiro</Label></div>
-            {!blockAllDay && <><div><Label>Hor�rio inicial *</Label><Input type="time" value={blockStartTime} onChange={(event) => setBlockStartTime(event.target.value)} /></div><div><Label>Hor�rio final *</Label><Input type="time" value={blockEndTime} onChange={(event) => setBlockEndTime(event.target.value)} /></div></>}
-            <div className="sm:col-span-2"><Label>Motivo</Label><Input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} placeholder="Ex.: viagem, compromisso, indispon�vel" /></div>
+            {!blockAllDay && <><div><Label>Horário inicial *</Label><Input type="time" value={blockStartTime} onChange={(event) => setBlockStartTime(event.target.value)} /></div><div><Label>Horário final *</Label><Input type="time" value={blockEndTime} onChange={(event) => setBlockEndTime(event.target.value)} /></div></>}
+            <div className="sm:col-span-2"><Label>Motivo</Label><Input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} placeholder="Ex.: viagem, compromisso, indisponível" /></div>
             {blockError && <p className="sm:col-span-2 text-sm text-destructive">{blockError}</p>}
           </div>
           <DialogFooter><Button variant="ghost" onClick={() => setShowBlockDialog(false)}>Cancelar</Button><Button onClick={saveBlock}>Bloquear</Button></DialogFooter>
@@ -679,36 +734,48 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
         </DialogContent>
       </Dialog>
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto overscroll-contain sm:max-w-2xl">
+        <DialogContent data-lenis-prevent className="max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y sm:max-w-2xl" style={{ WebkitOverflowScrolling: "touch" }}>
           <DialogHeader>
             <DialogTitle>{editingMeeting ? "Editar horário" : "Novo horário"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
             {agendaCategory === "all" && (
               <div className="sm:col-span-2">
-                <Label>Agenda</Label>
-                <Select value={selectedAgendaCategory} onValueChange={(value) => setSelectedAgendaCategory(value as AgendaCategory)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="reunioes">Reuniões</SelectItem>
-                    <SelectItem value="captacao">Captação</SelectItem>
-                    <SelectItem value="social_media">Social Media</SelectItem>
-                  </SelectContent>
+                <Label htmlFor="agenda-destination">Destino do compromisso</Label>
+                <Select value={selectedAgendaCategory} onValueChange={value=>{
+                  const destination=AGENDA_DESTINATIONS.find(item=>item.value===value);
+                  if(destination?.path){setShowDialog(false);navigate(destination.path);return;}
+                  setSelectedAgendaCategory(value as AgendaCategory);setConflictMsg(null);
+                }}>
+                  <SelectTrigger id="agenda-destination"><SelectValue /></SelectTrigger>
+                  <SelectContent>{AGENDA_DESTINATIONS.map(item=><SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
                 </Select>
+                <p className="mt-2 text-xs text-muted-foreground">{AGENDA_DESCRIPTIONS[selectedAgendaCategory]}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Suporte e cursos abrem as telas próprias, com suas regras de disponibilidade e avisos.</p>
               </div>
             )}
+            {agendaCategory!=='all'&&<p className="sm:col-span-2 text-sm text-muted-foreground">Destino: <strong>{AGENDA_LABELS[selectedAgendaCategory]}</strong>. {AGENDA_DESCRIPTIONS[selectedAgendaCategory]}</p>}
             <div className="sm:col-span-2">
-              <Label>Tipo</Label>
-              <Select value={meetingType} onValueChange={setMeetingType}>
+              <Label>Tipo de compromisso</Label>
+              <Select value={meetingType} onValueChange={value => {
+                setMeetingType(value);
+                if (selectedAgendaCategory === 'geral' || selectedAgendaCategory === 'reunioes') {
+                  setSelectedAgendaCategory(value === 'reuniao_vendas' ? 'reunioes' : 'geral');
+                }
+              }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ligacao">Ligação</SelectItem>
+                  <SelectItem value="captacao">Captação</SelectItem>
                   <SelectItem value="reuniao">Reunião</SelectItem>
+                  <SelectItem value="reuniao_vendas">Reunião de vendas</SelectItem>
+                  <SelectItem value="reuniao_cliente">Reunião cliente</SelectItem>
                   <SelectItem value="alinhamento">Alinhamento interno</SelectItem>
-                  <SelectItem value="suporte">Suporte</SelectItem>
+                  {editingMeeting?.meetingType==="suporte"&&<SelectItem value="suporte">Suporte (registro de compromisso)</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
+            <p className="sm:col-span-2 text-xs text-muted-foreground">Somente Reunião de vendas de Leonardo Webster vai para a Agenda Closer. Reunião comum fica na Agenda Geral.</p>
             <div className="sm:col-span-2">
               <Label>Cliente</Label>
               <Select
@@ -716,6 +783,7 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
                 onValueChange={(value) => {
                   const nextClient = value === "__none" || value === "__manual" ? "" : value;
                   setClientName(nextClient);
+                  setClientPhone("");
                   if (nextClient) setTitle(nextClient);
                 }}
               >
@@ -732,12 +800,26 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
                 onChange={(event) => {
                   const nextClient = event.target.value;
                   setClientName(nextClient);
+                  setClientPhone("");
                   setTitle(nextClient);
                 }}
                 placeholder="Ou digite o nome do cliente"
                 aria-label="Digitar nome do cliente manualmente"
               />
             </div>
+            {clientName && selectedAgendaCategory === "reunioes" && (
+              <div className="sm:col-span-2 space-y-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={notifyClient} onChange={event => setNotifyClient(event.target.checked)} />
+                  Avisar o cliente pelo WhatsApp 1 hora antes
+                </label>
+                {notifyClient && <>
+                  <Label htmlFor="meeting-client-phone">WhatsApp do cliente</Label>
+                  <Input id="meeting-client-phone" type="tel" value={clientPhone} onChange={event => setClientPhone(event.target.value)} placeholder="+55 (51) 99999-9999" />
+                  <p className="text-xs text-muted-foreground">Deixe vazio para usar o telefone do cadastro do cliente. Para um cliente digitado manualmente, informe o WhatsApp.</p>
+                </>}
+              </div>
+            )}
             {!clientName && (
               <div className="sm:col-span-2">
                 <Label>Nome ou título *</Label>
@@ -754,10 +836,18 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
                 <Input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
               </div>
               <div>
-                <Label>Duração (min)</Label>
-                <Input type="number" min={5} step={5} value={durationMinutes} onChange={(event) => setDurationMinutes(Math.max(5, Number(event.target.value) || 60))} />
+                {selectedAgendaCategory !== "captacao" ? <><Label>Duração (min)</Label><Input type="number" min={5} step={5} value={durationMinutes} onChange={(event) => setDurationMinutes(Math.max(5, Number(event.target.value) || 60))} /></> : <><Label>Período (turno)</Label>
+                <Select value={durationMinutes >= 480 ? "dia_todo" : durationMinutes >= 360 ? "tarde" : "manha"} onValueChange={(value) => setDurationMinutes(value === "dia_todo" ? 480 : value === "tarde" ? 360 : 240)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="manha">Turma da manhã</SelectItem><SelectItem value="tarde">Turma da tarde</SelectItem><SelectItem value="dia_todo">Dia todo</SelectItem></SelectContent>
+                </Select></>}
               </div>
             </div>
+            {selectedAgendaCategory === "captacao" && !editingMeeting && <div className="sm:col-span-2 rounded-lg border p-3 space-y-3">
+              <div><Label>Repetir captação</Label><Select value={recurrenceDays} onValueChange={setRecurrenceDays}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Não repetir</SelectItem><SelectItem value="7">Toda semana</SelectItem><SelectItem value="15">A cada 15 dias</SelectItem></SelectContent></Select></div>
+              {recurrenceDays !== "none" && <><div><Label>Repetir até *</Label><Input type="date" min={date} value={recurrenceUntil} onChange={(event) => setRecurrenceUntil(event.target.value)} /></div><p className="text-xs text-muted-foreground">Cria as captações desde a data inicial até a data final, mantendo horário, turno e equipe. Cada ocorrência poderá ser editada ou cancelada separadamente.</p></>}
+            </div>}
+            {editingMeeting?.recurrence && <p className="sm:col-span-2 text-xs text-muted-foreground">Captação recorrente: {editingMeeting.recurrence.intervalDays === 7 ? "toda semana" : "a cada 15 dias"}, até {editingMeeting.recurrence.until.split("-").reverse().join("/")}. A edição altera somente esta ocorrência.</p>}
             <div>
               <Label>Responsável</Label>
               <Select value={responsible || "__none"} onValueChange={(value) => setResponsible(value === "__none" ? "" : value)}>
@@ -784,11 +874,12 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
             </div>
             <div>
               <Label>Modalidade</Label>
-              <Select value={modality} onValueChange={(value) => setModality(value as "presencial" | "online")}>
+              <Select value={modality} onValueChange={(value) => setModality(value as Meeting["modality"])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="presencial">Presencial</SelectItem>
                   <SelectItem value="online">Online</SelectItem>
+                  <SelectItem value="nao_informado">Não informado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -813,12 +904,27 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
               <Label>Origem</Label>
               <Input value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="Ex.: indicação, anúncio, WhatsApp" />
             </div>
+            {(selectedAgendaCategory === 'reunioes' || meetingType === 'reuniao_vendas') && <fieldset className="sm:col-span-2 grid gap-3 rounded-lg border border-border p-3 sm:grid-cols-2">
+              <legend className="px-1 text-sm font-semibold">Resumo do lead</legend>
+              <p className="sm:col-span-2 text-xs text-muted-foreground">Estas informações entram no resumo da mensagem interna de nova reunião. Campos em branco ficam como não informados.</p>
+              <div><Label htmlFor="lead-partners">Tem sócios?</Label>
+                <Select value={leadFields.partners || '__none'} onValueChange={value=>setLeadFields(fields=>({...fields,partners:value==='__none'?'':value}))}>
+                  <SelectTrigger id="lead-partners"><SelectValue /></SelectTrigger><SelectContent>
+                    <SelectItem value="__none">Não informado</SelectItem><SelectItem value="Sim">Sim</SelectItem><SelectItem value="Não">Não</SelectItem>
+                    {leadFields.partners && !['Sim','Não'].includes(leadFields.partners) && <SelectItem value={leadFields.partners}>{leadFields.partners}</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label htmlFor="lead-business">Tipo de negócio</Label><Input id="lead-business" value={leadFields.business} maxLength={500} placeholder="Ex.: clínica veterinária" onChange={event=>setLeadFields(fields=>({...fields,business:event.target.value}))}/></div>
+              <div><Label htmlFor="lead-revenue">Faturamento mensal</Label><Input id="lead-revenue" value={leadFields.revenue} maxLength={500} placeholder="Ex.: R$ 30.000 ou de R$ 20 mil a R$ 50 mil" onChange={event=>setLeadFields(fields=>({...fields,revenue:event.target.value}))}/></div>
+              <div><Label htmlFor="lead-interest">Interesse (curso/assessoria)</Label><Input id="lead-interest" value={leadFields.interest} maxLength={500} placeholder="Curso, assessoria ou ambos" onChange={event=>setLeadFields(fields=>({...fields,interest:event.target.value}))}/></div>
+            </fieldset>}
             <div className="sm:col-span-2">
               <Label>Observação</Label>
               <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} />
             </div>
-            <div className="sm:col-span-2">
-              <Label>Fechou na call?</Label>
+            {(selectedAgendaCategory==="reunioes"||editingMeeting?.origin==="CRM")&&<div className="sm:col-span-2">
+              <Label>Fechou na call? (reunião comercial)</Label>
               <Select value={closingStatus} onValueChange={(value) => { const next = value as "pending" | "closed" | "not_closed"; setClosingStatus(next); if (next !== "not_closed") setObjection(""); }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -827,8 +933,8 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
                   <SelectItem value="not_closed">Não fechou</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            {closingStatus === "not_closed" && (
+            </div>}
+            {(selectedAgendaCategory==="reunioes"||editingMeeting?.origin==="CRM")&&closingStatus === "not_closed" && (
               <div className="sm:col-span-2">
                 <Label>Objeção / motivo de não fechar *</Label>
                 <Textarea value={objection} onChange={(event) => setObjection(event.target.value)} rows={3} placeholder="Registre a objeção para mapear no fechamento do mês" />
@@ -838,7 +944,7 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowDialog(false)}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={!title.trim() || !date}>
+            <Button onClick={handleSubmit} disabled={!title.trim() || !date || syncing || saving}>
               {editingMeeting ? "Salvar" : "Agendar"}
             </Button>
           </DialogFooter>
@@ -847,3 +953,6 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
     </div>
   );
 }
+import { captureDates } from "@/lib/captureRecurrence";
+
+

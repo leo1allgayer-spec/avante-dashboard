@@ -5,6 +5,8 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // Keep hashed assets from earlier local builds for tabs opened before a deploy.
+  build: { emptyOutDir: false },
   server: {
     host: "::",
     port: 8080,

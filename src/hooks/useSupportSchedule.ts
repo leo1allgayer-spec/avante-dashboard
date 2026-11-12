@@ -3,6 +3,26 @@ import { supabase } from "@/integrations/supabase/client";
 
 const db = supabase as any;
 
+export interface SupportDateOverride { id:string; slot_date:string; start_time:string; capacity:number; active:boolean }
+export function useSupportDateOverrides(from:string,to:string){
+ return useQuery({queryKey:['support-date-overrides',from,to],queryFn:async()=>{
+  const {data,error}=await db.from('support_date_overrides').select('*').gte('slot_date',from).lte('slot_date',to).order('slot_date').order('start_time');
+  if(error)throw error;return (data||[]) as SupportDateOverride[];
+ }});
+}
+export function useSaveSupportAvailability(){
+ const qc=useQueryClient();
+ return useMutation({mutationFn:async(input:{scope:'weekly'|'date';rows:Record<string,unknown>[]})=>{
+  const table=input.scope==='weekly'?'support_availability_rules':'support_date_overrides';
+  const conflict=input.scope==='weekly'?'weekday,start_time':'slot_date,start_time';
+  const {error}=await db.from(table).upsert(input.rows,{onConflict:conflict});if(error)throw error;
+ },onSuccess:()=>{qc.invalidateQueries({queryKey:['support-rules']});qc.invalidateQueries({queryKey:['support-date-overrides']});qc.invalidateQueries({queryKey:['support-slots']});}});
+}
+export function useRemoveSupportOverride(){
+ const qc=useQueryClient();
+ return useMutation({mutationFn:async(id:string)=>{const {error}=await db.from('support_date_overrides').delete().eq('id',id);if(error)throw error;},onSuccess:()=>{qc.invalidateQueries({queryKey:['support-date-overrides']});qc.invalidateQueries({queryKey:['support-slots']});}});
+}
+
 export interface SupportAvailabilityRule {
   id: string;
   weekday: number;
@@ -18,6 +38,7 @@ export interface SupportBooking {
   student_id: string;
   cpf_limpo: string;
   student_name: string;
+  student_phone?: string;
   booking_date: string;
   start_time: string;
   modality: "presencial" | "online";
@@ -60,7 +81,7 @@ export function useCreateSupportRule() {
       if (error) throw error;
       return data as SupportAvailabilityRule;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["support-rules"] }),
+    onSuccess: () => {queryClient.invalidateQueries({ queryKey: ["support-rules"] });queryClient.invalidateQueries({ queryKey: ["support-slots"] });},
   });
 }
 
@@ -155,5 +176,22 @@ export function useCreateSupportBooking() {
       queryClient.invalidateQueries({ queryKey: ["support-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["support-slots"] });
     },
+  });
+}
+export interface MySupportBooking { id: string; date: string; time: string; modality: "presencial" | "online" }
+export async function listMySupportBookings(cpf: string, phone: string) {
+  const { data, error } = await db.rpc("list_my_support_bookings", { p_cpf: cpf, p_phone: phone });
+  if (error) throw error;
+  return (data || []) as MySupportBooking[];
+}
+export function useRescheduleSupportBooking() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; cpf: string; phone: string; date: string; time: string; modality: "presencial" | "online" }) => {
+      const { data, error } = await db.rpc("reschedule_support_booking", { p_booking_id: input.id, p_cpf: input.cpf, p_phone: input.phone, p_date: input.date, p_start_time: input.time, p_modality: input.modality });
+      if (error) throw error;
+      return data as { id: string; name: string; date: string; time: string; used: number; remaining: number };
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["support-bookings"] }); queryClient.invalidateQueries({ queryKey: ["support-slots"] }); },
   });
 }

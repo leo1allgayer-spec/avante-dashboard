@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
+import { processSurveyCompletionMessages } from '../_shared/survey-completion-message.ts';
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.100.0/cors";
 
 const REMINDER_WINDOWS_MS: Record<string, number> = {
@@ -99,6 +100,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    const completionMessages = await processSurveyCompletionMessages(supabase);
     // Get pending scheduled messages that are due
     const nowDate = new Date();
     const now = nowDate.toISOString();
@@ -106,6 +108,7 @@ Deno.serve(async (req) => {
       .from("whatsapp_scheduled_messages")
       .select("*, course_bookings(*)")
       .eq("status", "pending")
+      .eq("attempts", 0)
       .lte("scheduled_for", now)
       .order("scheduled_for", { ascending: true })
       .limit(50);
@@ -115,7 +118,7 @@ Deno.serve(async (req) => {
     }
 
     if (!pendingMessages || pendingMessages.length === 0) {
-      return new Response(JSON.stringify({ processed: 0 }), {
+      return new Response(JSON.stringify({ processed: completionMessages }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -191,6 +194,15 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Only one invocation can reserve this job. Never automatically replay a
+      // processing job: the provider may already have accepted its message.
+      const { data: claim, error: claimError } = await supabase
+        .from("whatsapp_scheduled_messages")
+        .update({ status: "processing", attempts: 1, updated_at: new Date().toISOString() })
+        .eq("id", msg.id).eq("status", "pending").eq("attempts", 0)
+        .select("id").maybeSingle();
+      if (claimError || !claim) continue;
+
       try {
         const response = await fetch(sendUrl, {
           method: "POST",
@@ -202,50 +214,38 @@ Deno.serve(async (req) => {
             studentName: booking.student_name,
             courseName: booking.course_name,
           }),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(90000),
         });
 
         const result = await response.json();
-        if (result.success) {
+        if (response.ok && result.success === true) {
           await supabase
             .from("whatsapp_scheduled_messages")
             .update({ status: "sent", updated_at: new Date().toISOString() })
             .eq("id", msg.id);
         } else {
-          const courseDateTime = getCourseDateTime(booking);
-          const retryableType = ["confirmation", "reminder_24h", "reminder_1h"].includes(msg.message_type);
-          const retryAt = new Date(Date.now() + 10 * 60 * 1000);
-          const canRetry = retryableType && !!courseDateTime && retryAt < courseDateTime;
           await supabase
             .from("whatsapp_scheduled_messages")
-            .update(canRetry
-              ? { status: "pending", scheduled_for: retryAt.toISOString(), updated_at: new Date().toISOString() }
-              : { status: "error", updated_at: new Date().toISOString() })
+            .update({ status: "error", last_error: result.error || "Envio não confirmado; revisar antes de reenviar.", updated_at: new Date().toISOString() })
             .eq("id", msg.id);
         }
 
         processed++;
       } catch (err) {
         console.error(`Error sending scheduled message ${msg.id}:`, err);
-        const courseDateTime = getCourseDateTime(booking);
-        const retryableType = ["confirmation", "reminder_24h", "reminder_1h"].includes(msg.message_type);
-        const retryAt = new Date(Date.now() + 10 * 60 * 1000);
-        const canRetry = retryableType && !!courseDateTime && retryAt < courseDateTime;
         await supabase
           .from("whatsapp_scheduled_messages")
-          .update(canRetry
-            ? { status: "pending", scheduled_for: retryAt.toISOString(), updated_at: new Date().toISOString() }
-            : { status: "error", updated_at: new Date().toISOString() })
+          .update({ status: "error", last_error: "Resposta não confirmada; verificar entrega antes de reenviar.", updated_at: new Date().toISOString() })
           .eq("id", msg.id);
       }
     }
 
-    return new Response(JSON.stringify({ processed }), {
+    return new Response(JSON.stringify({ processed: processed + completionMessages }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Scheduler error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

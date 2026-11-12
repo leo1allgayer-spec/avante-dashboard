@@ -1,3 +1,4 @@
+import { INFLUENCER_ORIGINS, matchesSaleOrigin } from "@/constants/saleOrigins";
 import { useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
@@ -27,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CalendarClock, CheckCircle2, Clock3, Layers3, Pencil, Plus, Search, ShoppingCart, Trash2, TrendingUp, Wallet } from "lucide-react";
 
 const STATUS_OPTIONS = ["a receber", "recebido", "cancelado"];
-const ORIGEM_OPTIONS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Influencers"];
+const ORIGEM_OPTIONS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Influencers", ...INFLUENCER_ORIGINS, "Site", "Orgânico"];
 
 const defaultItem = {
   produto_servico: "",
@@ -157,7 +158,7 @@ export default function FechamentosPage() {
     const q = search.trim().toLowerCase();
     return periodItems.filter((item) => {
       if (statusFilter !== "todos" && normalizeStatus(item.status) !== statusFilter) return false;
-      if (origemFilter !== "todos" && (item.origem || "") !== origemFilter) return false;
+      if (origemFilter !== "todos" && !matchesSaleOrigin(item.origem, origemFilter)) return false;
       if (!q) return true;
       return [item.cliente, item.vendedor, item.origem || "", getCategoria(item), item.produto_servico, item.observacao || ""]
         .some((value) => value.toLowerCase().includes(q));
@@ -212,7 +213,7 @@ export default function FechamentosPage() {
     const q = search.trim().toLowerCase();
     return vendasPeriodo.filter((venda) => {
       if (statusFilter !== "todos" && venda.status !== statusFilter) return false;
-      if (origemFilter !== "todos" && (venda.origem || "") !== origemFilter) return false;
+      if (origemFilter !== "todos" && !matchesSaleOrigin(venda.origem, origemFilter)) return false;
       if (!q) return true;
       return [venda.cliente, venda.vendedor, venda.produto, venda.servico || "", venda.origem || "", venda.pagamento]
         .some((value) => value.toLowerCase().includes(q));

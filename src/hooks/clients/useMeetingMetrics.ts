@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { useAuth } from "@/hooks/clients/useGestaoAuth";
+import type { MeetingAnalyticsSettings } from "@/lib/meetingAnalytics";
 
 export interface MeetingMonthlyMetrics {
   id?: string;
@@ -9,6 +10,7 @@ export interface MeetingMonthlyMetrics {
   cost_per_scheduling: number;
   meetings_scheduled: number;
   meetings_held: number;
+  analytics?: MeetingAnalyticsSettings;
 }
 
 const emptyMetrics = (month: string): MeetingMonthlyMetrics => ({

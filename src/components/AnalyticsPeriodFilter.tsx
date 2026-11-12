@@ -1,0 +1,6 @@
+import { Input } from "@/components/ui/input";
+import { analyticsRange, type AnalyticsPeriod } from "@/lib/analyticsPeriods";
+export default function AnalyticsPeriodFilter({mode,anchor,onMode,onAnchor}: {mode:AnalyticsPeriod;anchor:string;onMode:(v:AnalyticsPeriod)=>void;onAnchor:(v:string)=>void}) {
+  const range=analyticsRange(mode,anchor);
+  return <div className="mb-4 flex flex-wrap items-end gap-3"><label className="space-y-1 text-xs text-muted-foreground"><span className="block">Período</span><select aria-label="Período de análise" value={mode} onChange={e=>onMode(e.target.value as AnalyticsPeriod)} className="h-10 rounded-lg border bg-background px-3 text-sm">{[["all","Todo o histórico"],["day","Dia"],["week","Semana"],["month","Mês"],["year","Ano"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>{mode!=="all" && <label className="space-y-1 text-xs text-muted-foreground"><span className="block">Data de referência</span><Input aria-label="Data de referência" type="date" value={anchor} onChange={e=>e.target.value&&onAnchor(e.target.value)} className="w-44"/></label>}{range&&<p className="pb-2 text-xs text-muted-foreground">{range.start.split("-").reverse().join("/")} — {range.end.split("-").reverse().join("/")}</p>}</div>;
+}

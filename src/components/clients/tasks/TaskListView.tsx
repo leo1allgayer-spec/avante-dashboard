@@ -7,7 +7,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Trash2 } from "lucide-react";
+import { Trash2, Check } from "lucide-react";
+import {useState} from 'react';
 
 interface Props {
   tasks: Task[];
@@ -19,6 +20,7 @@ interface Props {
   filterPriority: string;
   search: string;
   currentUserId?: string;
+  onOpenTask?: (task:Task)=>void;
 }
 
 const priorityColors: Record<string, string> = {
@@ -29,7 +31,9 @@ const priorityColors: Record<string, string> = {
 
 const speedEmoji: Record<string, string> = { fast: "🟢", normal: "🟡", slow: "🔴" };
 
-export function TaskListView({ tasks, members, onUpdateTask, onDeleteTask, filterAssignee, filterStatus, filterPriority, search, currentUserId }: Props) {
+export function TaskListView({ tasks, members, onUpdateTask, onDeleteTask, filterAssignee, filterStatus, filterPriority, search, currentUserId, onOpenTask }: Props) {
+  const [completing,setCompleting]=useState<string|null>(null);
+  const complete=async(task:Task)=>{if(completing)return;setCompleting(task.id);try{await onUpdateTask({...task,status:'Concluída'});}finally{setCompleting(null);}};
 
   const filtered = tasks.filter((t) => {
     if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
@@ -75,7 +79,7 @@ export function TaskListView({ tasks, members, onUpdateTask, onDeleteTask, filte
                 <TableRow key={task.id}>
                   <TableCell>
                     <div>
-                      <span className="font-medium text-sm">{task.title}</span>
+                      {onOpenTask?<button className="font-medium text-sm text-left hover:text-primary hover:underline" onClick={()=>onOpenTask(task)}>{task.title}</button>:<span className="font-medium text-sm">{task.title}</span>}
                       {task.isDaily && <Badge variant="secondary" className="ml-2 text-[10px]">Diária</Badge>}
                       {task.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.description}</p>}
                     </div>
@@ -101,6 +105,7 @@ export function TaskListView({ tasks, members, onUpdateTask, onDeleteTask, filte
                         <SelectItem value="Concluída">Concluído</SelectItem>
                       </SelectContent>
                     </Select>
+                    {task.status!=='Concluída'&&<Button type="button" variant="outline" size="sm" className="mt-2 h-7 text-xs" disabled={!!completing} onClick={()=>void complete(task)} title="Confirmar a conclusão e avisar por WhatsApp quem solicitou"><Check className="mr-1 h-3.5 w-3.5"/>{completing===task.id?'Concluindo…':'Concluir e avisar'}</Button>}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">{task.dueDate || "—"}</TableCell>
                   <TableCell className="text-xs">

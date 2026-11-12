@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import CreativeAnalysisWorkspace from "@/components/CreativeAnalysisWorkspace";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import StaggerContainer, { StaggerItem } from "@/components/StaggerAnimation";
@@ -90,7 +91,7 @@ const CriativosPage = () => {
   const [filtroRoasMin, setFiltroRoasMin] = useState<string>("");
   const [filtroRoasMax, setFiltroRoasMax] = useState<string>("");
   const { data: allVendas = [], isLoading: loadingVendas } = useCriativosVendas();
-  const { data: metaAds = [], isLoading: loadingMetaAds } = useMetaAdCreatives();
+  const { data: metaAds = [], isLoading: loadingMetaAds } = useMetaAdCreatives(filter.range);
   const mesAnoFromFilter = useMemo(() => {
     const d = parseLocalDate(filter.range.start);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -221,7 +222,7 @@ const CriativosPage = () => {
 
   const chartData = useMemo(() => criativoAggregated.slice(0, 10).map(d => ({ ...d, name: d.shortName })), [criativoAggregated]);
 
-  const top5Criativos = useMemo(() => {
+  const top10Criativos = useMemo(() => {
     if (resumosFiltrados.length > 0 && criativoAggregated.length === 0) {
       return resumosFiltrados
         .map((r) => ({
@@ -234,9 +235,9 @@ const CriativosPage = () => {
           cac: Number(r.cac),
         }))
         .sort((a, b) => b.valor - a.valor)
-        .slice(0, 5);
+        .slice(0, 10);
     }
-    return criativoAggregated.slice(0, 5);
+    return criativoAggregated.slice(0, 10);
   }, [resumosFiltrados, criativoAggregated]);
 
   /* ---- Inline update handler ---- */
@@ -329,7 +330,10 @@ const CriativosPage = () => {
 
   return (
     <PageTransition>
-      <DashboardLayout title="Criativos" subtitle="Rastreamento de criativos e vendas" actions={MonthSelector}>
+      <DashboardLayout title="Criativos" subtitle="Resultados das vendas, top 10 e comparação mensal">
+        <CreativeAnalysisWorkspace />
+        <details className="mt-8 rounded-2xl border p-4"><summary className="cursor-pointer font-semibold">Cadastros e resumos manuais</summary><p className="my-4 text-xs text-muted-foreground">Área de manutenção dos registros antigos. Os filtros desta seção são independentes da análise automática acima.</p>
+        {MonthSelector}
         <DateFilterBar mode={filter.mode} onModeChange={filter.setMode} label={filter.label} onBack={filter.goBack} onForward={filter.goForward} />
         {/* KPIs */}
         <StaggerContainer className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -364,11 +368,11 @@ const CriativosPage = () => {
             </motion.div>
           )}
 
-          {top5Criativos.length > 0 && (
+          {top10Criativos.length > 0 && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="glass-card rounded-xl p-6">
-              <h3 className="font-display text-sm font-semibold text-foreground mb-4">🏆 Top 5 Criativos que Mais Vendem</h3>
+              <h3 className="font-display text-sm font-semibold text-foreground mb-4">🏆 Top 10 Criativos que Mais Vendem</h3>
               <div className="space-y-3">
-                {top5Criativos.map((c, i) => (
+                {top10Criativos.map((c, i) => (
                   <div key={c.name} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/20 border border-border/20">
                     <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-bold text-sm ${
                       i === 0 ? "bg-amber-500/20 text-amber-400" :
@@ -784,6 +788,7 @@ const CriativosPage = () => {
             </motion.div>
           </TabsContent>
         </Tabs>
+        </details>
       </DashboardLayout>
     </PageTransition>
   );

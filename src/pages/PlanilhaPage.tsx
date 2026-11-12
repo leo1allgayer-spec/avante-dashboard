@@ -12,6 +12,7 @@ import { useMetaAds } from "@/hooks/useMetaAds";
 import { useCrmMql } from "@/hooks/useCrmMql";
 import { useVendas } from "@/hooks/useVendas";
 import { useFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
+import { splitPlanilhaReceipts } from "@/lib/planilhaReceipts";
 import { useCursosDados } from "@/hooks/useCursosDados";
 import { isCourseCategory, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 import {
@@ -63,7 +64,7 @@ const parseInputNum = (s: string): number => {
 };
 
 // Column definitions for editable fields
-type ColKey = "ads" | "leads" | "custo_por_lead" | "lead_mql" | "custo_por_lead_mql" | "curso_marcado" | "curso_feito" | "taxa_conversao" | "faturamento_marcado" | "faturamento_dia" | "roas" | "cac";
+type ColKey = "ads" | "leads" | "custo_por_lead" | "lead_mql" | "custo_por_lead_mql" | "curso_marcado" | "curso_feito" | "taxa_conversao" | "faturamento_marcado" | "faturamento_dia" | "sinais" | "roas" | "cac";
 
 interface ColDef {
   key: ColKey;
@@ -84,7 +85,8 @@ const COLUMNS: ColDef[] = [
   { key: "curso_feito", label: "Curso Feito", format: "int" },
   { key: "taxa_conversao", label: "Conversão", format: "pct", computed: true, colorClass: "text-emerald-400" },
   { key: "faturamento_marcado", label: "Fat. Marcado", format: "brl", colorClass: "font-semibold text-foreground" },
-  { key: "faturamento_dia", label: "Fat. Feito", format: "brl", colorClass: "font-semibold text-foreground" },
+  { key: "faturamento_dia", label: "Fat. Feito", format: "brl", computed: true, colorClass: "font-semibold text-foreground" },
+  { key: "sinais", label: "Sinais", format: "brl", computed: true, colorClass: "font-semibold text-amber-400" },
   { key: "roas", label: "ROAS", format: "dec", decimals: 2, computed: true },
   { key: "cac", label: "CAC", format: "dec", decimals: 2, computed: true },
 ];
@@ -114,37 +116,9 @@ const getMetaConversations = (actions?: Array<{ action_type: string; value: stri
   }, 0);
 };
 
-type PaymentHistoryEntry = { date: string; amount: number; netAmount?: number };
-const getPaymentHistory = (observation?: string | null): PaymentHistoryEntry[] =>
-  (observation || "").split("\n").flatMap((line) => {
-    if (!line.startsWith("[PAGAMENTO_VENDA]")) return [];
-    try {
-      const entry = JSON.parse(line.slice("[PAGAMENTO_VENDA]".length));
-      return entry?.date && Number(entry?.amount) > 0
-        ? [{ date: String(entry.date), amount: Number(entry.amount), netAmount: entry.netAmount == null ? undefined : Number(entry.netAmount) }]
-        : [];
-    } catch { return []; }
-  });
-const getLocalDate = (value?: string | null) => value ? new Intl.DateTimeFormat("sv-SE", {
-  timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
-}).format(new Date(value)) : "";
-const addCollectedPayments = (target: Record<string, number>, item: FechamentoDiario) => {
-  const history = getPaymentHistory(item.observacao);
-  if (history.length > 0) {
-    const historyNet = history.reduce((sum, entry) => sum + Number(entry.netAmount ?? entry.amount), 0);
-    history.forEach((entry) => { target[entry.date] = (target[entry.date] || 0) + Number(entry.netAmount ?? entry.amount); });
-    const legacy = Math.max(0, Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0) - historyNet);
-    const legacyDate = getLocalDate(item.created_at) || item.data;
-    if (legacy > 0 && legacyDate) target[legacyDate] = (target[legacyDate] || 0) + legacy;
-    return;
-  }
-  const value = Number(item.valor_sinal_liquido ?? item.valor_sinal ?? 0);
-  if (value > 0) target[item.data] = (target[item.data] || 0) + value;
-};
-
 const TABLE_COLUMN_WIDTHS = [
-  "7%", "5%", "8%", "5%", "7%", "4%", "8%",
-  "8%", "7%", "7%", "10%", "10%", "6%", "8%",
+  "7%", "5%", "7%", "4%", "6%", "4%", "7%",
+  "7%", "6%", "6%", "9%", "9%", "9%", "6%", "8%",
 ];
 
 interface MetricRow {
@@ -159,6 +133,7 @@ interface MetricRow {
   custo_por_lead_mql: number;
   faturamento_marcado: number;
   faturamento_dia: number;
+  sinais?: number;
   roas: number;
   cac: number;
   curso_marcado: number;
@@ -351,6 +326,7 @@ const PlanilhaPage = () => {
     Object.values(map).forEach((row) => {
       row.faturamento_marcado = 0;
       row.faturamento_dia = 0;
+      row.sinais = 0;
       row.curso_marcado = 0;
       row.curso_feito = 0;
     });
@@ -370,17 +346,20 @@ const PlanilhaPage = () => {
     });
     cursosDados.filter((course) => course.data >= monthStart && course.data <= monthEnd).forEach((course) => { ensure(course.data).curso_feito += 1; });
 
-    const collectedByDate: Record<string, number> = {};
-    fechamentos.filter((item) => normalizeText(item.status) !== "cancelado").forEach((item) => addCollectedPayments(collectedByDate, item));
-    Object.entries(collectedByDate).forEach(([date, value]) => {
-      if (date >= monthStart && date <= monthEnd) ensure(date).faturamento_dia = value;
+    fechamentos.filter((item) => normalizeText(item.status) !== "cancelado").forEach((item) => {
+      Object.entries(splitPlanilhaReceipts(item)).forEach(([date, value]) => {
+        if (date < monthStart || date > monthEnd) return;
+        const row = ensure(date);
+        row.faturamento_dia += value.feito;
+        row.sinais = Number(row.sinais || 0) + value.sinais;
+      });
     });
 
     Object.values(map).forEach((row) => {
       const ads = Number(row.ads || 0);
       row.custo_por_lead = row.leads > 0 ? ads / row.leads : 0;
       row.custo_por_lead_mql = row.lead_mql > 0 ? ads / row.lead_mql : 0;
-      row.roas = ads > 0 ? Number(row.faturamento_dia || 0) / ads : 0;
+      row.roas = ads > 0 ? (Number(row.faturamento_dia || 0) + Number(row.sinais || 0)) / ads : 0;
       row.cac = row.curso_feito > 0 ? ads / row.curso_feito : 0;
     });
     return map;
@@ -571,7 +550,7 @@ const PlanilhaPage = () => {
     <PageTransition>
       <DashboardLayout
         title="Planilha"
-        subtitle={`${MONTH_NAMES[activeMonth]} ${activeYear}`}
+        subtitle={`${MONTH_NAMES[activeMonth]} ${activeYear} · Fat. feito: pagamentos integrais e quitações. Sinais: entradas parciais. ROAS considera ambos.`}
         actions={
           <div className="flex items-center gap-1">
             <AlertDialog>
@@ -629,7 +608,7 @@ const PlanilhaPage = () => {
               totals[col.key] = weekRows.reduce((s, r) => s + getCellValue(r, col), 0);
             });
             const totalCpl = totals.leads > 0 ? totals.ads / totals.leads : 0;
-            const totalRoas = totals.ads > 0 ? Number(totals.faturamento_dia || 0) / totals.ads : 0;
+            const totalRoas = totals.ads > 0 ? (Number(totals.faturamento_dia || 0) + Number(totals.sinais || 0)) / totals.ads : 0;
             const totalCac = totals.curso_feito > 0 ? totals.ads / totals.curso_feito : 0;
             const totalConversao = totals.leads > 0 ? (totals.curso_feito / totals.leads) * 100 : 0;
 
@@ -727,6 +706,7 @@ const PlanilhaPage = () => {
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold text-emerald-400">{formatPercent(totalConversao)}</TableCell>
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold text-foreground">{formatBRL(totals.faturamento_marcado)}</TableCell>
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold text-foreground">{formatBRL(totals.faturamento_dia)}</TableCell>
+                        <TableCell className="text-xs text-right tabular-nums py-2 font-bold text-amber-400">{formatBRL(totals.sinais)}</TableCell>
                         <TableCell className={`text-xs text-right tabular-nums py-2 font-bold ${getRoasColor(totalRoas)}`}>{totalRoas ? totalRoas.toFixed(2) : ""}</TableCell>
                         <TableCell className="text-xs text-right tabular-nums py-2 font-bold">{formatNum(totalCac, 2)}</TableCell>
                       </TableRow>
@@ -745,7 +725,7 @@ const PlanilhaPage = () => {
               t[col.key] = uniqueRows.reduce((s, r) => s + getCellValue(r, col), 0);
             });
             const cpl = t.leads > 0 ? t.ads / t.leads : 0;
-            const roas = t.ads > 0 ? Number(t.faturamento_dia || 0) / t.ads : 0;
+            const roas = t.ads > 0 ? (Number(t.faturamento_dia || 0) + Number(t.sinais || 0)) / t.ads : 0;
             const cac = t.curso_feito > 0 ? t.ads / t.curso_feito : 0;
             const conversao = t.leads > 0 ? (t.curso_feito / t.leads) * 100 : 0;
 
@@ -770,6 +750,7 @@ const PlanilhaPage = () => {
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold text-emerald-400">{formatPercent(conversao)}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold text-foreground">{formatBRL(t.faturamento_marcado)}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold text-foreground">{formatBRL(t.faturamento_dia)}</TableCell>
+                        <TableCell className="text-sm text-right tabular-nums py-3 font-bold text-amber-400">{formatBRL(t.sinais)}</TableCell>
                         <TableCell className={`text-sm text-right tabular-nums py-3 font-bold ${getRoasColor(roas)}`}>{roas ? roas.toFixed(2) : ""}</TableCell>
                         <TableCell className="text-sm text-right tabular-nums py-3 font-bold">{formatNum(cac, 2)}</TableCell>
                       </TableRow>

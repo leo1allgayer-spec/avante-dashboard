@@ -34,9 +34,9 @@ export type FechamentoPayload = Omit<FechamentoDiario, "id" | "created_at" | "up
 export function useFechamentosDiarios() {
   return useQuery({
     queryKey: ["fechamentos_diarios"],
-    refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
-    refetchInterval: 30_000,
+    staleTime: 60_000,
+    refetchInterval: 2 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fechamentos_diarios")

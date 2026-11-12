@@ -1,3 +1,12 @@
+import { removeSaleDraftRow } from '@/lib/removeSaleDraftRow';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import {saleCourseDisplayName} from '@/constants/courseCatalog';
+import {salesCommissionBalance,salesInCommissionPeriod} from '@/lib/salesCommissionBalance';
+import {registeredPaidCommission,commissionPaymentDate,commissionPaidInPeriod,pendingEarnedCommission} from "@/lib/salesCommissionPayments";
+import { INFLUENCER_ORIGINS, matchesSaleOrigin } from "@/constants/saleOrigins";
+import { salesExportSummary, salesExportOrigins, salesWithPendingCommission } from "@/lib/salesExport";
+import { receivablesCalculator } from "@/lib/receivablesCalculator";
 import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -5,6 +14,8 @@ import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useVendas, useCreateVenda, useUpdateVenda, useDeleteVenda, useClearVendas, type Venda } from "@/hooks/useVendas";
+import SaleMethodSelect from "@/components/SaleMethodSelect";
+import SaleGroupMethod from "@/components/SaleGroupMethod";
 import { useFechamentosDiarios, useCreateFechamentoDiario, useUpdateFechamentoDiario, useDeleteFechamentoDiario, useClearFechamentosDiarios, type FechamentoDiario } from "@/hooks/useFechamentosDiarios";
 import { useCreateCriativoVenda, useCriativosVendas, useUpdateCriativoVenda, type CriativoVenda } from "@/hooks/useCriativos";
 import { useMetaAdCreatives } from "@/hooks/useMetaAds";
@@ -12,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useMonthMetrics } from "@/hooks/useMetrics";
 import { useCursosDados } from "@/hooks/useCursosDados";
+import { useSurveyResponses } from "@/hooks/useSurveyInsights";
 import { useClients } from "@/hooks/clients/useGestaoClients";
 import { useCourseBookings } from "@/hooks/clients/useCourseBookings";
 import { getMonthlyContractValue } from "@/types/clients/client";
@@ -24,13 +36,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { CalendarClock, Clock3, Layers3, Pencil, Plus, Search, Trash2, TrendingUp, Wallet } from "lucide-react";
+import { CalendarClock, Clock3, Download, Layers3, Pencil, Plus, Search, Trash2, TrendingUp, Wallet } from "lucide-react";
 import { COURSE_PRODUCTS, GENERAL_SERVICE_OPTIONS, PRODUCT_OPTIONS, SERVICE_OPTIONS, canonicalizeSaleCategory } from "@/constants/serviceCategories";
 
 
 const PRODUTOS = PRODUCT_OPTIONS;
 const SERVICOS = SERVICE_OPTIONS;
-const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Influencers", "Cadastro do aluno"];
+const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Influencers", ...INFLUENCER_ORIGINS, "Cadastro do aluno", "Site", "Orgânico"];
 const PAYMENT_OPTIONS = ["A definir", "Dinheiro", "PIX", "Débito", "Conta de anúncio", "Cartão de crédito", "Infinity (Visa/Master)", "Infinity Elo/Amex", "Link Infinity", "Boleto"];
 
 const TAXAS_CARTAO_GATEWAY: Record<number, number> = {
@@ -114,18 +126,14 @@ const getSalesCommissionRate = (origin?: string | null) =>
 const getSalesCommissionPercent = (origin?: string | null) =>
   Math.round(getSalesCommissionRate(origin) * 100);
 
-const getPaidCommissionValue = (sale: Pick<Venda, "comissao" | "comissao_paga_valor" | "status_comissao">) =>
-  Math.min(
-    Number(sale.comissao || 0),
-    Math.max(0, Number(sale.comissao_paga_valor ?? (sale.status_comissao === "paga" ? sale.comissao : 0))),
-  );
+const getPaidCommissionValue = registeredPaidCommission;
 
 const getUniqueSaleNames = (products: string[], services: string[]) => {
   const unique = new Map<string, string>();
   [...products, ...services].filter(Boolean).forEach((name) => {
     const canonical = canonicalizeSaleCategory(name);
     const key = normalizeText(canonical);
-    if (key && !unique.has(key)) unique.set(key, canonical);
+    if (key && !unique.has(key)) unique.set(key, saleCourseDisplayName(canonical));
   });
   return [...unique.values()];
 };
@@ -180,8 +188,8 @@ const getNetPaymentValue = (amount: number, payment: string, installments: numbe
 const getCommissionAfterPaymentFees = (grossAmount: number, netAmount: number, origin?: string | null) => {
   const gross = Math.max(0, Number(grossAmount || 0));
   const net = Math.max(0, Math.min(gross, Number(netAmount || 0)));
-  const machineFee = gross - net;
-  return +Math.max(0, gross * getSalesCommissionRate(origin) - machineFee).toFixed(2);
+  // As taxas reduzem a base da comissão, antes de aplicar o percentual.
+  return +(net * getSalesCommissionRate(origin)).toFixed(2);
 };
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -281,9 +289,12 @@ const defaultForm = {
   parcelas_datas: [] as string[],
   observacao: "",
   condicao_pagamento: "pago",
+  forma_venda: "nao_informado",
 };
 
 type VendaItemForm = {
+  data?: string;
+  forma_venda: string;
   produto: string;
   servico: string;
   origem: string;
@@ -306,6 +317,7 @@ type VendaItemForm = {
 };
 
 const defaultVendaItem: VendaItemForm = {
+  forma_venda: "nao_informado",
   produto: "",
   servico: "",
   origem: "",
@@ -336,6 +348,17 @@ const VendasPage = () => {
   const { data: cursosDados = [] } = useCursosDados();
   const { clients: gestaoClients = [] } = useClients();
   const { bookings: courseBookings = [] } = useCourseBookings();
+  const { data: courseSurveys = [] } = useSurveyResponses();
+  const completedSaleCourses = useMemo(() => (sale: Venda) => {
+    const course = normalizeText(getVendaCategoria(sale));
+    return courseSurveys.some((survey) => {
+      const sameStudent = sale.aluno_futuro_id && survey.aluno_futuro_id
+        ? sale.aluno_futuro_id === survey.aluno_futuro_id
+        : !!normalizeText(sale.cliente) && normalizeText(sale.cliente) === normalizeText(survey.nome);
+      return sameStudent && !!survey.curso_realizado &&
+        normalizeText(canonicalizeSaleCategory(survey.curso_realizado)) === course;
+    });
+  }, [courseSurveys]);
   const dateFilter = useLocalDateFilter();
   const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
   const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
@@ -379,6 +402,9 @@ const VendasPage = () => {
   const [editingVenda, setEditingVenda] = useState<Venda | null>(null);
   const [editingFechamento, setEditingFechamento] = useState<FechamentoDiario | null>(null);
   const [editingCriativoVenda, setEditingCriativoVenda] = useState<CriativoVenda | null>(null);
+  const queryClient = useQueryClient();
+  const [removedSaleRecords,setRemovedSaleRecords] = useState<Array<{venda:Venda;fechamento:FechamentoDiario|null;criativo:CriativoVenda|null}>>([]);
+  const [savingItemChanges,setSavingItemChanges] = useState(false);
   const [editingRecords, setEditingRecords] = useState<Array<{ venda: Venda; fechamento: FechamentoDiario | null; criativo: CriativoVenda | null }>>([]);
   const [taxProfile, setTaxProfile] = useState<TaxProfile>("opcao1");
   const [quickPayments, setQuickPayments] = useState<Record<string, string>>({});
@@ -412,87 +438,7 @@ const VendasPage = () => {
   const hasPaymentInRange = (item: FechamentoDiario) =>
     getUniquePaymentHistory(item.observacao).some((entry) => dateInRange(entry.date));
 
-  const findSaleForClosing = (fechamento: FechamentoDiario) => {
-    const categoryKey = normalizeText(getFechamentoCategoria(fechamento));
-    return allVendas.find((item) => item.id === fechamento.venda_id) || allVendas.find((item) =>
-      normalizeText(item.cliente) === normalizeText(fechamento.cliente) &&
-      normalizeText(item.vendedor) === normalizeText(fechamento.vendedor) &&
-      normalizeText(getVendaCategoria(item)) === categoryKey
-    );
-  };
-  const getFechamentoCollectedNet = (fechamento: FechamentoDiario, linkedSale?: Venda) => {
-    const gross = Math.max(0, Number(fechamento.valor_sinal || 0));
-    const storedNet = Math.max(0, Number(fechamento.valor_sinal_liquido ?? gross));
-    if (gross <= 0 || Math.abs(storedNet - gross) >= 0.01) return Math.min(gross, storedNet);
-
-    const sale = linkedSale || findSaleForClosing(fechamento);
-    const saleInstallments = Math.max(1, Number.parseInt(String(sale?.parcelas || ""), 10) || 1);
-    const history = getUniquePaymentHistory(fechamento.observacao);
-    if (history.length > 0) {
-      const historyGross = Math.min(gross, history.reduce((sum, entry) => sum + entry.amount, 0));
-      const historyNet = history.reduce((sum, entry) => {
-        const installments = getPaymentInstallments(entry.method, saleInstallments);
-        return sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, installments, taxProfile));
-      }, 0);
-      const legacyGross = Math.max(0, gross - historyGross);
-      const legacyMethod = fechamento.pagamento_sinal || sale?.pagamento || "A definir";
-      const legacyInstallments = getPaymentInstallments(legacyMethod, saleInstallments);
-      return +Math.min(gross, historyNet + getNetPaymentValue(legacyGross, legacyMethod, legacyInstallments, taxProfile)).toFixed(2);
-    }
-
-    const initialSignal = getInitialSignalFromObservation(fechamento.observacao);
-    if (initialSignal > 0 && initialSignal < gross && (fechamento.pagamento_saldo || sale?.pagamento_saldo)) {
-      const signalMethod = fechamento.pagamento_sinal || sale?.pagamento || "A definir";
-      const balanceMethod = fechamento.pagamento_saldo || sale?.pagamento_saldo || "A definir";
-      const signalInstallments = getPaymentInstallments(signalMethod, saleInstallments);
-      const balanceInstallments = getPaymentInstallments(balanceMethod, getPaymentInstallments(sale?.pagamento_saldo || "", 1));
-      return +(
-        getNetPaymentValue(initialSignal, signalMethod, signalInstallments, taxProfile) +
-        getNetPaymentValue(gross - initialSignal, balanceMethod, balanceInstallments, taxProfile)
-      ).toFixed(2);
-    }
-
-    const method = fechamento.pagamento_sinal || sale?.pagamento || "A definir";
-    const installments = getPaymentInstallments(method, saleInstallments);
-    return getNetPaymentValue(gross, method, installments, taxProfile);
-  };
-
-  const getCollectedGrossInPeriod = (item: FechamentoDiario) => {
-    const history = getUniquePaymentHistory(item.observacao);
-    if (history.length > 0) {
-      const historyTotal = history.reduce((sum, entry) => sum + entry.amount, 0);
-      const legacyAmount = Math.max(0, Number(item.valor_sinal || 0) - historyTotal);
-      const legacyDate = item.data || getLocalCreatedDate(item.created_at);
-      const collectedInPeriod = history.filter((entry) => dateInRange(entry.date)).reduce((sum, entry) => sum + entry.amount, 0) +
-        (dateInRange(legacyDate) ? legacyAmount : 0);
-      return collectedInPeriod;
-    }
-    return dateInRange(item.data || getLocalCreatedDate(item.created_at))
-      ? Number(item.valor_sinal || 0)
-      : 0;
-  };
-
-  const getCollectedNetInPeriod = (item: FechamentoDiario) => {
-    const history = getUniquePaymentHistory(item.observacao);
-    if (history.length > 0) {
-      const linkedSale = findSaleForClosing(item);
-      const saleInstallments = Math.max(1, Number.parseInt(String(linkedSale?.parcelas || ""), 10) || 1);
-      const historyNetTotal = history.reduce(
-        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, saleInstallments), taxProfile)),
-        0,
-      );
-      const legacyNetAmount = Math.max(0, getFechamentoCollectedNet(item) - historyNetTotal);
-      const legacyDate = item.data || getLocalCreatedDate(item.created_at);
-      const collectedInPeriod = history
-        .filter((entry) => dateInRange(entry.date))
-        .reduce((sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, saleInstallments), taxProfile)), 0) +
-        (dateInRange(legacyDate) ? legacyNetAmount : 0);
-      return collectedInPeriod;
-    }
-    return dateInRange(item.data || getLocalCreatedDate(item.created_at))
-      ? getFechamentoCollectedNet(item)
-      : 0;
-  };
+  const { findSaleForClosing, getFechamentoCollectedNet, getCollectedGrossInPeriod, getCollectedNetInPeriod } = collectionCalculator(allVendas, dateFilter.range.start, dateFilter.range.end, taxProfile, true);
 
   const getConsolidatedClosingTotals = (items: FechamentoDiario[]) => {
     const byCategory = new Map<string, { gross: number; net: number }>();
@@ -511,54 +457,9 @@ const VendasPage = () => {
       { gross: 0, net: 0 },
     );
   };
-  const isClientFinanciallySettled = (item: FechamentoDiario) => {
-    const clientKey = normalizeText(item.cliente);
-    const sellerKey = normalizeText(item.vendedor);
-    const totalSold = allVendas
-      .filter((sale) => sale.status !== "cancelada" && normalizeText(sale.cliente) === clientKey && normalizeText(sale.vendedor) === sellerKey)
-      .reduce((sum, sale) => sum + Math.max(Number(sale.valor || 0), 0), 0);
-    if (totalSold <= 0) return false;
-    const relatedClosings = fechamentos.filter((closing) =>
-      normalizeFechamentoStatus(closing.status) !== "cancelado" &&
-      normalizeText(closing.cliente) === clientKey &&
-      normalizeText(closing.vendedor) === sellerKey
-    );
-    return getConsolidatedClosingTotals(relatedClosings).gross >= totalSold - 0.01;
-  };
-  const isCarriedOverReceivable = (item: FechamentoDiario) => {
-    if (dateFilter.mode !== "mes" || Number(item.valor_a_entrar || 0) <= 0 || isClientFinanciallySettled(item)) return false;
-    if (["cancelado", "recebido"].includes(normalizeFechamentoStatus(item.status))) return false;
-    const storedDates = getStoredParcelDates(item).filter(Boolean).sort();
-    const dueDate = storedDates.length > 0
-      ? storedDates[storedDates.length - 1]
-      : item.previsao_entrada || item.data;
-    return Boolean(dueDate && dueDate < dateFilter.range.start);
-  };
-
-  const getAReceberNoPeriodo = (item: FechamentoDiario) => {
-    if (dateFilter.mode !== "mes" && dateInRange(item.data || getLocalCreatedDate(item.created_at))) {
-      return Number(item.valor_a_entrar || 0);
-    }
-    if (isCarriedOverReceivable(item)) return Number(item.valor_a_entrar || 0);
-    const parcelasNoPeriodo = getStoredParcelDates(item).filter(dateInRange);
-    const isBoletoParcelado = Number(item.parcelas_total || 0) > 1;
-    if (isBoletoParcelado && parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
-      return parcelasNoPeriodo.length * Number(item.valor_parcela || 0);
-    }
-    // Em vendas comuns, a previsão atual é a fonte principal. Isso evita que
-    // datas antigas mantidas no registro façam um saldo reagendado entrar no
-    // mês errado (por exemplo, uma previsão alterada de agosto para outubro).
-    if (item.previsao_entrada) {
-      return dateInRange(item.previsao_entrada) ? Number(item.valor_a_entrar || 0) : 0;
-    }
-    if (parcelasNoPeriodo.length > 0 && Number(item.valor_parcela || 0) > 0) {
-      return parcelasNoPeriodo.length * Number(item.valor_parcela || 0);
-    }
-    if (dateInRange(item.data) && !item.previsao_entrada && getStoredParcelDates(item).length === 0) {
-      return Number(item.valor_a_entrar || 0);
-    }
-    return 0;
-  };
+  const receivables = useMemo(() => receivablesCalculator(allVendas, fechamentos, dateFilter.range.start, dateFilter.range.end, dateFilter.mode === "mes", dateFilter.mode !== "mes"), [allVendas, fechamentos, dateFilter.range.start, dateFilter.range.end, dateFilter.mode]);
+  const isCarriedOverReceivable = receivables.isCarriedOver;
+  const getAReceberNoPeriodo = receivables.amount;
 
   const fechamentosPeriodo = useMemo(() => {
     return fechamentos.filter((item) => {
@@ -575,35 +476,13 @@ const VendasPage = () => {
   }, [fechamentos, dateFilter.range.start, dateFilter.range.end]);
 
   const filtered = useMemo(() => {
-    return vendas.filter((v) => {
-      const saleDate = v.data || getLocalCreatedDate(v.created_at);
-      const categoryKey = normalizeText(getVendaCategoria(v));
-      const relatedClosings = fechamentos.filter((closing) =>
-        normalizeFechamentoStatus(closing.status) !== "cancelado" &&
-        (closing.venda_id === v.id || (
-          !closing.venda_id &&
-          normalizeText(closing.cliente) === normalizeText(v.cliente) &&
-          normalizeText(closing.vendedor) === normalizeText(v.vendedor) &&
-          normalizeText(getFechamentoCategoria(closing)) === categoryKey
-        ))
-      );
-      const receivedInPeriod = relatedClosings.some((closing) => hasPaymentInRange(closing));
-      const scheduledInPeriod = relatedClosings.some((closing) =>
-        dateInRange(closing.previsao_entrada) || getStoredParcelDates(closing).some(dateInRange)
-      );
-      const pendingFromPreviousMonth = dateFilter.mode === "mes" && saleDate < dateFilter.range.start && relatedClosings.some((closing) =>
-        Number(closing.valor_a_entrar || 0) > 0 && !["cancelado", "recebido"].includes(normalizeFechamentoStatus(closing.status))
-      );
-
-      // A venda permanece no mês original, mas também entra na visão financeira
-      // do mês seguinte enquanto estiver pendente ou quando houver recebimento.
-      if (!dateInRange(saleDate) && !receivedInPeriod && !scheduledInPeriod && !pendingFromPreviousMonth) return false;
+    return salesInCommissionPeriod(vendas, fechamentos, dateFilter.range.start, dateFilter.range.end, dateFilter.mode === 'mes').filter((v) => {
       const normalizedSearch = normalizeText(search);
       if (normalizedSearch && ![v.cliente, v.produto, v.servico, v.vendedor].some((value) => normalizeText(value).includes(normalizedSearch))) return false;
       if (!matchesStatusFilter(statusFilter, v.status)) return false;
       if (vendedorFilter !== "todos" && normalizeText(v.vendedor) !== normalizeText(vendedorFilter)) return false;
       if (!matchesPaymentFilter(pagamentoFilter, v.pagamento, v.pagamento_saldo)) return false;
-      if (origemFilter !== "todos" && normalizeText(v.origem) !== normalizeText(origemFilter)) return false;
+      if (origemFilter !== "todos" && !matchesSaleOrigin(v.origem, origemFilter)) return false;
       return true;
     });
   }, [vendas, fechamentos, search, statusFilter, vendedorFilter, pagamentoFilter, origemFilter, dateFilter.mode, dateFilter.range.start, dateFilter.range.end]);
@@ -612,7 +491,7 @@ const VendasPage = () => {
     const q = normalizeText(search);
     return fechamentosPeriodo.filter((item) => {
       const fechamentoStatus = normalizeFechamentoStatus(item.status);
-      if (origemFilter !== "todos" && normalizeText(item.origem) !== normalizeText(origemFilter)) return false;
+      if (origemFilter !== "todos" && !matchesSaleOrigin(item.origem, origemFilter)) return false;
       if (vendedorFilter !== "todos" && normalizeText(item.vendedor) !== normalizeText(vendedorFilter)) return false;
       if (!matchesPaymentFilter(pagamentoFilter, item.pagamento_sinal, item.pagamento_saldo)) return false;
       if (statusFilter === "cancelada" && fechamentoStatus !== "cancelado") return false;
@@ -670,30 +549,8 @@ const VendasPage = () => {
 
     return [...grupos.entries()].map(([chave, itens]) => {
       const vendaIdsDoGrupo = new Set(itens.map((item) => item.id));
-      const itensOrdenados = [...itens].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      const itensConsolidados = new Map<string, Venda>();
-      itensOrdenados.forEach((item) => {
-        const categoryKey = normalizeText(getVendaCategoria(item));
-        const previous = itensConsolidados.get(categoryKey);
-        const isLinkedDuplicate = previous && (
-          Boolean(previous.aluno_futuro_id) !== Boolean(item.aluno_futuro_id) ||
-          (Boolean(previous.aluno_futuro_id) && previous.aluno_futuro_id === item.aluno_futuro_id)
-        );
-        if (!previous) {
-          itensConsolidados.set(categoryKey, item);
-        } else if (isLinkedDuplicate) {
-          const preferred = Number(item.valor || 0) > Number(previous.valor || 0) ? item : previous;
-          itensConsolidados.set(categoryKey, {
-            ...preferred,
-            valor: Math.max(Number(previous.valor || 0), Number(item.valor || 0)),
-            comissao: Math.max(Number(previous.comissao || 0), Number(item.comissao || 0)),
-            comissao_paga_valor: Math.max(getPaidCommissionValue(previous), getPaidCommissionValue(item)),
-          });
-        } else {
-          itensConsolidados.set(`${categoryKey}|${item.id}`, item);
-        }
-      });
-      const itensPorLancamento = [...itensConsolidados.values()];
+      const commissionBalance = salesCommissionBalance(itens, fechamentos, allVendas, taxProfile, true);
+      const itensPorLancamento = commissionBalance.items;
       const principal = itensPorLancamento[0];
       const produtos = [...new Set(itensPorLancamento.map((item) => item.produto).filter(Boolean))];
       const servicos = [...new Set(itensPorLancamento.map((item) => item.servico).filter(Boolean))];
@@ -734,15 +591,14 @@ const VendasPage = () => {
       }
 
       const principalInstallments = Math.max(1, Number.parseInt(String(principal.parcelas || ""), 10) || 1);
-      const coletadoPeriodo = paymentHistory
-        .filter((entry) => dateInRange(entry.date))
-        .reduce((total, entry) => total + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, principalInstallments), taxProfile)), 0);
-      const taxasMaquininhaPeriodo = paymentHistory
-        .filter((entry) => dateInRange(entry.date))
-        .reduce((total, entry) => {
-          const valorLiquido = Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, principalInstallments), taxProfile));
-          return total + Math.max(0, Number(entry.amount || 0) - valorLiquido);
-        }, 0);
+      const periodCollections = new Map<string,{gross:number;net:number}>();
+      fechamentosFinanceirosCliente.forEach(closing => {
+        const key = normalizeText(getFechamentoCategoria(closing));
+        const previous = periodCollections.get(key) || {gross:0,net:0};
+        periodCollections.set(key,{gross:Math.max(previous.gross,getCollectedGrossInPeriod(closing)),net:Math.max(previous.net,getCollectedNetInPeriod(closing))});
+      });
+      const coletadoPeriodo = [...periodCollections.values()].reduce((sum,value)=>sum+value.net,0);
+      const taxasMaquininhaPeriodo = [...periodCollections.values()].reduce((sum,value)=>sum+Math.max(0,value.gross-value.net),0);
       const aReceberPorCategoria = new Map<string, number>();
       fechamentosRelacionados.forEach((item) => {
         const categoryKey = normalizeText(getFechamentoCategoria(item));
@@ -763,13 +619,10 @@ const VendasPage = () => {
         )
         .map((booking) => booking.date))]
         .sort();
-      const comissaoPagaRegistrada = itensPorLancamento.reduce((total, item) => total + getPaidCommissionValue(item), 0);
-      const comissaoCalculadaSobreRecebido = itensPorLancamento.reduce((total, item) => {
-        const share = valorTotal > 0 ? Math.max(Number(item.valor || 0), 0) / valorTotal : 0;
-        return total + getCommissionAfterPaymentFees(sinalBruto * share, sinalLiquido * share, item.origem);
-      }, 0);
+      const comissaoPagaRegistrada = commissionBalance.paid;
+      const comissaoCalculadaSobreRecebido = commissionBalance.earned;
       const comissaoTotal = comissaoCalculadaSobreRecebido;
-      const comissaoPaga = Math.min(comissaoPagaRegistrada, comissaoTotal);
+      const comissaoPaga = comissaoPagaRegistrada;
 
       return {
         chave,
@@ -785,7 +638,7 @@ const VendasPage = () => {
         saldo: Math.max(0, valorTotal - sinalBruto),
         comissao: +comissaoTotal.toFixed(2),
         comissaoPaga: +comissaoPaga.toFixed(2),
-        comissaoPendente: +Math.max(0, comissaoTotal - comissaoPaga).toFixed(2),
+        comissaoPendente: pendingEarnedCommission(comissaoCalculadaSobreRecebido, comissaoPaga),
         paymentHistory,
         coletadoPeriodo,
         taxasMaquininhaPeriodo,
@@ -807,6 +660,64 @@ const VendasPage = () => {
     });
   }, [tableFilteredSales, fechamentos, courseBookings, taxProfile, statusFilter, dateFilter.range.start, dateFilter.range.end]);
 
+  const exportSalesPeriod = () => {
+    const rows = salesWithPendingCommission(vendasAgrupadas);
+
+    if (rows.length === 0) {
+      toast({ title: "Nenhuma comissão pendente", description: "Não há vendas com comissão pendente nos filtros selecionados." });
+      return;
+    }
+
+    const csvValue = (value: string | number) => '"' + String(value).replace(/"/g, '""') + '"';
+    const moneyValue = (value: number) => Number(value || 0).toFixed(2).replace(".", ",");
+    const header = ["Data da venda", "Nome da pessoa", "Origem da venda", "Valor vendido", "Coletado no período (líquido)", "A receber no período", "Comissão pendente", "Taxas da máquina no período", "Valor pago acumulado (bruto)"];
+    const lines = rows.map((grupo) => [
+      formatDate(grupo.principal.data),
+      grupo.principal.cliente,
+      salesExportOrigins(grupo.itens),
+      moneyValue(grupo.valorTotal),
+      moneyValue(grupo.coletadoPeriodo),
+      moneyValue(grupo.aReceberPeriodo),
+      moneyValue(grupo.comissaoPendente),
+      moneyValue(grupo.taxasMaquininhaPeriodo),
+      moneyValue(grupo.sinalBruto),
+    ].map(csvValue).join(";"));
+    const total = salesExportSummary(rows);
+    const totalLine = ["", "TOTAL", "", moneyValue(total.sold), moneyValue(total.collected), moneyValue(total.receivable), moneyValue(total.pendingCommission), moneyValue(total.fees), moneyValue(total.grossPaid)].map(csvValue).join(";");
+    const csv = ["sep=;", header.map(csvValue).join(";"), ...lines, totalLine].join("\r\n");
+    const bytes = new Uint8Array(2 + csv.length * 2);
+    bytes[0] = 0xff;
+    bytes[1] = 0xfe;
+    for (let index = 0; index < csv.length; index += 1) {
+      const code = csv.charCodeAt(index);
+      bytes[2 + index * 2] = code & 0xff;
+      bytes[3 + index * 2] = code >> 8;
+    }
+    const blob = new Blob([bytes], { type: "text/csv;charset=utf-16le;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "vendas_" + dateFilter.range.start + "_a_" + dateFilter.range.end + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast({ title: "Lista exportada", description: rows.length + " venda(s) incluída(s) no arquivo." });
+  };
+  const exportSalesPdf = async () => {
+    const rows = salesWithPendingCommission(vendasAgrupadas);
+    if (!rows.length) {
+      toast({ title: "Nenhuma comissão pendente", description: "Não há vendas com comissão pendente nos filtros selecionados." });
+      return;
+    }
+    try {
+      const { createSalesPdf } = await import('@/lib/salesPdf');
+      createSalesPdf(rows, dateFilter.range.start, dateFilter.range.end, taxProfile === 'opcao1' ? '20/40' : '40/80')
+        .save(`vendas_${dateFilter.range.start}_a_${dateFilter.range.end}.pdf`);
+    } catch {
+      toast({ title: "Não foi possível gerar o PDF", description: "Tente novamente.", variant: "destructive" });
+    }
+  };
   const recurringContractsTotal = useMemo(
     () => gestaoClients
       .filter((client) => client.status === "Ativo")
@@ -1017,6 +928,8 @@ const VendasPage = () => {
   };
 
   const getPrimaryItem = (): VendaItemForm => ({
+    data: form.data,
+    forma_venda: form.forma_venda,
     produto: form.produto,
     servico: form.servico,
     origem: form.origem,
@@ -1041,6 +954,8 @@ const VendasPage = () => {
   const addVendaItem = () => {
     setAdditionalItems((prev) => [...prev, {
       ...defaultVendaItem,
+      data: editingVenda ? new Intl.DateTimeFormat("sv-SE", {timeZone:"America/Sao_Paulo"}).format(new Date()) : form.data,
+      forma_venda: form.forma_venda,
       origem: form.origem,
       criativo: form.criativo,
     }]);
@@ -1054,6 +969,14 @@ const VendasPage = () => {
     setAdditionalItems((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item));
   };
 
+  const removeSaleItemRow = (rowIndex: number) => {
+    if (additionalItems.length === 0) return;
+    const next = removeSaleDraftRow([getPrimaryItem(),...additionalItems],editingRecords,rowIndex);
+    if(next.removed)setRemovedSaleRecords(previous=>[...previous,next.removed!]);
+    setForm(previous=>({...previous,...next.items[0]}));
+    setAdditionalItems(next.items.slice(1));
+    setEditingRecords(next.records);
+  };
   const removeVendaItem = (index: number) => {
     setAdditionalItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   };
@@ -1136,14 +1059,21 @@ const VendasPage = () => {
       const row = getRow(getVendaCategoria(venda));
       row.feito += Number(venda.valor || 0);
       row.vendas += 1;
-      row.comissaoPaga += Math.min(
-        Number(venda.comissao || 0),
-        Number(venda.comissao_paga_valor ?? (venda.status_comissao === "paga" ? venda.comissao : 0)),
-      );
     });
 
+    allVendas.filter(venda=>{
+      if(!commissionPaidInPeriod(venda,dateFilter.range.start,dateFilter.range.end))return false;
+      const q=normalizeText(search);
+      if(q&&![venda.cliente,venda.produto,venda.servico,venda.vendedor].some(value=>normalizeText(value).includes(q)))return false;
+      if(vendedorFilter!=='todos'&&normalizeText(venda.vendedor)!==normalizeText(vendedorFilter))return false;
+      if(!matchesPaymentFilter(pagamentoFilter,venda.pagamento,venda.pagamento_saldo))return false;
+      if(origemFilter!=='todos'&&!matchesSaleOrigin(venda.origem,origemFilter))return false;
+      if(statusFilter!=='todos'&&!matchesStatusFilter(statusFilter,venda.status))return false;
+      return true;
+    }).forEach(venda=>{getRow(getVendaCategoria(venda)).comissaoPaga+=registeredPaidCommission(venda);});
+
     return Array.from(map.values()).sort((a, b) => (b.coletado + b.aReceber + b.feito) - (a.coletado + a.aReceber + a.feito));
-  }, [fechamentosFiltrados, vendasAprovadas, dateFilter.range.start, dateFilter.range.end, taxProfile]);
+  }, [fechamentosFiltrados, vendasAprovadas, allVendas, dateFilter.range.start, dateFilter.range.end, taxProfile, search, vendedorFilter, pagamentoFilter, origemFilter, statusFilter]);
 
   const salesTotalsBreakdown = useMemo(() => integratedCategoryRows.reduce((totals, row) => {
     const isCourse = COURSE_PRODUCTS.some((produto) => normalizeText(produto) === normalizeText(row.categoria));
@@ -1169,7 +1099,7 @@ const VendasPage = () => {
       const linkedSale = findSaleForClosing(item);
       const itemInstallments = Math.max(1, Number.parseInt(String(linkedSale?.parcelas || ""), 10) || 1);
       const historyNetTotal = getUniquePaymentHistory(item.observacao).reduce(
-        (sum, entry) => sum + Number(entry.netAmount ?? getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, itemInstallments), taxProfile)),
+        (sum, entry) => sum + getNetPaymentValue(entry.amount, entry.method, getPaymentInstallments(entry.method, itemInstallments), taxProfile),
         0,
       );
       const coletado = Math.max(getFechamentoCollectedNet(item), historyNetTotal);
@@ -1384,9 +1314,11 @@ const VendasPage = () => {
       const valorSinal = temSaldoQuitadoSeparado ? sinalOriginal : valorColetado;
       const condicaoPagamento = fechamento?.parcelas_total ? "boleto" : temSaldoQuitadoSeparado ? "sinal_quitado" : valorAEntrar > 0 && valorSinal > 0 ? "sinal" : valorAEntrar > 0 ? "a_receber" : "pago";
       return {
+        data: venda.data,
         produto: canonicalizeSaleCategory(venda.produto),
         servico: venda.servico || "",
         origem: venda.origem || "",
+        forma_venda: venda.forma_venda || "nao_informado",
         criativo: criativo?.criativo || "",
         valor: Number(venda.valor || 0),
         pagamento: venda.pagamento,
@@ -1411,6 +1343,7 @@ const VendasPage = () => {
     setEditingFechamento(fechamento);
     setEditingCriativoVenda(criativoVenda);
     setEditingRecords(records);
+    setRemovedSaleRecords([]);
     setForm({
       ...defaultForm,
       data: v.data,
@@ -1424,6 +1357,7 @@ const VendasPage = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if(savingItemChanges)return;
     if (!session?.user?.id) return;
 
     const buildPayload = (item: VendaItemForm) => {
@@ -1433,7 +1367,7 @@ const VendasPage = () => {
         : item.pagamento_saldo;
       return {
       user_id: session.user.id,
-      data: form.data,
+      data: item.data || form.data,
       vendedor: form.vendedor,
       cliente: form.cliente,
       produto: item.produto,
@@ -1446,6 +1380,7 @@ const VendasPage = () => {
       status: item.status === "cancelada" ? "cancelada" : ["pago", "sinal_quitado"].includes(item.condicao_pagamento) ? "pago" : item.status,
       servico: item.servico,
       origem: item.origem,
+      forma_venda: item.forma_venda,
     };
     };
 
@@ -1456,14 +1391,14 @@ const VendasPage = () => {
       const valorSinalLiquido = getItemValores(item).valorRecebidoLiquido;
       const valorAEntrar = pagoIntegralmente ? 0 : Math.max(0, valorTotal - valorSinal);
       const parcelasTotal = item.condicao_pagamento === "boleto" ? Math.max(1, Number(item.parcelas_total || 1)) : null;
-      const parcelasDatas = parcelasTotal ? buildParcelDates(parcelasTotal, item.previsao_entrada || form.data, item.parcelas_datas) : [];
+      const parcelasDatas = parcelasTotal ? buildParcelDates(parcelasTotal, item.previsao_entrada || item.data || form.data, item.parcelas_datas) : [];
       const pagamentoSaldo = PAGAMENTOS_COM_PARCELA.includes(item.pagamento_saldo)
         ? `${item.pagamento_saldo} — ${item.parcelas_saldo}x`
         : item.pagamento_saldo;
 
       return {
         user_id: session.user.id,
-        data: form.data,
+        data: item.data || form.data,
         vendedor: form.vendedor,
         cliente: form.cliente,
         produto_servico: item.servico || item.produto || "Sem categoria",
@@ -1489,7 +1424,7 @@ const VendasPage = () => {
       return {
         user_id: session.user.id,
         nome_aluno: form.cliente,
-        data: form.data,
+        data: item.data || form.data,
         criativo: item.criativo.trim(),
         codigo: metaAd?.id || null,
         valor_curso: Number(item.valor || 0),
@@ -1526,8 +1461,15 @@ const VendasPage = () => {
           })());
         }
       });
+      setSavingItemChanges(true);
       Promise.all(updates)
-        .then(() => {
+        .then(async () => {
+          for (const record of removedSaleRecords) {
+            const {error} = await (supabase as any).rpc('delete_sale_item',{p_sale_id:record.venda.id,p_closing_id:record.fechamento?.id||null,p_creative_id:record.criativo?.id||null,p_expected_updated_at:record.venda.updated_at});
+            if(error)throw error;
+          }
+          await Promise.all(['vendas','fechamentos_diarios','criativos_vendas'].map(key=>queryClient.invalidateQueries({queryKey:[key]})));
+          setRemovedSaleRecords([]);
           toast({ title: "Venda atualizada!", description: `${saleItems.length} curso(s) e seus dados financeiros foram atualizados.` });
           setDialogOpen(false);
           setEditingVenda(null);
@@ -1537,7 +1479,7 @@ const VendasPage = () => {
           setForm({ ...defaultForm });
           setAdditionalItems([]);
         })
-        .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
+        .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" })).finally(()=>setSavingItemChanges(false));
     } else {
       const saleItems = [getPrimaryItem(), ...additionalItems].filter((item) =>
         item.produto || item.servico || item.origem || Number(item.valor || 0),
@@ -1571,7 +1513,15 @@ const VendasPage = () => {
       .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }));
   };
 
-  const isSaving = createVenda.isPending || createFechamento.isPending || createCriativoVenda.isPending || updateVenda.isPending || updateFechamento.isPending || updateCriativoVenda.isPending;
+  const isSaving = savingItemChanges || createVenda.isPending || createFechamento.isPending || createCriativoVenda.isPending || updateVenda.isPending || updateFechamento.isPending || updateCriativoVenda.isPending;
+  const renderRemoveSaleItem = (rowIndex:number) => {
+    if (!additionalItems.length) return null;
+    const item = rowIndex === 0 ? getPrimaryItem() : additionalItems[rowIndex-1];
+    return <AlertDialog><AlertDialogTrigger asChild><Button type="button" variant="ghost" size="sm" disabled={isSaving} className="h-8 gap-1 text-destructive" aria-label={"Remover item "+(rowIndex+1)}><Trash2 className="h-4 w-4"/>Remover item</Button></AlertDialogTrigger>
+      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remover este item?</AlertDialogTitle><AlertDialogDescription>{saleCourseDisplayName(item.servico || item.produto) || 'Item sem produto'} · {formatBRL(Number(item.valor || 0))}. Ao atualizar a venda, este item e seu lançamento financeiro serão excluídos. Os outros itens permanecem.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Voltar</AlertDialogCancel><AlertDialogAction onClick={()=>removeSaleItemRow(rowIndex)}>Remover item</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+    </AlertDialog>;
+  };
+
   const isClearing = clearVendas.isPending || clearFechamentos.isPending;
 
   const vendaFormDialog = (
@@ -1606,7 +1556,7 @@ const VendasPage = () => {
         <div className="rounded-xl border border-border/30 bg-secondary/10 p-3 sm:p-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Cliente da venda</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
-            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Data</Label><Input type="date" value={form.data} onChange={(event) => setForm((previous) => ({ ...previous, data: event.target.value }))} /></div>
+            <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Data do primeiro item</Label><Input type="date" value={form.data} onChange={(event) => setForm((previous) => ({ ...previous, data: event.target.value }))} /></div>
             <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">Nome do cliente</Label><Input value={form.cliente} onChange={(event) => setForm((previous) => ({ ...previous, cliente: event.target.value }))} required placeholder="Nome do cliente" /></div>
           </div>
         </div>
@@ -1629,11 +1579,12 @@ const VendasPage = () => {
                 const mostrarPagamentoSaldo = saleItem.condicao_pagamento !== "pago" || Boolean(pagamentoSaldoSalvo);
                 return <div key={rowIndex} className="rounded-lg border border-border/40 bg-background/30 p-3">
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-primary">Item {rowIndex + 1}</span>
-                    {rowIndex > 0 && rowIndex - 1 >= editingRecords.length - 1 && <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeVendaItem(rowIndex - 1)}><Trash2 className="h-4 w-4" /></Button>}
+                    <div className="flex flex-wrap items-center gap-3"><span className="text-sm font-semibold text-primary">Item {rowIndex + 1}</span><label className="flex items-center gap-2 text-xs text-muted-foreground">Data da venda<Input aria-label={"Data da venda do item "+(rowIndex+1)} className="h-8 w-40" type="date" required value={saleItem.data || form.data} onChange={event=>updateRow({data:event.target.value})}/></label></div>
+                    {renderRemoveSaleItem(rowIndex)}
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-                    <div className={fieldClass}><Label className="text-xs text-muted-foreground">Produto</Label><Select value={saleItem.produto || "__none__"} onValueChange={(produto) => updateRow({ produto: produto === "__none__" ? "" : produto })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">Nenhum produto</SelectItem>{PRODUTOS.map((produto) => <SelectItem key={produto} value={produto}>{produto}</SelectItem>)}</SelectContent></Select></div>
+                    <div className={fieldClass}><Label className="text-xs text-muted-foreground">Forma de venda</Label><SaleMethodSelect value={saleItem.forma_venda} onChange={(forma_venda) => updateRow({ forma_venda })} /></div>
+                    <div className={fieldClass}><Label className="text-xs text-muted-foreground">Produto</Label><Select value={saleItem.produto || "__none__"} onValueChange={(produto) => updateRow({ produto: produto === "__none__" ? "" : produto })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">Nenhum produto</SelectItem>{PRODUTOS.map((produto) => <SelectItem key={produto} value={produto}>{saleCourseDisplayName(produto)}</SelectItem>)}</SelectContent></Select></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Serviço</Label><Select value={saleItem.servico || "__none__"} onValueChange={(servico) => updateRow({ servico: servico === "__none__" ? "" : servico })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">Nenhum serviço</SelectItem>{SERVICOS.map((servico) => <SelectItem key={servico} value={servico}>{servico}</SelectItem>)}</SelectContent></Select></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Origem</Label><Select value={saleItem.origem} onValueChange={(origem) => updateRow({ origem })}><SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger><SelectContent>{ORIGENS.map((origem) => <SelectItem key={origem} value={origem}>{origem}</SelectItem>)}</SelectContent></Select></div>
                     <div className={fieldClass}><Label className="text-xs text-muted-foreground">Valor (R$)</Label><Input className="h-9 w-full" type="number" min="0" step="0.01" value={saleItem.valor || ""} onChange={(event) => updateRow({ valor: Number(event.target.value) })} /></div>
@@ -1861,17 +1812,7 @@ const VendasPage = () => {
                     <div key={index} className="rounded-lg border border-border/30 bg-background/50 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <p className="text-sm font-semibold">Item {index + 2}</p>
-                        {(!editingVenda || index >= editingRecords.length - 1) && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
-                            onClick={() => removeVendaItem(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                        {renderRemoveSaleItem(index + 1)}
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1881,7 +1822,7 @@ const VendasPage = () => {
                             <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="__none__">Nenhum produto</SelectItem>
-                              {PRODUTOS.map((produto) => <SelectItem key={produto} value={produto}>{produto}</SelectItem>)}
+                              {PRODUTOS.map((produto) => <SelectItem key={produto} value={produto}>{saleCourseDisplayName(produto)}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
@@ -2086,6 +2027,12 @@ const VendasPage = () => {
         contentClassName="!max-w-none"
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={exportSalesPeriod}>
+              <Download className="h-4 w-4" /> Exportar período
+            </Button>
+            <Button variant="outline" size="sm" className="gap-2" onClick={exportSalesPdf}>
+              <Download className="h-4 w-4" /> Gerar PDF
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 text-muted-foreground">
@@ -2144,6 +2091,7 @@ const VendasPage = () => {
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <div className="font-display text-2xl font-bold">{formatBRL(salesTotalsBreakdown.total.aReceber)}</div>
                 <span className="text-xs text-muted-foreground">Total ainda pendente: {formatBRL(accumulatedTotalsBreakdown.total.aReceber)}</span>
+                <span className="text-xs text-muted-foreground">Inclui pendências anteriores ao período: {formatBRL(fechamentosFiltrados.reduce((sum, item) => sum + (isCarriedOverReceivable(item) ? Number(item.valor_a_entrar || 0) : 0), 0))}</span>
               </div>
               <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{dateFilter.mode === "mes" ? "No mês selecionado" : "No período selecionado"}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cursos: {formatBRL(salesTotalsBreakdown.cursos.aReceber)} · Serviços: {formatBRL(salesTotalsBreakdown.servicos.aReceber)}</p>
@@ -2254,8 +2202,10 @@ const VendasPage = () => {
                   <small className="mt-1 block text-[10px] text-muted-foreground">Cursos {salesTotalsBreakdown.cursos.vendas} · Serviços {salesTotalsBreakdown.servicos.vendas}</small>
                 </div>
                 <div className="rounded-lg border border-sky-500/20 bg-sky-500/10 px-3 py-2">
-                  <span className="text-muted-foreground">Comissão paga</span>
+                  <span className="text-muted-foreground">Comissão paga no período</span>
                   <strong className="block text-sky-400">{formatBRL(integratedCategoryRows.reduce((total, row) => total + row.comissaoPaga, 0))}</strong>
+                  <small className="mt-1 block text-[10px] text-muted-foreground">Pela data do pagamento · total antes da divisão entre os três vendedores</small>
+                  {allVendas.some(sale=>registeredPaidCommission(sale)>0&&!commissionPaymentDate(sale))&&<small className="block text-[10px] text-amber-500">Há comissões pagas sem data, fora deste total.</small>}
                 </div>
                 <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2">
                   <span className="text-muted-foreground">Taxas descontadas</span>
@@ -2285,7 +2235,7 @@ const VendasPage = () => {
                   <TableBody>
                     {integratedCategoryRows.map((row) => (
                       <TableRow key={row.categoria}>
-                        <TableCell className="font-semibold">{row.categoria}</TableCell>
+                        <TableCell className="font-semibold">{saleCourseDisplayName(row.categoria)}</TableCell>
                         <TableCell className="text-right font-semibold text-success">{formatBRL(row.coletado)}</TableCell>
                         <TableCell className="text-right font-semibold text-amber-500">{formatBRL(row.aReceber)}</TableCell>
                         <TableCell className="text-right font-semibold text-primary">{formatBRL(row.recorrente)}</TableCell>
@@ -2328,7 +2278,7 @@ const VendasPage = () => {
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4 rounded-lg border border-border/30 bg-secondary/20 px-3 py-3">
           <div>
             <p className="text-sm font-semibold text-foreground">Tabela de taxas</p>
-            <p className="text-xs text-muted-foreground">Escolha a opção para recalcular os valores líquidos e comissões exibidos.</p>
+            <p className="text-xs text-muted-foreground">A tabela selecionada recalcula taxas, recebimentos líquidos, comissões e totais desta tela, inclusive de pagamentos já registrados. Valores de comissão já pagos são preservados.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -2456,6 +2406,7 @@ const VendasPage = () => {
                   </div>
                 </div>
 
+                <div className="mt-3 space-y-1"><Label className="text-xs text-muted-foreground">Forma de venda</Label><SaleGroupMethod sales={grupo.itens} /></div>
                 <div className="mt-3 flex flex-wrap gap-1">
                   {nomes.length > 0 ? nomes.map((nome) => <Badge key={nome} variant="secondary" className="font-normal">{nome}</Badge>) : <span className="text-xs text-muted-foreground">Sem produto ou serviço</span>}
                 </div>
@@ -2485,12 +2436,13 @@ const VendasPage = () => {
 
         {/* Flat spreadsheet-style sales table: one piece of information per column. */}
         <div className="overflow-x-auto rounded-lg border border-border/30">
-          <Table className="min-w-[1680px] table-fixed text-sm">
+          <Table className="min-w-[1900px] table-fixed text-sm">
             <TableHeader>
               <TableRow className="border-border/30 bg-secondary/30">
                 <TableHead className="w-[10%] px-2 text-xs">Cliente</TableHead>
                 <TableHead className="w-[12%] px-2 text-xs">{salesTableSection === "todos" ? "Produto / serviço" : salesTableSection === "cursos" ? "Curso" : "Serviço"}</TableHead>
                 <TableHead className="w-[7%] px-2 text-xs">Origem</TableHead>
+                <TableHead className="w-[210px] px-2 text-xs">Forma de venda</TableHead>
                 <TableHead className="w-[10%] px-2 text-xs">Criativo de vendas</TableHead>
                 <TableHead className="w-[6%] px-2 text-right text-xs">Total</TableHead>
                 <TableHead className="w-[11%] px-2 text-right text-xs">Coletado / comissão paga</TableHead>
@@ -2506,9 +2458,9 @@ const VendasPage = () => {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Carregando...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={15} className="py-8 text-center text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : vendasAgrupadas.length === 0 ? (
-                <TableRow><TableCell colSpan={14} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={15} className="py-8 text-center text-muted-foreground">Nenhuma venda encontrada</TableCell></TableRow>
               ) : vendasAgrupadas.map((grupo, index) => {
                 const v = grupo.principal;
                 const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
@@ -2545,6 +2497,11 @@ const VendasPage = () => {
                     </TableCell>
                     <TableCell className="px-2 py-3" title={nomesTexto}>
                       <p className="truncate font-semibold">{nomesTexto}</p>
+                      {[...new Set(grupo.itens.filter(completedSaleCourses).map(getVendaCategoria))].map((course) => (
+                        <Badge key={course} variant="outline" className="my-1 whitespace-normal border-success/30 bg-success/10 text-success text-[10px]" title={`${course}: formulário preenchido pelo aluno`}>
+                          {nomes.length > 1 ? `${course} · ` : ""}Curso feito · Formulário preenchido
+                        </Badge>
+                      ))}
                       <p className="truncate text-[11px] text-muted-foreground">
                         {grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}
                         {grupo.datasPrevistasCurso.length > 0 ? ` · Curso: ${grupo.datasPrevistasCurso.map(formatDate).join(", ")}` : ""}
@@ -2553,6 +2510,7 @@ const VendasPage = () => {
                     <TableCell className="px-2 py-3" title={origensTexto}>
                       <p className="truncate text-xs font-medium">{origensTexto}</p>
                     </TableCell>
+                    <TableCell className="px-2 py-3"><SaleGroupMethod sales={grupo.itens} /></TableCell>
                     <TableCell className="px-2 py-3" title={roasCriativosTexto ? `${criativosTexto} · ROAS ${roasCriativosTexto}` : criativosTexto}>
                       <p className="line-clamp-2 text-xs font-medium">{criativosTexto}</p>
                       {roasCriativosTexto && <p className="mt-1 text-[10px] font-semibold text-violet-400">ROAS {roasCriativosTexto}</p>}
@@ -2610,10 +2568,11 @@ const VendasPage = () => {
             </TableBody>
           </Table>
           {vendasAgrupadas.length > 0 && (() => {
-            const totalVendido = vendasAgrupadas.reduce((total, grupo) => total + grupo.valorTotal, 0);
+            const displayedTotals = salesExportSummary(vendasAgrupadas);
+            const totalVendido = displayedTotals.sold;
             const totalItens = vendasAgrupadas.reduce((total, grupo) => total + grupo.quantidade, 0);
-            const totalComissaoPendente = vendasAgrupadas.reduce((total, grupo) => total + grupo.comissaoPendente, 0);
-            const totalTaxasMaquininha = vendasAgrupadas.reduce((total, grupo) => total + grupo.taxasMaquininhaPeriodo, 0);
+            const totalComissaoPendente = displayedTotals.pendingCommission;
+            const totalTaxasMaquininha = displayedTotals.fees;
             return (
               <div className="grid grid-cols-6 gap-6 border-t-2 border-accent/40 bg-secondary/50 px-5 py-4 text-xs">
                 <div className="min-w-0">
@@ -2626,15 +2585,16 @@ const VendasPage = () => {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Coletado</p>
-                  <p className="mt-1 whitespace-nowrap font-bold text-success">{formatBRL(visiblePeriodTotals.coletado)}</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-success">{formatBRL(displayedTotals.collected)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">A receber</p>
-                  <p className="mt-1 whitespace-nowrap font-bold text-amber-500">{formatBRL(visiblePeriodTotals.aReceber)}</p>
+                  <p className="mt-1 whitespace-nowrap font-bold text-amber-500">{formatBRL(displayedTotals.receivable)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Comissão pendente</p>
                   <p className="mt-1 whitespace-nowrap font-bold">{formatBRL(totalComissaoPendente)}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">Sobre valores já recebidos, menos comissão paga. Não inclui comissão futura.</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-wider text-muted-foreground">Taxas da máquina</p>
@@ -2689,7 +2649,7 @@ const VendasPage = () => {
                       <TableCell className="px-3 py-3 align-top">
                         <div className="overflow-hidden rounded-md border border-border/25">
                           {grupo.itens.map((saleItem, itemIndex) => {
-                            const itemName = saleItem.servico || saleItem.produto || "Sem produto ou serviço";
+                            const itemName = saleCourseDisplayName(saleItem.servico || saleItem.produto || "Sem produto ou serviço");
                             return (
                               <div key={saleItem.id} className={`flex items-center justify-between gap-3 px-2.5 py-2 text-xs ${itemIndex > 0 ? "border-t border-border/25" : ""}`}>
                                 <span className="font-medium text-foreground">{itemName}</span>
@@ -2882,4 +2842,8 @@ const VendasPage = () => {
 
 export default VendasPage;
 
+
+
+
+import { collectionCalculator } from "@/lib/collectionCalculator";
 

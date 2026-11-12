@@ -1,4 +1,8 @@
+import {courseDisplayName} from '@/constants/courseCatalog';
 import { useMemo, useState } from "react";
+import AnalyticsPeriodFilter from "@/components/AnalyticsPeriodFilter";
+import { analyticsRange, localTimestampDate, type AnalyticsPeriod } from "@/lib/analyticsPeriods";
+import { dateKey, inRange } from "@/lib/evolutionMetrics";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import MetricCard from "@/components/MetricCard";
@@ -39,6 +43,8 @@ export default function StudentDataPage() {
   const { data: students = [], isLoading: loadingStudents } = useFutureStudents();
   const { data: surveys = [], isLoading: loadingSurveys } = useSurveyResponses();
   const [search, setSearch] = useState("");
+  const [period, setPeriod] = useState<AnalyticsPeriod>("all");
+  const [anchor, setAnchor] = useState(dateKey(new Date()));
   const [selected, setSelected] = useState<StudentRecord | null>(null);
 
   const records = useMemo<StudentRecord[]>(() => {
@@ -54,11 +60,11 @@ export default function StudentDataPage() {
     const result: StudentRecord[] = students.map((student) => {
       const survey = latestSurveyByCpf.get(cleanCpf(student.cpf)) || latestSurveyByName.get(normalizeName(student.nome));
       const items = (student.itens?.length ? student.itens : student.curso ? [{ tipo: "curso", nome: student.curso, valor_sinal: Number(student.valor_sinal || 0), valor_pendente: 0, data: student.created_at }] : [])
-        .map((item) => ({ tipo: item.tipo, nome: item.nome, valor_sinal: Number(item.valor_sinal || 0), valor_pendente: Number(item.valor_pendente || 0) }));
+        .map((item) => ({ tipo: item.tipo, nome: item.tipo === "curso" ? courseDisplayName(item.nome) : item.nome, valor_sinal: Number(item.valor_sinal || 0), valor_pendente: Number(item.valor_pendente || 0) }));
       const profile = student as FutureStudent & { data_nascimento?: string | null; email?: string | null; instagram?: string | null; cep?: string | null; cidade?: string | null; endereco?: string | null };
       return {
         key: student.id,
-        createdAt: [student.created_at, survey?.created_at || ""].sort().at(-1) || student.created_at,
+        createdAt: student.created_at,
         student, survey,
         name: student.nome || survey?.nome || "Aluno sem nome",
         cpf: student.cpf || survey?.cpf || "",
@@ -88,16 +94,18 @@ export default function StudentDataPage() {
 
   const filtered = useMemo(() => {
     const query = normalizeName(search);
-    if (!query) return records;
-    return records.filter((record) => normalizeName([record.name, record.cpf, record.phone, record.email, record.items.map((item) => item.nome).join(" ")].join(" ")).includes(query));
-  }, [records, search]);
-  const totalPaid = records.reduce((sum, record) => sum + record.paid, 0);
-  const totalPending = records.reduce((sum, record) => sum + record.pending, 0);
+    const range = analyticsRange(period, anchor);
+    return records.filter((record) => (!range || inRange(localTimestampDate(record.createdAt),range)) && (!query || normalizeName([record.name, record.cpf, record.phone, record.email, record.items.map((item) => item.nome).join(" ")].join(" ")).includes(query)));
+  }, [records, search, period, anchor]);
+  const totalPaid = filtered.reduce((sum, record) => sum + record.paid, 0);
+  const totalPending = filtered.reduce((sum, record) => sum + record.pending, 0);
 
   return <PageTransition><DashboardLayout title="Dados dos Alunos" subtitle="Informações pessoais, compras e situação financeira dos alunos">
+    <AnalyticsPeriodFilter mode={period} anchor={anchor} onMode={setPeriod} onAnchor={setAnchor}/>
+    <p className="mb-4 text-xs text-muted-foreground">Filtro pela data do cadastro do aluno (horário de Brasília); quando existe apenas pesquisa, utiliza a data dela. Os valores são os saldos dos alunos selecionados, não o fluxo de caixa do período.</p>
     <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <MetricCard title="Alunos" value={records.length} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
-      <MetricCard title="Com cadastro completo" value={records.filter((record) => record.email && record.cpf && record.birthDate).length} icon={<UserRound className="h-5 w-5" />} variant="accent" countUp />
+      <MetricCard title="Alunos" value={filtered.length} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
+      <MetricCard title="Com cadastro completo" value={filtered.filter((record) => record.email && record.cpf && record.birthDate).length} icon={<UserRound className="h-5 w-5" />} variant="accent" countUp />
       <MetricCard title="Total pago" value={totalPaid} icon={<DollarSign className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={2} />
       <MetricCard title="Total pendente" value={totalPending} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
     </div>

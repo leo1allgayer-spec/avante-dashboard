@@ -1,11 +1,16 @@
-import { useState } from "react";
+import {TaskTeamPhones} from "@/components/clients/tasks/TaskTeamPhones";
+import {canAccessClientContracts} from "@/lib/accessControl";
+import {useSearchParams} from "react-router-dom";
+import {TaskDetailsDialog} from "@/components/clients/tasks/TaskDetailsDialog";
+import {Task} from "@/types/clients/task";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
 import { AddTaskDialog } from "@/components/clients/tasks/AddTaskDialog";
 import { TaskListView } from "@/components/clients/tasks/TaskListView";
 import { useAuth } from "@/hooks/clients/useGestaoAuth";
 import { useTasks } from "@/hooks/clients/useTasks";
-import { useTeamMembers } from "@/hooks/clients/useTeamMembers";
+import { useTaskMembers } from "@/hooks/clients/useTaskMembers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +19,10 @@ import { ClipboardList, Loader2, Plus, Search } from "lucide-react";
 export default function TaskManagerPage() {
   const { session } = useAuth();
   const { tasks, loading: tasksLoading, addTask, updateTask, deleteTask } = useTasks();
-  const { members, loading: membersLoading } = useTeamMembers();
+  const { members, loading: membersLoading, refetch:refreshMembers } = useTaskMembers();
+  const [selectedTask,setSelectedTask]=useState<Task|null>(null);
+  const [params,setParams]=useSearchParams();
+  useEffect(()=>{const id=params.get("task");if(id&&!tasksLoading){const found=tasks.find(task=>task.id===id);if(found)setSelectedTask(found);}},[params,tasks,tasksLoading]);
   const [showAddTask, setShowAddTask] = useState(false);
   const [search, setSearch] = useState("");
   const [filterAssignee, setFilterAssignee] = useState("");
@@ -33,11 +41,13 @@ export default function TaskManagerPage() {
         <Select value={filterAssignee} onValueChange={(value) => setFilterAssignee(value === "all" ? "" : value)}><SelectTrigger className="w-[170px]"><SelectValue placeholder="Responsável" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os responsáveis</SelectItem>{members.map((member) => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select>
         <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value === "all" ? "" : value)}><SelectTrigger className="w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="Pendente">A Fazer</SelectItem><SelectItem value="Em andamento">Em Andamento</SelectItem><SelectItem value="Revisão">Revisão</SelectItem><SelectItem value="Concluída">Concluído</SelectItem></SelectContent></Select>
         <Select value={filterPriority} onValueChange={(value) => setFilterPriority(value === "all" ? "" : value)}><SelectTrigger className="w-[140px]"><SelectValue placeholder="Prioridade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="Alta">Alta</SelectItem><SelectItem value="Média">Média</SelectItem><SelectItem value="Baixa">Baixa</SelectItem></SelectContent></Select>
+        {canAccessClientContracts(session?.user?.email)&&<TaskTeamPhones members={members} onSaved={()=>void refreshMembers()}/>}
         <Button onClick={() => setShowAddTask(true)} className="ml-auto"><Plus className="mr-1 h-4 w-4" /> Nova Tarefa</Button>
       </div>
     </div>
 
-    <TaskListView tasks={tasks.filter((task) => !task.isDaily)} members={members} onUpdateTask={updateTask} onDeleteTask={deleteTask} filterAssignee={filterAssignee} filterStatus={filterStatus} filterPriority={filterPriority} search={search} currentUserId={session?.user?.id} />
+    <TaskListView tasks={tasks.filter((task) => !task.isDaily)} members={members} onUpdateTask={updateTask} onDeleteTask={deleteTask} filterAssignee={filterAssignee} filterStatus={filterStatus} filterPriority={filterPriority} search={search} currentUserId={session?.user?.id} onOpenTask={task=>{setSelectedTask(task);setParams({task:task.id});}} />
+    <TaskDetailsDialog onComplete={updateTask} task={selectedTask} members={members} userId={session?.user?.id} onClose={()=>{setSelectedTask(null);setParams({});}}/>
     <AddTaskDialog open={showAddTask} onClose={() => setShowAddTask(false)} onAdd={addTask} members={members} />
   </DashboardLayout></PageTransition>;
 }

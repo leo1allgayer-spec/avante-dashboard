@@ -6,11 +6,14 @@ export interface ClientNote {
 }
 
 export type PaymentStatus = "pago" | "atrasado" | "a receber" | "permuta";
+export type ClientUpdateOptions = { changeStatus?: boolean; statusConfirmed?: boolean };
 export type ContractType = "MRR" | "TCV";
+export type ClientLevel = "1" | "2" | "3" | "4" | "5" | "nao_definido";
 
 export interface Client {
   id: string;
   name: string;
+  level?: ClientLevel;
   company: string;
   instagram: string;
   responsibleName?: string;
@@ -22,6 +25,10 @@ export interface Client {
   dueDate?: string;
   manager: string;
   status: "Ativo" | "Pausado";
+  satisfaction?: "nao_avaliado" | "muito_satisfeito" | "satisfeito" | "neutro" | "insatisfeito" | "muito_insatisfeito";
+  contractRenewal?: "nao_definido" | "sim" | "nao" | "em_negociacao";
+  contractLifecycle?: "nao_informado" | "vigente" | "encerrado";
+  contractEndDate?: string;
   paymentStatus: PaymentStatus;
   // Financial
   monthlyBudget: number;
@@ -31,6 +38,15 @@ export interface Client {
   contractType: ContractType;
   contractMonths: number;
   monthlyContractValue: number;
+  paidMonth?: string;
+  billingMonth?: string;
+  overduePayments?: { month: string; amount: number }[];
+  arrearsReceivedMonth?: string;
+  arrearsReceived?: number;
+  contractSettled?: boolean;
+  contractReceived?: number;
+  receivedMonth?: string;
+  monthlyReceived?: number;
   // Balance
   lastBalanceDate: string;
   balanceNote: string;

@@ -1,5 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {saleCourseDisplayName,saleCourseFinancialName} from '@/constants/courseCatalog';
+
+const saleRead=(sale:Venda)=>({...sale,produto:saleCourseFinancialName(sale.produto),servico:saleCourseFinancialName(sale.servico)});
+const saleWrite=<T extends Partial<Venda>>(sale:T)=>{
+ const result={...sale};
+ if(typeof result.produto==='string')result.produto=saleCourseDisplayName(result.produto);
+ if(typeof result.servico==='string')result.servico=saleCourseDisplayName(result.servico);
+ return result;
+};
 
 export interface Venda {
   id: string;
@@ -20,6 +29,7 @@ export interface Venda {
   status: string;
   servico: string;
   origem: string;
+  forma_venda?: string | null;
   created_at: string;
   updated_at: string;
   aluno_futuro_id?: string | null;
@@ -29,9 +39,9 @@ export interface Venda {
 export function useVendas() {
   return useQuery({
     queryKey: ["vendas"],
-    refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
-    refetchInterval: 30_000,
+    staleTime: 60_000,
+    refetchInterval: 2 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendas")
@@ -39,7 +49,7 @@ export function useVendas() {
         .order("data", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data as Venda[]) || [];
+      return ((data as Venda[]) || []).map(saleRead);
     },
   });
 }
@@ -50,7 +60,7 @@ export function useCreateVenda() {
     mutationFn: async (venda: Omit<Venda, "id" | "created_at" | "updated_at">) => {
       const { data, error } = await supabase
         .from("vendas")
-        .insert(venda)
+        .insert(saleWrite(venda))
         .select()
         .single();
       if (error) throw error;
@@ -66,7 +76,7 @@ export function useUpdateVenda() {
     mutationFn: async ({ id, ...updates }: Partial<Venda> & { id: string }) => {
       const { data, error } = await supabase
         .from("vendas")
-        .update(updates)
+        .update(saleWrite(updates))
         .eq("id", id)
         .select()
         .single();
@@ -75,7 +85,7 @@ export function useUpdateVenda() {
     },
     onSuccess: async (updated) => {
       qc.setQueryData<Venda[]>(["vendas"], (current = []) =>
-        current.map((sale) => sale.id === updated.id ? { ...sale, ...updated } as Venda : sale),
+        current.map((sale) => sale.id === updated.id ? saleRead({ ...sale, ...updated } as Venda) : sale),
       );
       await Promise.all([
         qc.refetchQueries({ queryKey: ["vendas"] }),

@@ -1,14 +1,5 @@
-export const COURSE_PRODUCTS = [
-  "Curso de Meta Ads",
-  "Curso Meta Ads Avançado",
-  "Curso Google Ads",
-  "Curso de TikTok Ads",
-  "Curso de YouTube Ads",
-  "Curso de Social Midia",
-  "Curso de IA",
-  "Curso Canva para Empreendedores",
-  "Curso Captacao/Edicao",
-];
+import {COURSE_CATALOG,findCourse,normalizeCourseAlias} from './courseCatalog';
+export const COURSE_PRODUCTS:string[] = COURSE_CATALOG.map(course=>course.financialName);
 
 export const SUPPORT_PRODUCTS = ["Suporte Extra"];
 export const PRODUCT_OPTIONS = [...COURSE_PRODUCTS, ...SUPPORT_PRODUCTS];
@@ -40,15 +31,6 @@ const normalizeCategoryText = (value?: string | null) =>
     .trim();
 
 const CATEGORY_ALIASES: Array<{ canonical: string; aliases: string[] }> = [
-  { canonical: "Curso de Meta Ads", aliases: ["curso de meta ads", "meta ads", "curso meta ads", "curso trafego pago meta ads", "curso de trafego pago meta ads"] },
-  { canonical: "Curso Meta Ads Avançado", aliases: ["curso meta ads avancado", "curso de meta ads avancado", "meta ads avancado", "gestor pro", "curso de trafego gestor pro", "curso de trafego gestor pro+"] },
-  { canonical: "Curso Google Ads", aliases: ["curso google ads", "curso de google ads", "curso trafego pago google ads", "curso de trafego pago google ads", "google ads"] },
-  { canonical: "Curso de TikTok Ads", aliases: ["curso de tiktok ads", "curso tiktok ads", "tiktok ads"] },
-  { canonical: "Curso de YouTube Ads", aliases: ["curso de youtube ads", "curso youtube ads", "youtube ads"] },
-  { canonical: "Curso de Social Midia", aliases: ["curso de social midia", "curso de social media", "curso social midia", "curso social media"] },
-  { canonical: "Curso de IA", aliases: ["curso de ia", "curso ia", "curso de inteligencia artificial", "curso inteligencia artificial", "inteligencia artificial", "ia"] },
-  { canonical: "Curso Canva para Empreendedores", aliases: ["curso canva para empreendedores", "curso de canva para empreendedores", "curso canva", "curso de canva", "canva"] },
-  { canonical: "Curso Captacao/Edicao", aliases: ["curso captacao/edicao", "curso captacao/edicao de conteudo", "captacao/edicao", "curso captacao e edicao de video", "curso de captacao e edicao de video", "curso de edicao e captacao de videos", "curso edicao e captacao de videos", "curso captacao edicao", "captacao e edicao de video"] },
   { canonical: "Suporte Extra", aliases: ["suporte extra", "suporte"] },
   { canonical: "Mentoria Meta Ads", aliases: ["mentoria meta ads"] },
   { canonical: "Assessoria 360", aliases: ["assessoria 360"] },
@@ -63,6 +45,8 @@ const CATEGORY_ALIASES: Array<{ canonical: string; aliases: string[] }> = [
 export function canonicalizeSaleCategory(value?: string | null) {
   const normalized = normalizeCategoryText(value);
   if (!normalized) return "Sem categoria";
+  const course=findCourse(value);
+  if(course&&!(course.id==='social_media'&&!normalizeCourseAlias(value).startsWith('curso ')))return course.financialName;
 
   for (const entry of CATEGORY_ALIASES) {
     if (entry.aliases.some((alias) => normalizeCategoryText(alias) === normalized)) {

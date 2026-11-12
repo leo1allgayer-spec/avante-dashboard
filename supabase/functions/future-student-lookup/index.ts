@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
+import {findCourse,courseDisplayName} from '../_shared/course-catalog.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,8 +56,9 @@ Deno.serve(async (request) => {
 
     const booking = (bookings || []).find((row) => cleanDigits(row.phone) === phone);
     const items = Array.isArray(student.itens) ? student.itens : [];
-    const courseItem = course ? items.find((item: Record<string, unknown>) => item.nome === course) : null;
-    const registeredCourse = !course || Boolean(courseItem) || student.curso === course;
+    const requestedCourse=findCourse(course);
+    const courseItem = requestedCourse ? items.find((item: Record<string, unknown>) => (item.tipo||'curso')==='curso'&&findCourse(String(item.nome||''))?.id===requestedCourse.id) : null;
+    const registeredCourse = !course || Boolean(courseItem) || Boolean(requestedCourse&&findCourse(student.curso)?.id===requestedCourse.id);
     const signal = courseItem
       ? Number((courseItem as Record<string, unknown>).valor_sinal || 0)
       : items.reduce((total: number, item: Record<string, unknown>) => total + Number(item.valor_sinal || 0), 0)
@@ -76,7 +78,7 @@ Deno.serve(async (request) => {
       address: student.endereco || survey?.endereco || "",
       certificateName: student.nome_certificado || booking?.certificate_name || student.nome || "",
       signalValue: signal,
-      course: student.curso || "",
+      course: courseDisplayName(student.curso),
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
