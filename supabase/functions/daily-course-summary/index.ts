@@ -70,6 +70,7 @@ function isActiveBooking(booking: Booking): boolean {
 
 function buildMessage(recipientName: string, targetDate: string, bookings: Booking[]): string {
   const courseWord = bookings.length === 1 ? "curso" : "cursos";
+  const courseLabel = bookings[0]?.course_name === "Curso em Turma" ? "Curso em Turma" : "Meta Ads";
   const lines = bookings
     .sort((a, b) => timeLabel(a.time).localeCompare(timeLabel(b.time)))
     .map((booking) => `• ${timeLabel(booking.time)} — ${booking.course_name}\nAluno: ${booking.student_name}`);
@@ -77,7 +78,7 @@ function buildMessage(recipientName: string, targetDate: string, bookings: Booki
   return [
     `Olá ${recipientName}! 👋`,
     "",
-    `Lembrete: amanhã (${formatDateBR(targetDate)}) você tem ${bookings.length} ${courseWord} agendados:`,
+    `Lembrete: amanhã (${formatDateBR(targetDate)}) você tem ${bookings.length} ${courseWord} de ${courseLabel} agendados:`,
     "",
     lines.join("\n\n"),
     "",
@@ -133,16 +134,21 @@ Deno.serve(async (req) => {
     const active = ((data || []) as Booking[]).filter(booking=>isInstructorCourse(booking)&&isActiveBooking(booking));
     const deliveries=[];
     for (const [recipientName,recipientPhone] of [['Nicolas','5551998119283'],['Henrique','555197152836']]) {
-      const bookings=active.filter(booking=>booking.instructor===recipientName);
-      if(!bookings.length)continue;
-      const logCourseName=`Cursos ${targetDate} · ${recipientName}`;
-      const {data:existingLog,error:logError}=await supabase.from('whatsapp_message_logs').select('id').eq('message_type','daily_course_summary').eq('course_name',logCourseName).eq('phone',formatPhone(recipientPhone)).limit(1).maybeSingle();
-      if(logError)throw logError;
-      if(existingLog){deliveries.push({teacher:recipientName,skipped:true});continue;}
-      const messageText=buildMessage(recipientName,targetDate,bookings);
-      const delivery=await sendWhatsAppOnce(supabase,formatPhone(recipientPhone),messageText,'internal','daily_course_summary',logCourseName);
-      if(!delivery.deduplicated)await supabase.from('whatsapp_message_logs').insert({booking_id:null,phone:formatPhone(recipientPhone),student_name:recipientName,course_name:logCourseName,message_type:'daily_course_summary',message_text:messageText,status:delivery.accepted?'sent':'error',error_message:delivery.accepted?null:delivery.resultText,sent_at:delivery.accepted?new Date().toISOString():null});
-      deliveries.push({teacher:recipientName,count:bookings.length,sent:delivery.accepted});
+      const teacherBookings=active.filter(booking=>booking.instructor===recipientName);
+      const groups=[
+        {label:'Meta Ads',bookings:teacherBookings.filter(isMetaCourse)},
+        {label:'Curso em Turma',bookings:teacherBookings.filter(booking=>booking.course_name==='Curso em Turma')},
+      ].filter(group=>group.bookings.length>0);
+      for(const group of groups){
+        const logCourseName=`${group.label} ${targetDate} · ${recipientName}`;
+        const {data:existingLog,error:logError}=await supabase.from('whatsapp_message_logs').select('id').eq('message_type','daily_course_summary').eq('course_name',logCourseName).eq('phone',formatPhone(recipientPhone)).limit(1).maybeSingle();
+        if(logError)throw logError;
+        if(existingLog){deliveries.push({teacher:recipientName,course:group.label,skipped:true});continue;}
+        const messageText=buildMessage(recipientName,targetDate,group.bookings);
+        const delivery=await sendWhatsAppOnce(supabase,formatPhone(recipientPhone),messageText,'internal','daily_course_summary',logCourseName);
+        if(!delivery.deduplicated)await supabase.from('whatsapp_message_logs').insert({booking_id:null,phone:formatPhone(recipientPhone),student_name:recipientName,course_name:logCourseName,message_type:'daily_course_summary',message_text:messageText,status:delivery.accepted?'sent':'error',error_message:delivery.accepted?null:delivery.resultText,sent_at:delivery.accepted?new Date().toISOString():null});
+        deliveries.push({teacher:recipientName,course:group.label,count:group.bookings.length,sent:delivery.accepted});
+      }
     }
     return new Response(JSON.stringify({success:deliveries.every(result=>result.skipped||result.sent),date:targetDate,deliveries}),{headers:{...corsHeaders,'Content-Type':'application/json'}});
 
