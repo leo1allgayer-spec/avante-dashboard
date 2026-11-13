@@ -151,7 +151,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
             </InfoCard>
           </div>
         </TabsContent>
-        <TabsContent value="relatorios" className="space-y-4"><ClientMetaAds key={client.id} clientId={client.id} clientName={client.company || client.name} /><ClientReports clientId={client.id} historyOnly /></TabsContent>
+        <TabsContent value="relatorios" className="space-y-4"><ClientMetaAds key={client.id} clientId={client.id} clientName={client.company || client.name} /><ClientReports clientId={client.id} historyOnly={!weeklyAllowed} /></TabsContent>
         {weeklyAllowed && <TabsContent value="semanal"><ClientWeeklyPerformance key={client.id} clientId={client.id} /></TabsContent>}
       </Tabs>
 

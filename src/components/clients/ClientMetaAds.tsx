@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { canAccessClientWeeklyReports } from "@/lib/accessControl";
 
 const managers = new Set([
   "digitalavante3@gmail.com",
@@ -66,7 +67,7 @@ export function ClientMetaAds({
 }) {
   const { session } = useAuth();
   const canManage = managers.has((session?.user.email || "").trim().toLowerCase());
-  const allowed = canManage || session?.user.email?.trim().toLowerCase() === "emanoelbull@gmail.com";
+  const allowed = canManage || canAccessClientWeeklyReports(session?.user.email);
   const cache = useQueryClient();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selected, setSelected] = useState("");
