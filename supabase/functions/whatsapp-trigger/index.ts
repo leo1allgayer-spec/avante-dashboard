@@ -1,6 +1,7 @@
 import {sendWhatsAppOnce} from "../_shared/whatsapp-dispatch.ts";
 import {sendTaskCompletion} from "../_shared/task-completion-notice.ts";
 import {sendCourseInstructorChange} from "../_shared/course-instructor-change-notice.ts";
+import {courseLocation} from "../_shared/course-location.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.100.0/cors";
 
@@ -151,7 +152,8 @@ Deno.serve(async (req) => {
     if (!googleManagerNotified && recipient) {
       const [year,month,day]=booking.date.split('-');
       const time=booking.time==='Manhã'?'08:30':booking.time==='Tarde'?'14:00':booking.time;
-      const notice=[`📢 ${rescheduled?'Curso reagendado':'Novo curso marcado'}`,`Professor: ${hasAssignedTeacher?booking.instructor:'Henrique'}`,`Curso: ${booking.course_name}`,`Aluno: ${booking.student_name}`,`Data: ${day}/${month}/${year}`,`Horário: ${time}`,'Consulte o dashboard para ver os detalhes do agendamento.'].join('\n');
+      const location=courseLocation(booking.course_name);
+      const notice=[`📢 ${rescheduled?'Curso reagendado':'Novo curso marcado'}`,`Professor: ${hasAssignedTeacher?booking.instructor:'Henrique'}`,`Curso: ${booking.course_name}`,`Aluno: ${booking.student_name}`,`Data: ${day}/${month}/${year}`,`Horário: ${time}`,location?`📍 Local:\n${location}`:null,'Consulte o dashboard para ver os detalhes do agendamento.'].filter(Boolean).join('\n');
       googleManagerNotified=await sendMessageNow('google_manager_notification',recipient,notice);
     }
     // 2. Schedule future messages

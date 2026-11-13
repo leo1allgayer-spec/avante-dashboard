@@ -1,4 +1,5 @@
 import { sendWhatsAppOnce } from "../_shared/whatsapp-dispatch.ts";
+import { courseLocation } from "../_shared/course-location.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.100.0";
 
 const corsHeaders = {
@@ -71,6 +72,7 @@ function isActiveBooking(booking: Booking): boolean {
 function buildMessage(recipientName: string, targetDate: string, bookings: Booking[]): string {
   const courseWord = bookings.length === 1 ? "curso" : "cursos";
   const courseLabel = bookings[0]?.course_name === "Curso em Turma" ? "Curso em Turma" : "Meta Ads";
+  const location = courseLocation(bookings[0]?.course_name);
   const lines = bookings
     .sort((a, b) => timeLabel(a.time).localeCompare(timeLabel(b.time)))
     .map((booking) => `• ${timeLabel(booking.time)} — ${booking.course_name}\nAluno: ${booking.student_name}`);
@@ -81,6 +83,7 @@ function buildMessage(recipientName: string, targetDate: string, bookings: Booki
     `Lembrete: amanhã (${formatDateBR(targetDate)}) você tem ${bookings.length} ${courseWord} de ${courseLabel} agendados:`,
     "",
     lines.join("\n\n"),
+    location ? `📍 Local do curso:\n${location}` : "",
     "",
     "Bom curso! 🚀",
   ].join("\n");

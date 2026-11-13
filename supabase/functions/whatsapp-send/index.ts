@@ -1,4 +1,5 @@
 import { onlineCourseMessage } from '../_shared/online-course-message.ts';
+import { courseLocation } from '../_shared/course-location.ts';
 import { courseNotificationIdentity } from '../_shared/course-notification-identity.ts';
 import { isInternalMessage } from "../_shared/whatsapp-router.ts";
 import { sendWhatsAppOnce } from "../_shared/whatsapp-dispatch.ts";
@@ -139,6 +140,10 @@ Deno.serve(async (req) => {
         throw new Error("Aviso expirado; o horário do curso já passou.");
       }
       if(current.course_name==='Curso Meta Ads Online'&&['confirmation','reminder_24h','reminder_1h'].includes(messageType)) messageText=onlineCourseMessage(messageText);
+      const location=courseLocation(current.course_name);
+      if(location&&['confirmation','reminder_24h','reminder_1h'].includes(messageType)&&!messageText.includes(location)){
+        messageText=`${messageText.trim()}\n\n📍 Local do curso:\n${location}`;
+      }
       identity = courseNotificationIdentity(bookingId, current.date, time, current.course_name);
     } else if (String(messageType).startsWith("support_")) {
       const supportId = /^Suporte:([0-9a-f-]{36}):/i.exec(String(body.courseName || ""))?.[1];
