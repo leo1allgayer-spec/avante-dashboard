@@ -146,12 +146,12 @@ Deno.serve(async (req) => {
     // Reuse the internal instructor notice type, now routing Meta to its saved teacher.
     let googleManagerNotified = sentMessageTypes.has("google_manager_notification");
     const teacherPhone = booking.instructor === 'Nicolas' ? '5551998119283' : booking.instructor === 'Henrique' ? '555197152836' : null;
-    const isMeta = ['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online'].includes(booking.course_name);
-    const recipient = isMeta ? teacherPhone : String(booking.course_name || '').toLowerCase().includes('google ads') ? '555197152836' : null;
+    const hasAssignedTeacher = ['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online','Curso em Turma'].includes(booking.course_name);
+    const recipient = hasAssignedTeacher ? teacherPhone : String(booking.course_name || '').toLowerCase().includes('google ads') ? '555197152836' : null;
     if (!googleManagerNotified && recipient) {
       const [year,month,day]=booking.date.split('-');
       const time=booking.time==='Manhã'?'08:30':booking.time==='Tarde'?'14:00':booking.time;
-      const notice=[`📢 ${rescheduled?'Curso reagendado':'Novo curso marcado'}`,`Professor: ${isMeta?booking.instructor:'Henrique'}`,`Curso: ${booking.course_name}`,`Aluno: ${booking.student_name}`,`Data: ${day}/${month}/${year}`,`Horário: ${time}`,'Consulte o dashboard para ver os detalhes do agendamento.'].join('\n');
+      const notice=[`📢 ${rescheduled?'Curso reagendado':'Novo curso marcado'}`,`Professor: ${hasAssignedTeacher?booking.instructor:'Henrique'}`,`Curso: ${booking.course_name}`,`Aluno: ${booking.student_name}`,`Data: ${day}/${month}/${year}`,`Horário: ${time}`,'Consulte o dashboard para ver os detalhes do agendamento.'].join('\n');
       googleManagerNotified=await sendMessageNow('google_manager_notification',recipient,notice);
     }
     // 2. Schedule future messages

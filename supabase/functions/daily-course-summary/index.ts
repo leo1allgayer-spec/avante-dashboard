@@ -55,6 +55,10 @@ function isMetaCourse(booking: Booking): boolean {
   return booking.course_name.toLowerCase().includes("meta");
 }
 
+function isInstructorCourse(booking: Booking): boolean {
+  return isMetaCourse(booking) || booking.course_name === "Curso em Turma";
+}
+
 function isActiveBooking(booking: Booking): boolean {
   const values = [booking.status, booking.course_status].map((v) => String(v || "").toLowerCase());
   return !values.some((value) =>
@@ -73,7 +77,7 @@ function buildMessage(recipientName: string, targetDate: string, bookings: Booki
   return [
     `Olá ${recipientName}! 👋`,
     "",
-    `Lembrete: amanhã (${formatDateBR(targetDate)}) você tem ${bookings.length} ${courseWord} de Meta Ads:`,
+    `Lembrete: amanhã (${formatDateBR(targetDate)}) você tem ${bookings.length} ${courseWord} agendados:`,
     "",
     lines.join("\n\n"),
     "",
@@ -126,12 +130,12 @@ Deno.serve(async (req) => {
 
     if (error) throw new Error(`Failed to fetch bookings: ${error.message}`);
 
-    const active = ((data || []) as Booking[]).filter(booking=>isMetaCourse(booking)&&isActiveBooking(booking));
+    const active = ((data || []) as Booking[]).filter(booking=>isInstructorCourse(booking)&&isActiveBooking(booking));
     const deliveries=[];
     for (const [recipientName,recipientPhone] of [['Nicolas','5551998119283'],['Henrique','555197152836']]) {
       const bookings=active.filter(booking=>booking.instructor===recipientName);
       if(!bookings.length)continue;
-      const logCourseName=`Meta Ads ${targetDate} · ${recipientName}`;
+      const logCourseName=`Cursos ${targetDate} · ${recipientName}`;
       const {data:existingLog,error:logError}=await supabase.from('whatsapp_message_logs').select('id').eq('message_type','daily_course_summary').eq('course_name',logCourseName).eq('phone',formatPhone(recipientPhone)).limit(1).maybeSingle();
       if(logError)throw logError;
       if(existingLog){deliveries.push({teacher:recipientName,skipped:true});continue;}

@@ -48,6 +48,6 @@ end $$;
 select pg_notify('pgrst','reload schema');
 commit;
 `;
-const files=[['supabase/functions/_shared/course-catalog.ts','// Generated from src/constants/courseCatalog.ts. Run node scripts/sync-course-catalog.mjs.\n'+source],['supabase/migrations/20261029200000_shared_course_catalog.sql',sql]];
+const files=[['supabase/functions/_shared/course-catalog.ts','// Generated from src/constants/courseCatalog.ts. Run node scripts/sync-course-catalog.mjs.\n'+source],['supabase/migrations/20261113110000_course_cohort_catalog.sql',sql]];
 for(const [file,text] of files){const full=path.join(root,file);if(process.argv.includes('--check')){if(!fs.existsSync(full)||fs.readFileSync(full,'utf8')!==text)throw Error(`Course catalog is out of sync: ${file}`);}else fs.writeFileSync(full,text);}
 console.log(process.argv.includes('--check')?'Course catalog copies match.':'Course catalog SQL and Edge helper generated.');

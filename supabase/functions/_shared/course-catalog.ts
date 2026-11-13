@@ -10,6 +10,7 @@ export const COURSE_CATALOG=[
  {id:'canva',name:'Curso Canva',slug:'canva',financialName:'Curso Canva para Empreendedores',aliases:['Curso de Canva','Curso Canva para Empreendedores','Curso de Canva para Empreendedores','Canva']},
  {id:'ia',name:'Curso Inteligência Artificial',slug:'ia',financialName:'Curso de IA',aliases:['Curso de Inteligência Artificial','Curso de IA','Curso IA','Inteligência Artificial','IA']},
  {id:'video',name:'Curso Captação e Edição de Vídeo',slug:'captacao-edicao-video',financialName:'Curso Captacao/Edicao',aliases:['Curso de Captação e Edição de Vídeo','Curso Captacao/Edicao','Curso Captacao Edicao','Curso Captacao/Edicao de Conteudo','Curso de Edição e Captação de Vídeos','Curso Edição e Captação de Vídeos','Captação e Edição de Vídeo','Captação/Edição']},
+ {id:'turma',name:'Curso em Turma',slug:'curso-em-turma',financialName:'Curso em Turma',aliases:['Curso de Turma','Curso Turma']},
  {id:'tiktok',name:'Curso TikTok Ads',slug:null,financialName:'Curso de TikTok Ads',aliases:['Curso de TikTok Ads','TikTok Ads']},
  {id:'youtube',name:'Curso YouTube Ads',slug:null,financialName:'Curso de YouTube Ads',aliases:['Curso de YouTube Ads','YouTube Ads']},
 ] as const;

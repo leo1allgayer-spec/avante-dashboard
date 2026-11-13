@@ -149,7 +149,7 @@ export default function AdminBookings() {
   useEffect(() => { fetchSpecialSlots(); }, []);
 
   const addSpecialSlot = async () => {
-    const capacity = Number(specialSlotForm.max_students);
+    const capacity = specialSlotForm.course_name === "Curso em Turma" ? 15 : Number(specialSlotForm.max_students);
     if (!specialSlotForm.date || !specialSlotForm.course_name || !/^([01]\d|2[0-3]):[0-5]\d$/.test(specialSlotForm.time) || !Number.isInteger(capacity) || capacity < 1 || capacity > 30) {
       toast.error("Confira o curso, a data, o horário e a capacidade (de 1 a 30 alunos)."); return;
     }
@@ -565,10 +565,10 @@ export default function AdminBookings() {
               <DialogContent>
                 <DialogHeader><DialogTitle>Adicionar horário especial</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div><label className="text-sm font-medium">Curso</label><Select value={specialSlotForm.course_name} onValueChange={value => setSpecialSlotForm(f => ({ ...f, course_name: value }))}><SelectTrigger><SelectValue placeholder="Selecione o curso" /></SelectTrigger><SelectContent>{COURSES.map(course => <SelectItem key={course} value={course}>{courseDisplayName(course)}</SelectItem>)}</SelectContent></Select></div>
+                  <div><label className="text-sm font-medium">Curso</label><Select value={specialSlotForm.course_name} onValueChange={value => setSpecialSlotForm(f => ({ ...f, course_name: value, max_students: value === "Curso em Turma" ? "15" : f.max_students }))}><SelectTrigger><SelectValue placeholder="Selecione o curso" /></SelectTrigger><SelectContent>{COURSES.map(course => <SelectItem key={course} value={course}>{courseDisplayName(course)}</SelectItem>)}</SelectContent></Select></div>
                   <div><label className="text-sm font-medium">Data</label><Input type="date" min={format(startOfDay(new Date()), "yyyy-MM-dd")} value={specialSlotForm.date} onChange={e => setSpecialSlotForm(f => ({ ...f, date: e.target.value }))} /></div>
                   <div><label className="text-sm font-medium">Horário</label><Input type="time" value={specialSlotForm.time} onChange={e => setSpecialSlotForm(f => ({ ...f, time: e.target.value }))} /></div>
-                  <div><label className="text-sm font-medium">Vagas</label><Input type="number" min="1" max="30" value={specialSlotForm.max_students} onChange={e => setSpecialSlotForm(f => ({ ...f, max_students: e.target.value }))} /></div>
+                  <div><label className="text-sm font-medium">Vagas</label><Input type="number" min="1" max="30" value={specialSlotForm.course_name === "Curso em Turma" ? "15" : specialSlotForm.max_students} disabled={specialSlotForm.course_name === "Curso em Turma"} onChange={e => setSpecialSlotForm(f => ({ ...f, max_students: e.target.value }))} /></div>
                   <p className="text-xs text-muted-foreground">Nos cursos de Meta, o professor segue a disponibilidade cadastrada. Nos demais, este horário libera a vaga para agendamento.</p>
                 </div>
                 <DialogFooter><Button variant="outline" onClick={() => setSpecialSlotDialog(false)}>Cancelar</Button><Button onClick={addSpecialSlot} disabled={specialSlotSaving}>{specialSlotSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Liberar horário</Button></DialogFooter>
@@ -655,10 +655,10 @@ export default function AdminBookings() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Escolha o professor, mês e semana. Nos três cursos de Meta, o horário abre quando algum professor está disponível. Nicolas tem prioridade; alunos da mesma turma ficam com o mesmo professor. Desativar um horário não cancela nem troca o professor das turmas já marcadas. Outros cursos mantêm a disponibilidade por curso.
+                  Escolha o professor, mês e semana. Nos cursos de Meta, Nicolas tem prioridade e os alunos da mesma turma ficam com o mesmo professor. O Curso em Turma fica vinculado apenas ao Nicolas. Desativar um horário não cancela nem troca professores de cursos já marcados.
                 </p>
                 <div className="flex flex-wrap gap-4 mb-5">
-                  <label className="space-y-2 text-sm">Professor dos cursos de Meta<Select value={availabilityInstructor} onValueChange={setAvailabilityInstructor} disabled={isHenrique}><SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Nicolas">Nicolas</SelectItem><SelectItem value="Henrique">Henrique</SelectItem></SelectContent></Select></label>
+                  <label className="space-y-2 text-sm">Professor<Select value={availabilityInstructor} onValueChange={setAvailabilityInstructor} disabled={isHenrique}><SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Nicolas">Nicolas</SelectItem><SelectItem value="Henrique">Henrique</SelectItem></SelectContent></Select></label>
                   <div className="space-y-2 text-sm"><span>Mês</span><MonthYearSelect label="Mês da disponibilidade" value={availabilityMonth} onChange={value => { setAvailabilityMonth(value); setAvailabilityWeek(0); }} /></div>
                   <label className="space-y-2 text-sm">Semana
                     <Select value={String(Math.min(availabilityWeek, availabilityWeeks.length - 1))} onValueChange={value => setAvailabilityWeek(Number(value))}>

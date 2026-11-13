@@ -226,7 +226,9 @@ export default function BookingPublic() {
       // Disabled weekdays for this course (with shift support)
       const disabledEntries = (disabledData || []) as Array<{ day_of_week: number; shift: string | null }>;
       const instructorCalendar=new Map((baseResults[6].data||[]).map((row:any)=>[`${row.booking_date}|${row.booking_shift}`,row.instructor]));
-      const metaWithInstructor=['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online'].includes(selectedCourse);
+      const metaWithInstructor=['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online','Curso em Turma'].includes(selectedCourse);
+      const defaultCourseCapacity=selectedCourse==='Curso em Turma'?15:MAX_STUDENTS;
+      const configuredCapacityMap=new Map<string,number>(((baseResults[7].data||[]) as any[]).map(slot=>[`${String(slot.date).slice(0,10)}|${String(slot.time).slice(0,5)}`,Number(slot.max_students||MAX_STUDENTS)]));
       const isWeekdayShiftDisabled = (date: string, shiftTime: string) => metaWithInstructor
         ? !instructorCalendar.get(`${date}|${shiftTime==='08:30'?'Manhã':'Tarde'}`)
         : courseShiftDisabled(disabledEntries, baseResults[4].data || [], selectedCourse, date, shiftTime);
@@ -271,7 +273,7 @@ export default function BookingPublic() {
             date: dateStr,
             shift,
             bookedCount: booked,
-            available: booked < MAX_STUDENTS,
+            available: booked < (configuredCapacityMap.get(`${dateStr}|${shiftTime}`) ?? defaultCourseCapacity),
           });
         }
       }

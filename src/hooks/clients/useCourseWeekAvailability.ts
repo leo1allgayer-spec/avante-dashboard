@@ -8,7 +8,7 @@ export function useCourseWeekAvailability(month: string, instructor: string = "N
   const [rules, setRules] = useState<CourseWeekdayRule[]>([]);
   const [overrides, setOverrides] = useState<CourseDayOverride[]>([]);
   const [instructorDates,setInstructorDates]=useState<any[]>([]);
-  const isMeta=(course:string)=>["Curso Meta Ads","Curso Meta Ads Avançado","Curso Meta Ads Online"].includes(course);
+  const isInstructorScheduled=(course:string)=>["Curso Meta Ads","Curso Meta Ads Avançado","Curso Meta Ads Online","Curso em Turma"].includes(course);
   const [loading, setLoading] = useState(true);
   const [loadedMonth, setLoadedMonth] = useState('');
   const [loadedInstructor,setLoadedInstructor]=useState('');
@@ -31,7 +31,7 @@ export function useCourseWeekAvailability(month: string, instructor: string = "N
     return () => { cancelled = true; };
   }, [month,instructor]);
   const isShiftDisabled = (course: string, date: string, shift: string) => {
-    if(isMeta(course)) {const override=instructorDates.find(o=>o.course_name===course&&o.date===date&&o.shift===shift); if(override)return !override.enabled;if(instructor==='Henrique')return true;}
+    if(isInstructorScheduled(course)) {const override=instructorDates.find(o=>o.course_name===course&&o.date===date&&o.shift===shift); if(override)return !override.enabled;if(instructor==='Henrique'||course==='Curso em Turma')return true;}
     return courseShiftDisabled(rules,overrides,course,date,shift);
   };
   const isDayDisabled = (course: string, date: string) => ['08:30', '14:00'].every(shift => isShiftDisabled(course, date, shift));
@@ -41,10 +41,10 @@ export function useCourseWeekAvailability(month: string, instructor: string = "N
     const rows = (shift ? [shift] : ['08:30', '14:00']).map(time => ({ course_name: course, date, shift: time, enabled }));
     setSaving(true);
     try {
-      const meta=isMeta(course);
-      const { error } = await (supabase as any).from(meta?'course_instructor_availability':'course_day_overrides').upsert(meta?rows.map(row=>({...row,instructor})):rows, { onConflict: meta?'instructor,course_name,date,shift':'course_name,date,shift' });
+      const instructorScheduled=isInstructorScheduled(course);
+      const { error } = await (supabase as any).from(instructorScheduled?'course_instructor_availability':'course_day_overrides').upsert(instructorScheduled?rows.map(row=>({...row,instructor})):rows, { onConflict: instructorScheduled?'instructor,course_name,date,shift':'course_name,date,shift' });
       if (error) throw error;
-      if(meta) setInstructorDates(previous=>[...previous.filter(o=>!rows.some(r=>r.course_name===o.course_name&&r.date===o.date&&r.shift===o.shift)),...rows.map(row=>({...row,instructor}))]);
+      if(instructorScheduled) setInstructorDates(previous=>[...previous.filter(o=>!rows.some(r=>r.course_name===o.course_name&&r.date===o.date&&r.shift===o.shift)),...rows.map(row=>({...row,instructor}))]);
       else setOverrides(previous => [...previous.filter(o => !rows.some(r => r.course_name === o.course_name && r.date === o.date && r.shift === o.shift)), ...rows]);
     } catch { toast.error('Não foi possível salvar a disponibilidade'); }
     finally { setSaving(false); }
