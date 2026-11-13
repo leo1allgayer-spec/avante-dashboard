@@ -41,6 +41,19 @@ export function canAccessSupportSchedule(user?: { email?: string | null } | null
   return user?.email?.trim().toLowerCase() === "emanoelbull@gmail.com";
 }
 
+const CLIENT_WEEKLY_REPORT_EMAILS = new Set([
+  "digitalavante3@gmail.com",
+  "nicolaspatzlaff02@gmail.com",
+  "lucadsilva666@gmail.com",
+  "leonardowebster.ja@gmail.com",
+  "emanoelbull@gmail.com",
+  "zanchikaua7@gmail.com",
+]);
+
+export function canAccessClientWeeklyReports(email?: string | null) {
+  return CLIENT_WEEKLY_REPORT_EMAILS.has((email || "").trim().toLowerCase());
+}
+
 
 const SOCIAL_OPERATION_EMAILS = new Set(['beatrizfsavante@gmail.com', 'avantegabriela51@gmail.com']);
 export const SOCIAL_OPERATION_PATHS = new Set(['/agenda-geral', '/kanban-social-media', '/agenda-captacao', '/calendario-editorial', '/gestor-tarefas']);

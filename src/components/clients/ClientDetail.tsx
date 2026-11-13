@@ -1,6 +1,6 @@
 import { ClientWeeklyPerformance } from "./ClientWeeklyPerformance";
 import { useAuth } from "@/hooks/useAuth";
-import { isClientProfileEditor } from "@/lib/accessControl";
+import { canAccessClientWeeklyReports, isClientProfileEditor } from "@/lib/accessControl";
 import { useState, useEffect, useRef } from "react";
 import ClientContractLifecycle from "./ClientContractLifecycle";
 import { Client, getAlertStatus, getRetentionMonths, formatCurrency, getMonthlyContractValue, getTotalContractValue, MANAGERS } from "@/types/clients/client";
@@ -46,7 +46,7 @@ interface ClientDetailProps {
 
 export function ClientDetail({ client, onBack, onUpdate, hideContractValues = false, managerOptions = MANAGERS }: ClientDetailProps) {
   const { session } = useAuth();
-  const weeklyAllowed = ["digitalavante3@gmail.com", "nicolaspatzlaff02@gmail.com", "lucadsilva666@gmail.com", "leonardowebster.ja@gmail.com", "emanoelbull@gmail.com"].includes((session?.user.email || "").trim().toLowerCase());
+  const weeklyAllowed = canAccessClientWeeklyReports(session?.user.email);
   const hideInternalFinancial = isClientProfileEditor(session?.user);
   hideContractValues = hideContractValues || hideInternalFinancial;
   const [noteText, setNoteText] = useState("");
