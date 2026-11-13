@@ -1,6 +1,16 @@
 type RecordValue=Record<string,unknown>;
 const record=(v:unknown):RecordValue=>v&&typeof v==='object'&&!Array.isArray(v)?v as RecordValue:{};
 const normalize=(v:string)=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[_-]/g,' ').replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+const summaryFieldLabels=new Set([
+ 'socios','socio','tem socio','tem socios','has partners','has partner',
+ 'tipo de negocio','tipo negocio','business type','business segment',
+ 'faturamento','faturamento mensal','monthly revenue','revenue range','monthly billing',
+ 'interesse','interesse curso assessoria','curso ou assessoria','service interest','interest type',
+]);
+const stripSummaryFields=(value:string)=>value.split(/\r?\n/).filter(line=>{
+ const match=line.trim().replace(/^[-*•]\s*/, '').match(/^\*{0,2}([^:]+?)\*{0,2}\s*:\s*.*$/);
+ return !match||!summaryFieldLabels.has(normalize(match[1]));
+}).join('\n').replace(/\n{3,}/g,'\n\n').trim();
 const text=(v:unknown):string=>{
  if(v===true)return 'Sim';if(v===false)return 'Não';
  if(typeof v==='number'&&Number.isFinite(v))return v.toLocaleString('pt-BR');
@@ -25,14 +35,15 @@ export function meetingLeadSummary(lead:unknown,appointmentNotes=''){
  walk(lead);
  const explicit=new Map<string,string>();
  appointmentNotes.split('\n').forEach(line=>{const m=line.match(/^\s*([^:]{2,80}):\s*(.+)$/);if(m)explicit.set(normalize(m[1]),m[2].trim().slice(0,500));});
- const notes=[appointmentNotes,text(record(lead).notes??record(lead).description??record(lead).summary)].filter(Boolean).join('\n');
+ const noteSources=[appointmentNotes,text(record(lead).notes??record(lead).description??record(lead).summary)].map(value=>value.trim()).filter(Boolean);
+ const notes=[...new Set(noteSources)].join('\n');
  notes.split('\n').forEach(line=>{const m=line.match(/^\s*([^:]{2,80}):\s*(.+)$/);if(m&&!values.has(normalize(m[1])))values.set(normalize(m[1]),m[2].trim().slice(0,500));});
  const find=(keys:string[])=>{for(const k of keys){const v=explicit.get(normalize(k));if(v)return v;}for(const k of keys){const v=values.get(normalize(k));if(v)return v;}return 'Não informado';};
  const partners=find(['has_partners','has_partner','tem_socio','tem_socios','possui_socio','possui_socios','socios','socio','tem sócio?']);
  const business=find(['business_type','business_segment','tipo_negocio','tipo_de_negocio','tipo de negócio','tipo de empresa','segment','segmento','nicho','industry']);
  const revenue=find(['monthly_revenue','revenue_range','monthly_billing','faturamento_mensal','faturamento','faixa_de_faturamento','receita_mensal']);
  const interest=find(['service_interest','interested_service','interest_type','tipo_interesse','servico_interesse','curso_ou_assessoria','curso ou assessoria','interesse','interesse (curso/assessoria)','produto de interesse']);
- const note=notes.trim().slice(0,900);
+ const note=stripSummaryFields(notes).slice(0,900);
  return ['\n\n📝 *Resumo do lead*',`Sócios: ${partners}`,`Tipo de negócio: ${business}`,`Faturamento: ${revenue}`,`Interesse (curso/assessoria): ${interest}`,...(note?['',`Observações: ${note}`]:[])].join('\n');
 }
 export async function loadMeetingLeadSummary(leadId:unknown,apiKey:string|undefined,request:typeof fetch=fetch){
