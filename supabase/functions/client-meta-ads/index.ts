@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 const managers = new Set(["digitalavante3@gmail.com", "nicolaspatzlaff02@gmail.com", "lucadsilva666@gmail.com", "leonardowebster.ja@gmail.com"]);
+const clientReportViewers = new Set(["emanoelbull@gmail.com", "zanchikaua7@gmail.com", "hiagooleques1505@gmail.com"]);
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 class RequestError extends Error { constructor(message: string, public status = 400) { super(message); } }
 type Account = { id: string; name: string; currency: string; timezone_name?: string; account_status: number };
@@ -95,7 +96,8 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = monitoring ? { data: { user: { id: "cron", email: "" } }, error: null } : await db.auth.getUser(authorization.slice(7));
     if (authError || !user) throw new RequestError("Sessão inválida.", 401);
     const email = (user.email || "").trim().toLowerCase();
-    if (!monitoring && !managers.has(email) && !(email === "emanoelbull@gmail.com" && ["balances", "status", "insights", "report", "weekly", "goals", "balance_alert", "save_balance_alert"].includes(body.action))) throw new RequestError("Sem acesso às contas de anúncios.", 403);
+    const reportReadActions = ["status", "insights", "report", "weekly", "goals"];
+    if (!monitoring && !managers.has(email) && !(email === "emanoelbull@gmail.com" && ["balances", ...reportReadActions, "balance_alert", "save_balance_alert"].includes(body.action)) && !(clientReportViewers.has(email) && reportReadActions.includes(body.action))) throw new RequestError("Sem acesso às contas de anúncios.", 403);
     if (["alert_groups", "configure_alert_group"].includes(body.action)) {
       if (email !== "digitalavante3@gmail.com") throw new RequestError("Acesso negado.", 403);
       const groups: any[] = [];

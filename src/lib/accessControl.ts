@@ -48,6 +48,7 @@ const CLIENT_WEEKLY_REPORT_EMAILS = new Set([
   "leonardowebster.ja@gmail.com",
   "emanoelbull@gmail.com",
   "zanchikaua7@gmail.com",
+  "hiagooleques1505@gmail.com",
 ]);
 
 export function canAccessClientWeeklyReports(email?: string | null) {
