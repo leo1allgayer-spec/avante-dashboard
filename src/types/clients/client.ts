@@ -124,7 +124,7 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export const MANAGERS = ["Leonardo", "Lucas", "Nicolas"];
+export const MANAGERS = ["Leonardo", "Lucas", "Nicolas", "Emanoel", "Kauan", "Hiago"];
 
 export const WEEKDAYS = [
   "Segunda-feira",
