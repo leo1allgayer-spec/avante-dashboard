@@ -26,13 +26,14 @@ export function isDisparoCourseSale(sales: CourseSaleOrigin[], studentName: stri
     if (normalized(sale.cliente) !== student) return false;
     const saleCourse = sale.aluno_futuro_item || sale.produto || sale.servico;
     return normalized(courseDisplayName(saleCourse)) === course;
+  }).filter((sale) => {
+    if (!courseDate) return true;
+    const saleDate = sale.data || sale.created_at?.slice(0, 10) || "";
+    return !saleDate || saleDate <= courseDate;
   });
   matches.sort((a, b) => {
     const aDate = a.data || a.created_at?.slice(0, 10) || "";
     const bDate = b.data || b.created_at?.slice(0, 10) || "";
-    const aEligible = !courseDate || aDate <= courseDate;
-    const bEligible = !courseDate || bDate <= courseDate;
-    if (aEligible !== bEligible) return aEligible ? -1 : 1;
     if (aDate !== bDate) return bDate.localeCompare(aDate);
     return (b.created_at || "").localeCompare(a.created_at || "");
   });
