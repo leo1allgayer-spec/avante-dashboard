@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Link, Navigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
+import { hasFullClientManagementAccess } from "@/lib/accessControl";
 
 const Index = () => {
   const { session } = useAuth();
@@ -19,6 +20,7 @@ const Index = () => {
   const { signOut: signOutMain } = useMainAuth();
 
   const selectedClient = clients.find((c) => c.id === selectedId);
+  const hideContractAmounts = hasFullClientManagementAccess(session?.user?.email);
 
   const handleDelete = (id: string) => {
     deleteClient(id);
@@ -61,6 +63,7 @@ const Index = () => {
           client={selectedClient}
           onBack={() => setSelectedId(null)}
           onUpdate={updateClient}
+          hideContractAmounts={hideContractAmounts}
         />
       ) : (
         <div className="space-y-8">
@@ -72,6 +75,7 @@ const Index = () => {
             onAddClient={() => setShowAdd(true)}
             onlyStatus="Ativo"
             title="Clientes Ativos"
+            hideContractAmounts={hideContractAmounts}
           />
           <ClientTable
             clients={clients}
@@ -81,6 +85,7 @@ const Index = () => {
             onAddClient={() => setShowAdd(true)}
             onlyStatus="Pausado"
             title="Clientes Pausados"
+            hideContractAmounts={hideContractAmounts}
           />
         </div>
       )}
@@ -89,6 +94,7 @@ const Index = () => {
         open={showAdd}
         onClose={() => setShowAdd(false)}
         onAdd={addClient}
+        hideContractAmounts={hideContractAmounts}
       />
     </DashboardLayout>
   );

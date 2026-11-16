@@ -10,6 +10,7 @@ interface AddClientDialogProps {
   onClose: () => void;
   onAdd: (client: Client) => void | Promise<void>;
   hideContractValues?: boolean;
+  hideContractAmounts?: boolean;
   initialClient?: Partial<Client>;
   title?: string;
   submitLabel?: string;
@@ -19,7 +20,7 @@ interface AddClientDialogProps {
   summaryOnly?: boolean;
 }
 
-export function AddClientDialog({ open, onClose, onAdd, hideContractValues = false, summaryOnly = false, managerOptions = MANAGERS, initialClient, title='Novo Cliente', submitLabel='Adicionar Cliente', area='meta_ads', onAreaChange }: AddClientDialogProps) {
+export function AddClientDialog({ open, onClose, onAdd, hideContractValues = false, hideContractAmounts = false, summaryOnly = false, managerOptions = MANAGERS, initialClient, title='Novo Cliente', submitLabel='Adicionar Cliente', area='meta_ads', onAreaChange }: AddClientDialogProps) {
   const [saving, setSaving] = useState(false);
   const [error,setError]=useState("");
   const [form, setForm] = useState({
@@ -115,9 +116,9 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
               <SelectContent><SelectItem value="MRR">MRR — valor mensal</SelectItem><SelectItem value="TCV">TCV — valor total</SelectItem></SelectContent>
             </Select>}
             {!hideContractValues && <Input type="number" min={1} placeholder="Duração (meses)" value={form.contractMonths || ""} onChange={(e) => setForm({ ...form, contractMonths: Math.max(1, Number(e.target.value)) })} className="bg-input border-border" />}
-            {!hideContractValues && <Input type="number" placeholder={form.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal"} value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />}
+            {!hideContractValues && !hideContractAmounts && <Input type="number" placeholder={form.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal"} value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />}
           </div>}
-          {!summaryOnly && !hideContractValues && <p className="text-xs text-muted-foreground">
+          {!summaryOnly && !hideContractValues && !hideContractAmounts && <p className="text-xs text-muted-foreground">
             Mensal: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue / Math.max(1, form.contractMonths) : form.contractValue)} · Total do período: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue : form.contractValue * Math.max(1, form.contractMonths))}
           </p>}
           {!summaryOnly && <div className="grid grid-cols-3 gap-2">

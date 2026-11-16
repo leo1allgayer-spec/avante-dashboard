@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 const META_BALANCE_MANAGERS = new Set(["digitalavante3@gmail.com", "nicolaspatzlaff02@gmail.com", "lucadsilva666@gmail.com", "leonardowebster.ja@gmail.com"]);
+const META_BALANCE_SUMMARY_VIEWERS = new Set(["emanoelbull@gmail.com", "zanchikaua7@gmail.com", "hiagooleques1505@gmail.com"]);
 type MetaBalance = { accountId?: string; available: number | null; currency: string; status: string };
 
 interface ClientTableProps {
@@ -28,6 +29,7 @@ interface ClientTableProps {
   onlyStatus?: "Ativo" | "Pausado";
   title?: string;
   hideContractValues?: boolean;
+  hideContractAmounts?: boolean;
   summaryOnly?: boolean;
   allowAddClient?: boolean;
   managerOptions?: readonly string[];
@@ -35,11 +37,11 @@ interface ClientTableProps {
 
 type SortKey = "name" | "retention" | "paymentDate" | "lastAccountUpdate" | "lastBalanceDate";
 
-export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteClient, onAddClient, onlyStatus, title, hideContractValues = false, summaryOnly = false, allowAddClient = false, managerOptions = MANAGERS }: ClientTableProps) {
+export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteClient, onAddClient, onlyStatus, title, hideContractValues = false, hideContractAmounts = false, summaryOnly = false, allowAddClient = false, managerOptions = MANAGERS }: ClientTableProps) {
   const { session } = useAuth();
   const userEmail = (session?.user.email || "").trim().toLowerCase();
   const hideInternalFinancial = userEmail === "emanoelbull@gmail.com";
-  const canViewMetaBalance = userEmail === "emanoelbull@gmail.com" || (!summaryOnly && META_BALANCE_MANAGERS.has(userEmail));
+  const canViewMetaBalance = META_BALANCE_SUMMARY_VIEWERS.has(userEmail) || (!summaryOnly && META_BALANCE_MANAGERS.has(userEmail));
   const metaBalances = useQuery({
     queryKey: ["client-meta-balances", session?.user.id],
     enabled: canViewMetaBalance,
@@ -265,7 +267,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
       {/* Table */}
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <div className="overflow-x-auto overscroll-contain">
-        <table className={cn(summaryOnly ? (canViewMetaBalance ? "min-w-[1465px]" : "min-w-[1335px]") : hideInternalFinancial ? "min-w-[1450px]" : hideContractValues ? "min-w-[1680px]" : "min-w-[2030px]", "w-full table-fixed text-xs")}>
+        <table className={cn(summaryOnly ? (canViewMetaBalance ? "min-w-[1465px]" : "min-w-[1335px]") : hideInternalFinancial ? "min-w-[1450px]" : hideContractValues ? "min-w-[1680px]" : hideContractAmounts ? "min-w-[1820px]" : "min-w-[2030px]", "w-full table-fixed text-xs")}>
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
               <SortHeader label="Cliente" sortField="name" className="w-[185px]" />
@@ -282,8 +284,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
               {!hideInternalFinancial && <><StaticHeader label="Cobranca" className="w-[95px]" />
               {!hideContractValues && <StaticHeader label="Tipo" className="w-[75px]" />}
               {!hideContractValues && <StaticHeader label="Meses" className="w-[60px]" />}
-              {!hideContractValues && <StaticHeader label="Contrato" className="w-[105px]" />}
-              {!hideContractValues && <StaticHeader label="Mensal" className="w-[105px]" />}
+              {!hideContractValues && !hideContractAmounts && <StaticHeader label="Contrato" className="w-[105px]" />}
+              {!hideContractValues && !hideContractAmounts && <StaticHeader label="Mensal" className="w-[105px]" />}
               <StaticHeader label="Status pgto" className="w-[120px]" />
               <SortHeader label="Pgto" sortField="paymentDate" className="w-[75px]" />
               <StaticHeader label="Comissao" className="w-[90px]" />
@@ -468,8 +470,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                   </Select>
                 </td>}
                 {!hideContractValues && <td className="px-2 py-2">{renderEditable(client, "contractMonths", String(client.contractMonths), "number")}</td>}
-                {!hideContractValues && <td className={cn("px-2 py-2", moneyTone(client.contractValue))}>{renderEditable(client, "contractValue", formatCurrency(client.contractValue), "number")}</td>}
-                {!hideContractValues && <td className={cn("px-2 py-2", moneyTone(getMonthlyContractValue(client)))} title={`Total do período: ${formatCurrency(getTotalContractValue(client))}`}>{formatCurrency(getMonthlyContractValue(client))}</td>}
+                {!hideContractValues && !hideContractAmounts && <td className={cn("px-2 py-2", moneyTone(client.contractValue))}>{renderEditable(client, "contractValue", formatCurrency(client.contractValue), "number")}</td>}
+                {!hideContractValues && !hideContractAmounts && <td className={cn("px-2 py-2", moneyTone(getMonthlyContractValue(client)))} title={`Total do período: ${formatCurrency(getTotalContractValue(client))}`}>{formatCurrency(getMonthlyContractValue(client))}</td>}
                 <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                   <Select value={client.paymentStatus} onValueChange={(v) => onUpdateClient({ ...client, paymentStatus: v as PaymentStatus })}>
                     <SelectTrigger className={cn("h-6 w-[112px] text-xs border-border rounded-full", paymentStatusColors[client.paymentStatus])}>
@@ -513,7 +515,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={(summaryOnly ? 10 : hideInternalFinancial ? 11 : hideContractValues ? 16 : 20) + (canViewMetaBalance ? 1 : 0)} className="px-2 py-6 text-center text-muted-foreground">
+                <td colSpan={(summaryOnly ? 10 : hideInternalFinancial ? 11 : hideContractValues ? 16 : hideContractAmounts ? 18 : 20) + (canViewMetaBalance ? 1 : 0)} className="px-2 py-6 text-center text-muted-foreground">
                   Nenhum cliente encontrado.
                 </td>
               </tr>

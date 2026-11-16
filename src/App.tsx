@@ -67,7 +67,7 @@ const BookingPublicPage = lazy(() => import("./pages/clients/BookingPublicPage")
 const ConfirmBookingPage = lazy(() => import("./pages/clients/ConfirmBookingPage"));
 const ConfirmReschedulePage = lazy(() => import("./pages/clients/ConfirmReschedulePage"));
 const MetaPixelPage = lazy(() => import("./pages/meta/MetaPixelPage"));
-import { GOOGLE_TASKS_ONLY_PATH, isGoogleManagerPath, isGoogleTasksOnlyUser, isClientSummaryUser, isClientProfileEditor, canAccessSupportSchedule } from "@/lib/accessControl";
+import { GOOGLE_TASKS_ONLY_PATH, isGoogleManagerPath, isGoogleTasksOnlyUser, isClientSummaryUser, isClientProfileEditor, canAccessSupportSchedule, hasFullClientManagementAccess } from "@/lib/accessControl";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } });
 
@@ -143,7 +143,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (location.pathname === "/despesas-financeiras" && !canAccessClientContracts(session.user.email)) return <Navigate to="/" replace />;
   if (location.pathname === "/nps-clientes" && !canAccessClientContracts(session.user.email)) return <Navigate to="/gestao-clientes" replace />;
   if (isClientSummaryUser(session.user)) {
-    if (location.pathname === "/gestao-clientes") return isClientProfileEditor(session.user) ? <ClientsPage /> : <ClientSummaryPage />;
+    if (location.pathname === "/gestao-clientes") return isClientProfileEditor(session.user) || hasFullClientManagementAccess(session.user.email) ? <ClientsPage /> : <ClientSummaryPage />;
     if (location.pathname !== "/agenda-geral" && location.pathname !== "/gestor-tarefas" && !(canAccessSupportSchedule(session.user) && location.pathname === "/agenda-suporte")) return <Navigate to="/gestao-clientes" replace />;
   }
   if (isGoogleTasksOnlyUser(session.user.email) && !isGoogleManagerPath(location.pathname)) {

@@ -41,10 +41,11 @@ interface ClientDetailProps {
   onBack: () => void;
   onUpdate: (client: Client) => void;
   hideContractValues?: boolean;
+  hideContractAmounts?: boolean;
   managerOptions?: readonly string[];
 }
 
-export function ClientDetail({ client, onBack, onUpdate, hideContractValues = false, managerOptions = MANAGERS }: ClientDetailProps) {
+export function ClientDetail({ client, onBack, onUpdate, hideContractValues = false, hideContractAmounts = false, managerOptions = MANAGERS }: ClientDetailProps) {
   const { session } = useAuth();
   const weeklyAllowed = canAccessClientWeeklyReports(session?.user.email);
   const hideInternalFinancial = isClientProfileEditor(session?.user);
@@ -144,7 +145,7 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
               <Field label="Tipos de serviços a serem prestados"><Textarea value={client.servicesDescription || ""} onChange={(e) => updateField("servicesDescription", e.target.value)} className="bg-input border-border min-h-20" placeholder="Descreva todos os serviços contratados" /></Field>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {!hideInternalFinancial && <Field label="Tempo de contrato (meses)"><Input type="number" min={1} value={client.contractMonths} onChange={(e) => updateField("contractMonths", Math.max(1, Number(e.target.value)))} className="bg-input border-border" /></Field>}
-                {!hideContractValues && <Field label="Valor do contrato"><Input type="number" min={0} step="0.01" value={client.contractValue} onChange={(e) => updateField("contractValue", Number(e.target.value))} className="bg-input border-border" /></Field>}
+                {!hideContractValues && !hideContractAmounts && <Field label="Valor do contrato"><Input type="number" min={0} step="0.01" value={client.contractValue} onChange={(e) => updateField("contractValue", Number(e.target.value))} className="bg-input border-border" /></Field>}
                 {!hideInternalFinancial && <Field label="Data de vencimento"><Input type="date" value={client.dueDate || ""} onChange={(e) => updateField("dueDate", e.target.value)} className="bg-input border-border" /></Field>}
                 {!hideInternalFinancial && <Field label="Forma de pagamento"><Input value={client.paymentMethod || ""} onChange={(e) => updateField("paymentMethod", e.target.value)} className="bg-input border-border" placeholder="PIX, boleto, cartão..." /></Field>}
               </div>
@@ -193,10 +194,10 @@ export function ClientDetail({ client, onBack, onUpdate, hideContractValues = fa
               <Input type="number" min={1} value={client.contractMonths} onChange={(e) => updateField("contractMonths", Math.max(1, Number(e.target.value)))} className="bg-input border-border" />
             </Field>
           </div>}
-          {!hideContractValues && <Field label={client.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal (MRR)"}>
+          {!hideContractValues && !hideContractAmounts && <Field label={client.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal (MRR)"}>
             <Input type="number" value={client.contractValue} onChange={(e) => updateField("contractValue", Number(e.target.value))} className="bg-input border-border" />
           </Field>}
-          {!hideContractValues && <div className="rounded-md border border-border bg-secondary/40 p-3 text-sm">
+          {!hideContractValues && !hideContractAmounts && <div className="rounded-md border border-border bg-secondary/40 p-3 text-sm">
             <div className="flex justify-between"><span className="text-muted-foreground">Valor mensal</span><strong>{formatCurrency(getMonthlyContractValue(client))}</strong></div>
             <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Total do período</span><strong>{formatCurrency(getTotalContractValue(client))}</strong></div>
           </div>}

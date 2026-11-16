@@ -5,7 +5,7 @@ import { supabaseClients as supabase } from "@/integrations/supabase/clientsClie
 import { Client, ClientNote, ClientUpdateOptions } from "@/types/clients/client";
 import { useAuth } from "./useGestaoAuth";
 import { toast } from "sonner";
-import { isClientSummaryUser, isClientProfileEditor } from "@/lib/accessControl";
+import { isClientSummaryUser, isClientProfileEditor, hasFullClientManagementAccess } from "@/lib/accessControl";
 
 interface DbClient {
   satisfaction?: Client["satisfaction"];
@@ -204,7 +204,7 @@ export function useClients(area: ClientArea = "meta_ads") {
       ? await supabase.rpc("list_social_operation_clients" as never)
       : isClientProfileEditor(session.user)
       ? await supabase.rpc("list_client_editor_profiles" as never)
-      : (isClientSummaryUser(session.user) && !isClientProfileEditor(session.user))
+      : (isClientSummaryUser(session.user) && !isClientProfileEditor(session.user) && !hasFullClientManagementAccess(session.user.email))
       ? await supabase.rpc("list_client_summaries" as never)
       : await supabase.from("gestao_clients" as any).select("*").order("created_at", { ascending: false });
 
@@ -240,7 +240,7 @@ export function useClients(area: ClientArea = "meta_ads") {
 
   const addClient = async (client: Client) => {
     if (!session?.user?.id) return;
-    if (isClientSummaryUser(session.user) && !isClientProfileEditor(session.user)) {
+    if (isClientSummaryUser(session.user) && !isClientProfileEditor(session.user) && !hasFullClientManagementAccess(session.user.email)) {
       const { error } = await (supabase as any).rpc("create_client_summary", {
         p_settings: {
           name: client.name,
@@ -290,7 +290,7 @@ export function useClients(area: ClientArea = "meta_ads") {
       await fetchClients();
       return;
     }
-    if ((isClientSummaryUser(session.user) && !isClientProfileEditor(session.user))) {
+    if ((isClientSummaryUser(session.user) && !isClientProfileEditor(session.user) && !hasFullClientManagementAccess(session.user.email))) {
       const previous = clients.find(row => row.id === client.id);
       if (!previous) return;
       const fields = { name: 'name', instagram: 'instagram', manager: 'manager', status: 'status', monthlyBudget: 'monthly_budget', lastBalanceDate: 'last_balance_date', lastReportDate: 'last_report_date', reportDay: 'report_day' } as const;

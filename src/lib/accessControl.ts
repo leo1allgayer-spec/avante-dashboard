@@ -12,6 +12,15 @@ export function canAccessClientContracts(email?: string | null) {
   ]).has((email || "").trim().toLowerCase());
 }
 
+const FULL_CLIENT_MANAGEMENT_EMAILS = new Set([
+  "zanchikaua7@gmail.com",
+  "hiagooleques1505@gmail.com",
+]);
+
+export function hasFullClientManagementAccess(email?: string | null) {
+  return FULL_CLIENT_MANAGEMENT_EMAILS.has((email || "").trim().toLowerCase());
+}
+
 export function isGoogleTasksOnlyUser(email?: string | null) {
   return GOOGLE_TASKS_ONLY_EMAILS.has((email || "").trim().toLowerCase());
 }
