@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {saleCourseDisplayName} from '@/constants/courseCatalog';
 import {salesCommissionBalance,salesInCommissionPeriod} from '@/lib/salesCommissionBalance';
 import {registeredPaidCommission,commissionPaymentDate,commissionPaidInPeriod,pendingEarnedCommission} from "@/lib/salesCommissionPayments";
-import { INFLUENCER_ORIGINS, matchesSaleOrigin } from "@/constants/saleOrigins";
+import { getSaleCommissionRate, INFLUENCER_ORIGINS, matchesSaleOrigin } from "@/constants/saleOrigins";
 import { salesExportSummary, salesExportOrigins, salesWithPendingCommission } from "@/lib/salesExport";
 import { receivablesCalculator } from "@/lib/receivablesCalculator";
 import { useState, useMemo } from "react";
@@ -42,7 +42,7 @@ import { COURSE_PRODUCTS, GENERAL_SERVICE_OPTIONS, PRODUCT_OPTIONS, SERVICE_OPTI
 
 const PRODUTOS = PRODUCT_OPTIONS;
 const SERVICOS = SERVICE_OPTIONS;
-const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Influencers", ...INFLUENCER_ORIGINS, "Cadastro do aluno", "Site", "Orgânico"];
+const ORIGENS = ["Anuncio", "Upsell", "Indicacao", "Social Seller", "Disparo", "Influencers", ...INFLUENCER_ORIGINS, "Cadastro do aluno", "Site", "Orgânico"];
 const PAYMENT_OPTIONS = ["A definir", "Dinheiro", "PIX", "Débito", "Conta de anúncio", "Cartão de crédito", "Infinity (Visa/Master)", "Infinity Elo/Amex", "Link Infinity", "Boleto"];
 
 const TAXAS_CARTAO_GATEWAY: Record<number, number> = {
@@ -120,11 +120,10 @@ const normalizeText = (value?: string | null) =>
     .toLowerCase()
     .trim();
 
-const getSalesCommissionRate = (origin?: string | null) =>
-  normalizeText(origin) === "social seller" ? 0.10 : 0.15;
+const getSalesCommissionRateForOrigin = getSaleCommissionRate;
 
 const getSalesCommissionPercent = (origin?: string | null) =>
-  Math.round(getSalesCommissionRate(origin) * 100);
+  getSalesCommissionRateForOrigin(origin) * 100;
 
 const getPaidCommissionValue = registeredPaidCommission;
 
@@ -189,7 +188,7 @@ const getCommissionAfterPaymentFees = (grossAmount: number, netAmount: number, o
   const gross = Math.max(0, Number(grossAmount || 0));
   const net = Math.max(0, Math.min(gross, Number(netAmount || 0)));
   // As taxas reduzem a base da comissão, antes de aplicar o percentual.
-  return +(net * getSalesCommissionRate(origin)).toFixed(2);
+  return +(net * getSalesCommissionRateForOrigin(origin)).toFixed(2);
 };
 
 const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];

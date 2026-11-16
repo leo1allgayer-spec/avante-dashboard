@@ -3,6 +3,7 @@ import type {FechamentoDiario} from '@/hooks/useFechamentosDiarios';
 import {canonicalizeSaleCategory} from '@/constants/serviceCategories';
 import {collectionCalculator} from './collectionCalculator';
 import {registeredPaidCommission,pendingEarnedCommission} from './salesCommissionPayments';
+import {getSaleCommissionRate} from '@/constants/saleOrigins';
 
 const key=(value?:string|null)=>(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const category=(sale:Venda)=>key(canonicalizeSaleCategory(sale.servico||sale.produto));
@@ -45,7 +46,7 @@ export function salesCommissionBalance(rawItems:Venda[],closings:FechamentoDiari
  const totalSold=items.reduce((sum,item)=>sum+Math.max(0,Number(item.valor||0)),0);
  const gross=Math.min(totalSold,[...byCategory.values()].reduce((sum,item)=>sum+item.gross,0));
  const net=Math.min(gross,[...byCategory.values()].reduce((sum,item)=>sum+item.net,0));
- const earned=+items.reduce((sum,item)=>sum+Number((net*(totalSold>0?Math.max(0,Number(item.valor||0))/totalSold:0)*(key(item.origem)==='social seller'?0.10:0.15)).toFixed(2)),0).toFixed(2);
+ const earned=+items.reduce((sum,item)=>sum+Number((net*(totalSold>0?Math.max(0,Number(item.valor||0))/totalSold:0)*getSaleCommissionRate(item.origem)).toFixed(2)),0).toFixed(2);
  const paid=+items.reduce((sum,item)=>sum+registeredPaidCommission(item),0).toFixed(2);
  return {items,related,totalSold,gross,net,earned,paid,pending:pendingEarnedCommission(earned,paid)};
 }

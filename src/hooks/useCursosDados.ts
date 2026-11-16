@@ -1,6 +1,9 @@
 import {courseDisplayName} from '@/constants/courseCatalog';
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useVendas } from "@/hooks/useVendas";
+import { isDisparoCourseSale } from "@/lib/courseSaleOrigin";
 
 export interface CursoDado {
   id: string;
@@ -15,6 +18,8 @@ export interface CursoDado {
   survey_response_id?: string | null;
   created_at: string;
   updated_at: string;
+  comissao_extra_base?: number;
+  origem_disparo?: boolean;
 }
 
 const normalizeCourseKey = (value: string) =>
@@ -42,7 +47,8 @@ export const getCourseInstructorOptions = (courseName?: string | null) =>
     : ["Nicolas"];
 
 export function useCursosDados() {
-  return useQuery({
+  const { data: sales = [], isLoading: salesLoading } = useVendas();
+  const query = useQuery({
     queryKey: ["cursos_dados"],
     staleTime: 60_000,
     refetchInterval: 2 * 60_000,
@@ -79,6 +85,17 @@ export function useCursosDados() {
       }));
     },
   });
+  const data = useMemo(() => (query.data || []).map((curso) => {
+    const disparo = isDisparoCourseSale(sales, curso.nome_aluno, curso.tipo_curso, curso.data);
+    const base = Number(curso.comissao_extra || 0);
+    return {
+      ...curso,
+      comissao_extra_base: base,
+      origem_disparo: disparo,
+      comissao_extra: disparo ? +(base / 2).toFixed(2) : base,
+    };
+  }), [query.data, sales]);
+  return { ...query, data, isLoading: query.isLoading || salesLoading };
 }
 
 export function useCreateCursoDado() {

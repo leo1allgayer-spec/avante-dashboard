@@ -5,6 +5,8 @@ import PageTransition from "@/components/PageTransition";
 import DateFilterBar from "@/components/DateFilterBar";
 import { useLocalDateFilter } from "@/hooks/useLocalDateFilter";
 import { useCursosDados, useCreateCursoDado, useDeleteCursoDado, useUpdateCursoDado, getCourseInstructor, getCourseInstructorOptions, type CursoDado } from "@/hooks/useCursosDados";
+import { isDisparoCourseSale } from "@/lib/courseSaleOrigin";
+import { useVendas } from "@/hooks/useVendas";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -40,6 +42,7 @@ const formatBRL = (v: number) =>
 
 const CursosDadosPage = () => {
   const { data: allCursos = [], isLoading } = useCursosDados();
+  const { data: sales = [] } = useVendas();
   const dateFilter = useLocalDateFilter();
   const [courseFilter, setCourseFilter] = useState("todos");
   const courseOptions = useMemo(
@@ -71,6 +74,7 @@ const CursosDadosPage = () => {
     nome_aluno: "",
     comissao_extra: 0,
   });
+  const formIsDisparo = isDisparoCourseSale(sales, form.nome_aluno, form.tipo_curso, form.data);
 
   // Computed metrics
   const metrics = useMemo(() => {
@@ -199,8 +203,9 @@ const CursosDadosPage = () => {
                   <Input value={form.nome_aluno} onChange={(e) => setForm((p) => ({ ...p, nome_aluno: e.target.value }))} required placeholder="Nome completo" className="bg-secondary/30 border-border/30" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Comissão Extra (R$)</Label>
+                  <Label className="text-xs text-muted-foreground">Comissão Extra (R$){formIsDisparo ? " · Disparo: metade" : ""}</Label>
                   <Input type="number" step="0.01" value={form.comissao_extra || ""} onChange={(e) => setForm((p) => ({ ...p, comissao_extra: Number(e.target.value) }))} placeholder="0,00" className="bg-secondary/30 border-border/30" />
+                  {formIsDisparo && <p className="text-xs text-muted-foreground">Valor que será contabilizado: {formatBRL(form.comissao_extra / 2)}</p>}
                 </div>
                 <Button type="submit" className="w-full h-11 text-sm font-semibold" disabled={createCurso.isPending}>
                   {createCurso.isPending ? "Salvando..." : "✓ Registrar Curso"}
@@ -382,18 +387,21 @@ const CursosDadosPage = () => {
                         />
                       </TableCell>
                       <TableCell className="text-sm text-right p-1">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          defaultValue={c.comissao_extra}
-                          onBlur={(e) => {
-                            const v = Number(e.target.value);
-                            if (v !== c.comissao_extra) persist(c.id, "comissao_extra", v);
-                          }}
-                          className="h-8 bg-transparent border-transparent hover:border-border/40 focus:border-border text-sm text-right font-semibold"
-                        />
+                        <div className="space-y-1">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            defaultValue={c.comissao_extra}
+                            onBlur={(e) => {
+                              const v = Number(e.target.value);
+                              if (v !== c.comissao_extra) persist(c.id, "comissao_extra", c.origem_disparo ? v * 2 : v);
+                            }}
+                            className="h-8 bg-transparent border-transparent hover:border-border/40 focus:border-border text-sm text-right font-semibold"
+                          />
+                          {c.origem_disparo && <span className="text-[10px] text-violet-400">Disparo · 50%</span>}
+                        </div>
                       </TableCell>
-                      <TableCell><Input aria-label={'Comissão paga de '+c.nome_aluno} type="number" min="0" step="0.01" defaultValue={c.comissao_paga_valor||0} onBlur={e=>{const v=Number(e.target.value);if(Number.isFinite(v)&&v>=0&&v!==Number(c.comissao_paga_valor||0))persist(c.id,'comissao_paga_valor',v);}} className="h-8 w-32"/></TableCell>
+                      <TableCell><Input aria-label={'Comissão paga de '+c.nome_aluno} type="number" min="0" max={c.comissao_extra} step="0.01" defaultValue={c.comissao_paga_valor||0} onBlur={e=>{const v=Math.min(Number(e.target.value),c.comissao_extra);if(Number.isFinite(v)&&v>=0&&v!==Number(c.comissao_paga_valor||0)){e.target.value=String(v);persist(c.id,'comissao_paga_valor',v);}}} className="h-8 w-32"/></TableCell>
                       <TableCell><Input aria-label={'Data do pagamento da comissão de '+c.nome_aluno} type="date" defaultValue={c.data_pagamento_comissao||''} onBlur={e=>{if(e.target.value!==(c.data_pagamento_comissao||''))persist(c.id,'data_pagamento_comissao',e.target.value||null);}} className="h-8 w-40 [color-scheme:dark]"/></TableCell>
                       <TableCell>
                         <Button
