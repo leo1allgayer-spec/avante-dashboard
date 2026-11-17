@@ -18,6 +18,7 @@ export interface Venda {
   cliente: string;
   produto: string;
   valor: number;
+  saldo_recorrente_sem_comissao?: boolean;
   pagamento: string;
   pagamento_saldo?: string | null;
   parcelas: string | null;

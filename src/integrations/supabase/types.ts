@@ -775,6 +775,7 @@ export type Database = {
           updated_at: string
           user_id: string
           valor: number
+          saldo_recorrente_sem_comissao: boolean
           valor_com_juros: number | null
           vendedor: string
         }
@@ -797,6 +798,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           valor?: number
+          saldo_recorrente_sem_comissao?: boolean
           valor_com_juros?: number | null
           vendedor: string
         }
@@ -819,6 +821,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           valor?: number
+          saldo_recorrente_sem_comissao?: boolean
           valor_com_juros?: number | null
           vendedor?: string
         }
