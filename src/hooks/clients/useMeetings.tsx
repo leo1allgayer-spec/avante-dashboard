@@ -246,9 +246,10 @@ export function useMeetings() {
           has_closing: meeting.hasClosed, closing_status: meeting.closingStatus || "pending", objection: meeting.objection || "",
         };
         const saved = existing.data
-          ? await supabase.from("meetings" as any).update(notificationRow).eq("id", (existing.data as any).id)
+          ? await supabase.from("meetings" as any).update(notificationRow).eq("id", (existing.data as any).id).select("id").maybeSingle()
           : await supabase.from("meetings" as any).insert(notificationRow);
         if (saved.error) throw new Error("CRM atualizado, mas o lembrete não foi salvo: " + saved.error.message);
+        if (existing.data && !saved.data) throw new Error("CRM atualizado, mas o lembrete não foi salvo: sua conta não tem permissão para editar esta cópia da reunião.");
         toast.success("Reunião e lembrete atualizados!");
         void notifyOtherAccounts();
         await fetchMeetings();
@@ -256,7 +257,7 @@ export function useMeetings() {
       return;
     }
     const { id, hasClosed } = meeting;
-    const { error } = await supabase
+    const { data: updatedMeeting, error } = await supabase
       .from("meetings" as any)
       .update({
         title: meeting.title,
@@ -281,10 +282,14 @@ export function useMeetings() {
         closing_status: meeting.closingStatus || (hasClosed ? "closed" : "pending"),
         objection: meeting.objection || "",
       } as any)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
-      toast.error("Erro ao atualizar reunião");
+      throw new Error(`Não foi possível salvar a reunião: ${error.message}`);
+    } else if (!updatedMeeting) {
+      throw new Error("A reunião não foi alterada. Verifique se sua conta tem permissão para editar reuniões criadas por outra pessoa.");
     } else {
       setMeetings((prev) => prev.map((m) => (m.id === id ? meeting : m)));
       if (meeting.externalId && (meeting.origin === 'CRM' || shouldSyncMeetingToCrm(meeting))) {
