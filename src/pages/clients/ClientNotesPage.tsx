@@ -392,7 +392,7 @@ export default function ClientNotesPage() {
 
   return (
     <DashboardLayout
-      title="Fichas e notas dos clientes"
+      title="Contratos Clientes"
       subtitle="Dados cadastrais, informações contratuais e observações internas"
       contentClassName="max-w-[1680px]"
       actions={<div className="flex items-center gap-2"><Button variant="outline" className="gap-2" onClick={copyClientLink} disabled={!draft||copying||saving}><Copy className="h-4 w-4" /> {copying?"Gerando link…":"Copiar link do cliente"}</Button><Button variant="outline" onClick={() => void loadNotes()}>Atualizar fichas</Button><Badge variant="outline" className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" /> Dados protegidos</Badge></div>}

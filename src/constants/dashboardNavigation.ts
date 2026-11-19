@@ -29,11 +29,11 @@ export const metricsItems = [
 
 export const gestaoItems = [
   { title: "Clientes", url: "/gestao-clientes", icon: Users2 },
-  { title: "Contrato Cliente", url: "/contrato-cliente", icon: ReceiptText },
+  { title: "Clientes MRV", url: "/contrato-cliente", icon: ReceiptText },
   { title: "NPS dos Clientes", url: "/nps-clientes", icon: ClipboardList },
   { title: "Métricas dos Clientes", url: "/metricas-clientes", icon: BarChart3 },
   { title: "Dados dos Alunos", url: "/dados-alunos", icon: GraduationCap },
-  { title: "Notas dos Clientes", url: "/notas-clientes", icon: NotebookPen },
+  { title: "Contratos Clientes", url: "/notas-clientes", icon: NotebookPen },
   { title: "Clientes Google Ads", url: "/clientes-google-ads", icon: Users2 },
   { title: "Gestor de Tarefas", url: "/gestor-tarefas", icon: ClipboardList },
   { title: "Agenda Curso", url: "/tasks", icon: CalendarCheck2 },
