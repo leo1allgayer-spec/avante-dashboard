@@ -70,6 +70,9 @@ export default function FutureStudentsPage() {
   const [studentView, setStudentView] = useState<"pending" | "linked">("pending");
   const [courseStatusFilter, setCourseStatusFilter] = useState<"all" | "pending" | "done">("all");
   const [bookingFilter, setBookingFilter] = useState<"all" | "marked" | "unmarked">("all");
+  const [scheduleFilter, setScheduleFilter] = useState("all");
+  const today = localTimestampDate(new Date().toISOString());
+  const scheduleYear = today.slice(0, 4);
   const [editing, setEditing] = useState<FutureStudent | null>(null);
   const [valueDrafts, setValueDrafts] = useState<Record<string, { signal: string; pending: string }>>({});
   const [editForm, setEditForm] = useState({ nome: "", telefone: "", cpf: "", observacao: "", itens: [] as NonNullable<FutureStudent["itens"]> });
@@ -98,24 +101,52 @@ export default function FutureStudentsPage() {
     !registrationMonth || localTimestampDate(student.created_at).slice(0, 7) === registrationMonth
   ), [enrollmentRows, registrationMonth]);
 
-  const filteredEnrollments = useMemo(() => {
+  const matchesSchedule = (date: string | undefined, filter: string) => {
+    const day = date ? localTimestampDate(date) : "";
+    if (filter === "undated") return !day;
+    if (filter === "past") return !!day && day < today;
+    if (filter === "all") return true;
+    return day.slice(0, 7) === filter;
+  };
+
+  // All filters except the selected tab: both tab badges share this same population.
+  const matchingEnrollments = useMemo(() => {
     const q = cleanName(search);
     return periodEnrollments.filter(({ student, item, completed, booking }) => {
-      if (studentView === "linked" ? !completed : completed) return false;
       if (courseStatusFilter === "pending" && completed) return false;
       if (courseStatusFilter === "done" && !completed) return false;
-      if (bookingFilter === "marked" && !booking) return false;
-      if (bookingFilter === "unmarked" && booking) return false;
-      if (!q) return true;
-      return cleanName(`${student.nome} ${student.telefone} ${student.cpf} ${item.nome}`).includes(q);
+      if (bookingFilter === "marked" && !booking?.date) return false;
+      if (bookingFilter === "unmarked" && booking?.date) return false;
+      if (!matchesSchedule(booking?.date, scheduleFilter)) return false;
+      return !q || cleanName(`${student.nome} ${student.telefone} ${student.cpf} ${item.nome}`).includes(q);
     });
-  }, [search, studentView, courseStatusFilter, bookingFilter, periodEnrollments]);
+  }, [search, courseStatusFilter, bookingFilter, scheduleFilter, periodEnrollments, today]);
 
-  const totalSignal = periodEnrollments.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
-  const totalPending = periodEnrollments.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
-  const linkedCount = periodEnrollments.filter((row) => row.linked).length;
-  const completedCount = periodEnrollments.filter((row) => row.completed).length;
-  const enrollmentCount = periodEnrollments.length;
+  const filteredEnrollments = matchingEnrollments.filter(row => studentView === "linked" ? row.completed : !row.completed);
+  const pendingTabCount = matchingEnrollments.filter(row => !row.completed).length;
+  const completedTabCount = matchingEnrollments.filter(row => row.completed).length;
+  const totalSignal = filteredEnrollments.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
+  const totalPending = filteredEnrollments.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+  const linkedCount = filteredEnrollments.filter(row => row.linked).length;
+  const completedCount = filteredEnrollments.filter(row => row.completed).length;
+  const enrollmentCount = filteredEnrollments.length;
+
+  // Summary cards follow the other filters and tab, but keep every date category available.
+  const summaryRows = periodEnrollments.filter(({ student, item, completed, booking }) => {
+    if (studentView === "linked" ? !completed : completed) return false;
+    if (courseStatusFilter === "pending" && completed) return false;
+    if (courseStatusFilter === "done" && !completed) return false;
+    if (bookingFilter === "marked" && !booking?.date) return false;
+    if (bookingFilter === "unmarked" && booking?.date) return false;
+    const q = cleanName(search);
+    return !q || cleanName(`${student.nome} ${student.telefone} ${student.cpf} ${item.nome}`).includes(q);
+  });
+  const scheduleOptions = [
+    { value: `${scheduleYear}-11`, label: `Novembro/${scheduleYear}` },
+    { value: `${scheduleYear}-12`, label: `Dezembro/${scheduleYear}` },
+    { value: "undated", label: "Sem data" },
+    { value: "past", label: "Datas passadas" },
+  ];
 
   const openEdit = (student: FutureStudent) => {
     const itens = student.itens?.length
@@ -255,7 +286,7 @@ export default function FutureStudentsPage() {
         <div className="mb-5 flex flex-wrap items-end gap-3">
           <div className="space-y-2"><label htmlFor="future-students-month" className="text-sm font-medium">Mês de cadastro</label><MonthYearSelect id="future-students-month" label="Mês de cadastro" value={registrationMonth} onChange={setRegistrationMonth} /></div>
           <Button variant={registrationMonth ? "outline" : "default"} onClick={() => setRegistrationMonth("")}>Todos os meses</Button>
-          <p className="w-full text-xs text-muted-foreground">Lista, totais e contagens por mês de cadastro do aluno, no horário de Brasília.</p>
+          <p className="w-full text-xs text-muted-foreground">Totais e contagens acompanham a busca, os filtros e a aba selecionada. Datas no horário de Brasília.</p>
         </div>
         <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard title="Cursos com sinal" value={enrollmentCount} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
@@ -263,6 +294,23 @@ export default function FutureStudentsPage() {
           <MetricCard title="Total a receber" value={totalPending} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Ja preencheram formulario" value={linkedCount} icon={<UserCheck className="h-5 w-5" />} variant="accent" countUp />
           <MetricCard title="Pendentes" value={Math.max(enrollmentCount - completedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
+        </div>
+
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Resumo por agendamento">
+          {scheduleOptions.map(option => {
+            const rows = summaryRows.filter(row => row.item.tipo === "curso" && matchesSchedule(row.booking?.date, option.value));
+            const signal = rows.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
+            const pending = rows.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+            return <button key={option.value} type="button" aria-pressed={scheduleFilter === option.value}
+              onClick={() => setScheduleFilter(current => current === option.value ? "all" : option.value)}
+              className={`glass-card rounded-xl border p-4 text-left transition-colors hover:border-primary/60 ${scheduleFilter === option.value ? "border-primary bg-primary/10" : "border-border/30"}`}>
+              <p className="text-sm font-semibold">{option.label}</p>
+              <p className="mt-2 text-2xl font-bold">{rows.length} <span className="text-sm font-normal text-muted-foreground">cursos</span></p>
+              <p className="mt-1 text-sm">Total: <strong>{formatCurrency(signal + pending)}</strong></p>
+              <p className="mt-1 text-xs text-muted-foreground">Sinal: {formatCurrency(signal)} · A receber: {formatCurrency(pending)}</p>
+            </button>;
+          })}
+          <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">Resumo dos cursos da aba e dos demais filtros. Total = sinal + a receber. Datas passadas também podem estar incluídas no mês correspondente. Clique em um resumo para filtrar.</p>
         </div>
 
         <div className="glass-card rounded-xl border border-border/30">
@@ -281,12 +329,19 @@ export default function FutureStudentsPage() {
                   className="pl-9"
                 />
               </div>
-              <Select value={courseStatusFilter} onValueChange={(value) => setCourseStatusFilter(value as typeof courseStatusFilter)}>
+              <Select value={courseStatusFilter} onValueChange={(value) => { setCourseStatusFilter(value as typeof courseStatusFilter); if (value !== "all") setStudentView(value === "done" ? "linked" : "pending"); }}>
                 <SelectTrigger className="w-[150px]"><SelectValue placeholder="Curso feito" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os cursos</SelectItem>
                   <SelectItem value="pending">Curso pendente</SelectItem>
                   <SelectItem value="done">Curso feito</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={scheduleFilter} onValueChange={setScheduleFilter}>
+                <SelectTrigger className="w-[190px]" aria-label="Data do agendamento"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as datas</SelectItem>
+                  {scheduleOptions.map(option => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={bookingFilter} onValueChange={(value) => setBookingFilter(value as typeof bookingFilter)}>
@@ -301,15 +356,15 @@ export default function FutureStudentsPage() {
           </div>
 
           <div className="border-b border-border/30 px-4 py-3">
-            <Tabs value={studentView} onValueChange={(value) => setStudentView(value as "pending" | "linked")}>
+            <Tabs value={studentView} onValueChange={(value) => { setStudentView(value as "pending" | "linked"); setCourseStatusFilter("all"); }}>
               <TabsList className="grid h-auto w-full grid-cols-2 sm:w-[420px]">
                 <TabsTrigger value="pending" className="gap-2 py-2">
                   Pendentes
-                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{Math.max(enrollmentCount - completedCount, 0)}</Badge>
+                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{pendingTabCount}</Badge>
                 </TabsTrigger>
                 <TabsTrigger value="linked" className="gap-2 py-2">
                   Cursos feitos
-                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{completedCount}</Badge>
+                  <Badge variant="secondary" className="h-5 min-w-5 justify-center px-1.5">{completedTabCount}</Badge>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
