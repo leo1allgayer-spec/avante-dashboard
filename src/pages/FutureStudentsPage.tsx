@@ -126,7 +126,11 @@ export default function FutureStudentsPage() {
   const pendingTabCount = matchingEnrollments.filter(row => !row.completed).length;
   const completedTabCount = matchingEnrollments.filter(row => row.completed).length;
   const totalSignal = filteredEnrollments.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
-  const totalPending = filteredEnrollments.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+  const totalPendingGross = filteredEnrollments.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+  const totalNotCollected = filteredEnrollments
+    .filter(row => row.noShow || row.notDone)
+    .reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+  const totalPending = Math.max(totalPendingGross - totalNotCollected, 0);
   const linkedCount = filteredEnrollments.filter(row => row.linked).length;
   const completedCount = filteredEnrollments.filter(row => row.completed).length;
   const enrollmentCount = filteredEnrollments.length;
@@ -288,10 +292,11 @@ export default function FutureStudentsPage() {
           <Button variant={registrationMonth ? "outline" : "default"} onClick={() => setRegistrationMonth("")}>Todos os meses</Button>
           <p className="w-full text-xs text-muted-foreground">Totais e contagens acompanham a busca, os filtros e a aba selecionada. Datas no horário de Brasília.</p>
         </div>
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <MetricCard title="Cursos com sinal" value={enrollmentCount} icon={<Users className="h-5 w-5" />} variant="primary" countUp />
           <MetricCard title="Total em sinais" value={totalSignal} icon={<DollarSign className="h-5 w-5" />} variant="success" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Total a receber" value={totalPending} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
+          <MetricCard title="Não coletado · cursos não feitos" value={totalNotCollected} icon={<DollarSign className="h-5 w-5" />} variant="warning" countUp prefix="R$ " decimals={2} />
           <MetricCard title="Ja preencheram formulario" value={linkedCount} icon={<UserCheck className="h-5 w-5" />} variant="accent" countUp />
           <MetricCard title="Pendentes" value={Math.max(enrollmentCount - completedCount, 0)} icon={<ShieldCheck className="h-5 w-5" />} variant="warning" countUp />
         </div>
@@ -300,17 +305,19 @@ export default function FutureStudentsPage() {
           {scheduleOptions.map(option => {
             const rows = summaryRows.filter(row => row.item.tipo === "curso" && matchesSchedule(row.booking?.date, option.value));
             const signal = rows.reduce((sum, row) => sum + Number(row.item.valor_sinal || 0), 0);
-            const pending = rows.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+            const pendingGross = rows.reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+            const notCollected = rows.filter(row => row.noShow || row.notDone).reduce((sum, row) => sum + Number(row.item.valor_pendente || 0), 0);
+            const pending = Math.max(pendingGross - notCollected, 0);
             return <button key={option.value} type="button" aria-pressed={scheduleFilter === option.value}
               onClick={() => setScheduleFilter(current => current === option.value ? "all" : option.value)}
               className={`glass-card rounded-xl border p-4 text-left transition-colors hover:border-primary/60 ${scheduleFilter === option.value ? "border-primary bg-primary/10" : "border-border/30"}`}>
               <p className="text-sm font-semibold">{option.label}</p>
               <p className="mt-2 text-2xl font-bold">{rows.length} <span className="text-sm font-normal text-muted-foreground">cursos</span></p>
               <p className="mt-1 text-sm">Total: <strong>{formatCurrency(signal + pending)}</strong></p>
-              <p className="mt-1 text-xs text-muted-foreground">Sinal: {formatCurrency(signal)} · A receber: {formatCurrency(pending)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Sinal: {formatCurrency(signal)} · A receber: {formatCurrency(pending)} · Não coletado: {formatCurrency(notCollected)}</p>
             </button>;
           })}
-          <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">Resumo dos cursos da aba e dos demais filtros. Total = sinal + a receber. Datas passadas também podem estar incluídas no mês correspondente. Clique em um resumo para filtrar.</p>
+          <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">O valor a receber desconta o saldo dos cursos não feitos ou com ausência confirmada; esse saldo aparece em “Não coletado”. Clique em um resumo para filtrar.</p>
         </div>
 
         <div className="glass-card rounded-xl border border-border/30">
