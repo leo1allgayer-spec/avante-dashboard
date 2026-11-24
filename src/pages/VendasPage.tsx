@@ -1291,8 +1291,8 @@ const VendasPage = () => {
       const fechamento = fechamentos
         .filter((item) =>
           !usedFechamentos.has(item.id) &&
-          normalizeFechamentoStatus(item.status) !== "cancelado" &&
           (item.venda_id === venda.id || (
+            normalizeFechamentoStatus(item.status) !== "cancelado" &&
             !item.venda_id &&
             item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
             item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
