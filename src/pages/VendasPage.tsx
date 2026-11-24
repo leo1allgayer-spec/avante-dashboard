@@ -2554,7 +2554,7 @@ const VendasPage = () => {
                           <Badge
                             key={`course-status-${sale.id}`}
                             variant="outline"
-                            className={`my-1 whitespace-normal text-[10px] ${completed ? "border-success/30 bg-success/10 text-success" : booking ? "border-primary/30 bg-primary/10 text-primary" : "border-muted-foreground/30 bg-muted/30 text-muted-foreground"}`}
+                            className={`my-1 whitespace-normal text-[10px] ${completed ? "border-success/30 bg-success/10 text-success" : booking ? "border-primary/30 bg-primary/10 text-primary" : "border-destructive/30 bg-destructive/10 text-destructive"}`}
                             title={`${course}: ${badgeText}`}
                           >
                             {nomes.length > 1 ? `${course} · ` : ""}{badgeText}
