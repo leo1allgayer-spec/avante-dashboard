@@ -2502,6 +2502,10 @@ const VendasPage = () => {
                 const v = grupo.principal;
                 const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
                 const nomesTexto = nomes.join(" · ") || "Sem produto ou serviço";
+                const allItemsAreCourses = grupo.itens.every((sale) => {
+                  const category = getVendaCategoria(sale);
+                  return COURSE_PRODUCTS.some((product) => normalizeText(product) === normalizeText(category));
+                });
                 const origensTexto = [...new Set(grupo.itens.map((item) => item.origem).filter(Boolean))].join(" · ") || "Sem origem";
                 const criativosDoGrupo = grupo.itens.flatMap((sale) => criativosVendas
                   .filter((creative) => creative.data === sale.data && normalizeText(creative.nome_aluno) === normalizeText(sale.cliente) && Number(creative.valor_curso || 0) === Number(sale.valor || 0)));
@@ -2534,30 +2538,31 @@ const VendasPage = () => {
                     </TableCell>
                     <TableCell className="px-2 py-3" title={nomesTexto}>
                       <p className="truncate font-semibold">{nomesTexto}</p>
-                      {[...new Set(grupo.itens.filter(completedSaleCourses).map(getVendaCategoria))].map((course) => (
-                        <Badge key={course} variant="outline" className="my-1 whitespace-normal border-success/30 bg-success/10 text-success text-[10px]" title={`${course}: formulário preenchido pelo aluno`}>
-                          {nomes.length > 1 ? `${course} · ` : ""}Curso feito · Formulário preenchido
-                        </Badge>
-                      ))}
                       {grupo.itens.filter((sale) => {
                         const category = getVendaCategoria(sale);
                         return COURSE_PRODUCTS.some((product) => normalizeText(product) === normalizeText(category));
                       }).map((sale) => {
-                        const booking = getSaleCourseBooking(sale);
+                        const completed = completedSaleCourses(sale);
+                        const booking = completed ? null : getSaleCourseBooking(sale);
                         const course = saleCourseDisplayName(getVendaCategoria(sale));
+                        const badgeText = completed
+                          ? "Curso feito · Formulário preenchido"
+                          : booking
+                            ? `Curso marcado · ${formatDate(booking.date)}`
+                            : "Curso não marcado";
                         return (
                           <Badge
-                            key={`booking-${sale.id}`}
+                            key={`course-status-${sale.id}`}
                             variant="outline"
-                            className={`my-1 whitespace-normal text-[10px] ${booking ? "border-primary/30 bg-primary/10 text-primary" : "border-muted-foreground/30 bg-muted/30 text-muted-foreground"}`}
-                            title={booking ? `${course}: curso marcado para ${formatDate(booking.date)}` : `${course}: ainda sem agendamento`}
+                            className={`my-1 whitespace-normal text-[10px] ${completed ? "border-success/30 bg-success/10 text-success" : booking ? "border-primary/30 bg-primary/10 text-primary" : "border-muted-foreground/30 bg-muted/30 text-muted-foreground"}`}
+                            title={`${course}: ${badgeText}`}
                           >
-                            {nomes.length > 1 ? `${course} · ` : ""}{booking ? `Curso marcado · ${formatDate(booking.date)}` : "Curso não marcado"}
+                            {nomes.length > 1 ? `${course} · ` : ""}{badgeText}
                           </Badge>
                         );
                       })}
                       <p className="truncate text-[11px] text-muted-foreground">
-                        {grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}
+                        {grupo.quantidade} {allItemsAreCourses ? (grupo.quantidade === 1 ? "curso" : "cursos") : (grupo.quantidade === 1 ? "item" : "itens")}
                         {grupo.datasPrevistasCurso.length > 0 ? ` · Curso: ${grupo.datasPrevistasCurso.map(formatDate).join(", ")}` : ""}
                       </p>
                     </TableCell>
@@ -2687,6 +2692,10 @@ const VendasPage = () => {
                   vendasAgrupadas.map((grupo, index) => {
                     const v = grupo.principal;
                     const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
+                    const allItemsAreCourses = grupo.itens.every((sale) => {
+                      const category = getVendaCategoria(sale);
+                      return COURSE_PRODUCTS.some((product) => normalizeText(product) === normalizeText(category));
+                    });
                     const statusVenda = grupo.saldo <= 0 ? grupo.saldoRecorrenteSemComissao > 0 ? "recorrente" : "paga" : v.status;
                     const datasPacote = [...new Set(grupo.itens.map((item) => item.data).filter(Boolean))].sort();
                     const origensPacote = [...new Set(grupo.itens.map((item) => item.origem).filter(Boolean))];
@@ -2723,7 +2732,9 @@ const VendasPage = () => {
                             );
                           })}
                         </div>
-                        <p className="mt-1.5 text-xs text-muted-foreground">{grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}</p>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          {grupo.quantidade} {allItemsAreCourses ? (grupo.quantidade === 1 ? "curso" : "cursos") : (grupo.quantidade === 1 ? "item" : "itens")}
+                        </p>
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top text-xs">
                         <p><span className="text-muted-foreground">Total: </span><strong>{formatBRL(grupo.valorTotal)}</strong></p>
