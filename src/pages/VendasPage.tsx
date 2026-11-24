@@ -295,6 +295,7 @@ const defaultForm = {
 
 type VendaItemForm = {
   data?: string;
+  vendedor?: string;
   forma_venda: string;
   produto: string;
   servico: string;
@@ -444,18 +445,23 @@ const VendasPage = () => {
   const { findSaleForClosing, getFechamentoCollectedNet, getCollectedGrossInPeriod, getCollectedNetInPeriod } = collectionCalculator(allVendas, dateFilter.range.start, dateFilter.range.end, taxProfile, true);
 
   const getConsolidatedClosingTotals = (items: FechamentoDiario[]) => {
-    const byCategory = new Map<string, { gross: number; net: number }>();
+    const bySale = new Map<string, { gross: number; net: number }>();
+    const byLegacyCategory = new Map<string, { gross: number; net: number }>();
     items.forEach((closing) => {
       const key = normalizeText(getFechamentoCategoria(closing));
-      const previous = byCategory.get(key) || { gross: 0, net: 0 };
+      const target = closing.venda_id ? bySale : byLegacyCategory;
+      const targetKey = closing.venda_id || key;
+      const previous = target.get(targetKey) || { gross: 0, net: 0 };
       const gross = Math.max(Number(closing.valor_sinal || 0), 0);
       const net = getFechamentoCollectedNet(closing);
-      byCategory.set(key, {
+      target.set(targetKey, {
         gross: Math.max(previous.gross, gross),
         net: Math.max(previous.net, net),
       });
     });
-    return [...byCategory.values()].reduce(
+    const linkedCategories = new Set(items.filter((closing) => closing.venda_id).map((closing) => normalizeText(getFechamentoCategoria(closing))));
+    const totals = [...bySale.values(), ...[...byLegacyCategory.entries()].filter(([key]) => !linkedCategories.has(key)).map(([, value]) => value)];
+    return totals.reduce(
       (totals, value) => ({ gross: totals.gross + value.gross, net: totals.net + value.net }),
       { gross: 0, net: 0 },
     );
@@ -546,7 +552,9 @@ const VendasPage = () => {
   const vendasAgrupadas = useMemo(() => {
     const grupos = new Map<string, Venda[]>();
     tableFilteredSales.forEach((venda) => {
-      const chave = [venda.data, venda.cliente.trim().toLowerCase(), venda.vendedor.trim().toLowerCase()].join("|");
+      const chave = venda.aluno_futuro_id
+        ? `aluno:${venda.aluno_futuro_id}`
+        : [venda.data, venda.cliente.trim().toLowerCase(), venda.vendedor.trim().toLowerCase()].join("|");
       grupos.set(chave, [...(grupos.get(chave) || []), venda]);
     });
 
@@ -558,6 +566,7 @@ const VendasPage = () => {
       const produtos = [...new Set(itensPorLancamento.map((item) => item.produto).filter(Boolean))];
       const servicos = [...new Set(itensPorLancamento.map((item) => item.servico).filter(Boolean))];
       const categoriasGrupo = new Set(itensPorLancamento.map((item) => normalizeText(getVendaCategoria(item))));
+      const combinacoesLegadas = new Set(itensPorLancamento.map((item) => `${normalizeText(item.vendedor)}|${normalizeText(getVendaCategoria(item))}`));
       const valoresPositivos = itensPorLancamento.map((item) => Number(item.valor || 0)).filter((valor) => valor > 0);
       const valorTotal = valoresPositivos.reduce((total, valor) => total + valor, 0);
       const liquidosPositivos = itensPorLancamento.map((item) => getVendaValores(item).valorLiquido).filter((valor) => valor > 0);
@@ -570,7 +579,7 @@ const VendasPage = () => {
         (item.venda_id
           ? vendaIdsDoGrupo.has(item.venda_id)
           : normalizeText(item.cliente) === normalizeText(principal.cliente) &&
-            normalizeText(item.vendedor) === normalizeText(principal.vendedor) &&
+            combinacoesLegadas.has(`${normalizeText(item.vendedor)}|${normalizeText(getFechamentoCategoria(item))}`) &&
             categoriasGrupo.has(normalizeText(getFechamentoCategoria(item)))),
       );
       // Fechamentos novos pertencem ao grupo pelo ID da venda. Nome, vendedor e
@@ -601,20 +610,28 @@ const VendasPage = () => {
       }
 
       const principalInstallments = Math.max(1, Number.parseInt(String(principal.parcelas || ""), 10) || 1);
-      const periodCollections = new Map<string,{gross:number;net:number}>();
+      const periodCollectionsBySale = new Map<string,{gross:number;net:number}>();
+      const periodCollectionsLegacy = new Map<string,{gross:number;net:number}>();
       fechamentosFinanceirosCliente.forEach(closing => {
         const key = normalizeText(getFechamentoCategoria(closing));
-        const previous = periodCollections.get(key) || {gross:0,net:0};
-        periodCollections.set(key,{gross:Math.max(previous.gross,getCollectedGrossInPeriod(closing)),net:Math.max(previous.net,getCollectedNetInPeriod(closing))});
+        const target = closing.venda_id ? periodCollectionsBySale : periodCollectionsLegacy;
+        const targetKey = closing.venda_id || key;
+        const previous = target.get(targetKey) || {gross:0,net:0};
+        target.set(targetKey,{gross:Math.max(previous.gross,getCollectedGrossInPeriod(closing)),net:Math.max(previous.net,getCollectedNetInPeriod(closing))});
       });
-      const coletadoPeriodo = [...periodCollections.values()].reduce((sum,value)=>sum+value.net,0);
-      const taxasMaquininhaPeriodo = [...periodCollections.values()].reduce((sum,value)=>sum+Math.max(0,value.gross-value.net),0);
-      const aReceberPorCategoria = new Map<string, number>();
+      const linkedClosingCategories = new Set(fechamentosFinanceirosCliente.filter((item) => item.venda_id).map((item) => normalizeText(getFechamentoCategoria(item))));
+      const periodCollections = [...periodCollectionsBySale.values(), ...[...periodCollectionsLegacy.entries()].filter(([key]) => !linkedClosingCategories.has(key)).map(([, value]) => value)];
+      const coletadoPeriodo = periodCollections.reduce((sum,value)=>sum+value.net,0);
+      const taxasMaquininhaPeriodo = periodCollections.reduce((sum,value)=>sum+Math.max(0,value.gross-value.net),0);
+      const aReceberPorVenda = new Map<string, number>();
+      const aReceberLegacy = new Map<string, number>();
       fechamentosRelacionados.forEach((item) => {
         const categoryKey = normalizeText(getFechamentoCategoria(item));
-        aReceberPorCategoria.set(categoryKey, Math.max(aReceberPorCategoria.get(categoryKey) || 0, getAReceberNoPeriodo(item)));
+        const target = item.venda_id ? aReceberPorVenda : aReceberLegacy;
+        const targetKey = item.venda_id || categoryKey;
+        target.set(targetKey, Math.max(target.get(targetKey) || 0, getAReceberNoPeriodo(item)));
       });
-      const aReceberPeriodo = [...aReceberPorCategoria.values()].reduce((total, valor) => total + valor, 0);
+      const aReceberPeriodo = [...aReceberPorVenda.values(), ...[...aReceberLegacy.entries()].filter(([key]) => !linkedClosingCategories.has(key)).map(([, value]) => value)].reduce((total, valor) => total + valor, 0);
       const previsoesRecebimento = [...new Set(fechamentosRelacionados
         .flatMap((item) => getStoredParcelDates(item).length ? getStoredParcelDates(item) : [item.previsao_entrada])
         .filter((date): date is string => Boolean(date)))]
@@ -767,19 +784,8 @@ const VendasPage = () => {
   const updateCommissionStatus = async (items: Venda[], status_comissao: string) => {
     try {
       const paidAt = new Date().toISOString().split("T")[0];
-      const totalSold = items.reduce((sum, item) => sum + Math.max(Number(item.valor || 0), 0), 0);
-      const reference = items[0];
-      const commissionClosings = fechamentos.filter((closing) =>
-        normalizeFechamentoStatus(closing.status) !== "cancelado" &&
-        normalizeText(closing.cliente) === normalizeText(reference?.cliente) &&
-        normalizeText(closing.vendedor) === normalizeText(reference?.vendedor)
-      );
-      const collectedTotals = getConsolidatedClosingTotals(commissionClosings);
-      const totalCollected = Math.min(totalSold, collectedTotals.gross);
-      const totalCollectedNet = Math.min(totalCollected, collectedTotals.net);
       await Promise.all(items.map((item) => {
-        const share = totalSold > 0 ? Math.max(Number(item.valor || 0), 0) / totalSold : 0;
-        const effectiveCommission = getCommissionAfterPaymentFees(totalCollected * share, totalCollectedNet * share, item.origem);
+        const effectiveCommission = salesCommissionBalance([item], fechamentos, allVendas, taxProfile, true).earned;
         const alreadyPaid = getPaidCommissionValue(item);
         return updateVenda.mutateAsync({
           id: item.id,
@@ -1329,6 +1335,7 @@ const VendasPage = () => {
       const condicaoPagamento = fechamento?.parcelas_total ? "boleto" : temSaldoQuitadoSeparado ? "sinal_quitado" : valorAEntrar > 0 && valorSinal > 0 ? "sinal" : valorAEntrar > 0 ? "a_receber" : saldoRecorrenteSemComissao && valorSinal < Number(venda.valor || 0) ? "sinal" : "pago";
       return {
         data: venda.data,
+        vendedor: venda.vendedor,
         produto: canonicalizeSaleCategory(venda.produto),
         servico: venda.servico || "",
         origem: venda.origem || "",
@@ -1383,7 +1390,7 @@ const VendasPage = () => {
       return {
       user_id: session.user.id,
       data: item.data || form.data,
-      vendedor: form.vendedor,
+      vendedor: item.vendedor || form.vendedor,
       cliente: form.cliente,
       produto: item.produto,
       valor: Number(item.valor || 0),
@@ -1415,7 +1422,7 @@ const VendasPage = () => {
       return {
         user_id: session.user.id,
         data: item.data || form.data,
-        vendedor: form.vendedor,
+        vendedor: item.vendedor || form.vendedor,
         cliente: form.cliente,
         produto_servico: item.servico || item.produto || "Sem categoria",
         categoria: item.servico || item.produto || null,
@@ -2652,6 +2659,8 @@ const VendasPage = () => {
                     const v = grupo.principal;
                     const nomes = getUniqueSaleNames(grupo.produtos, grupo.servicos);
                     const statusVenda = grupo.saldo <= 0 ? grupo.saldoRecorrenteSemComissao > 0 ? "recorrente" : "paga" : v.status;
+                    const datasPacote = [...new Set(grupo.itens.map((item) => item.data).filter(Boolean))].sort();
+                    const origensPacote = [...new Set(grupo.itens.map((item) => item.origem).filter(Boolean))];
                     return (
                     <TableRow
                       key={grupo.chave}
@@ -2663,7 +2672,12 @@ const VendasPage = () => {
                     >
                       <TableCell className="px-3 py-3 align-top">
                         <p className="text-sm font-semibold leading-tight">{v.cliente}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{formatDate(v.data)} · {v.origem || "Sem origem"}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {grupo.quantidade > 1 && datasPacote.length > 1
+                            ? `Pacote · ${formatDate(datasPacote[0])} a ${formatDate(datasPacote[datasPacote.length - 1])}`
+                            : formatDate(v.data)}
+                          {origensPacote.length > 0 ? ` · ${origensPacote.join(", ")}` : " · Sem origem"}
+                        </p>
                       </TableCell>
                       <TableCell className="px-3 py-3 align-top">
                         <div className="overflow-hidden rounded-md border border-border/25">
@@ -2671,7 +2685,10 @@ const VendasPage = () => {
                             const itemName = saleCourseDisplayName(saleItem.servico || saleItem.produto || "Sem produto ou serviço");
                             return (
                               <div key={saleItem.id} className={`flex items-center justify-between gap-3 px-2.5 py-2 text-xs ${itemIndex > 0 ? "border-t border-border/25" : ""}`}>
-                                <span className="font-medium text-foreground">{itemName}</span>
+                                <span className="min-w-0 font-medium text-foreground">
+                                  {itemName}
+                                  {grupo.quantidade > 1 && <span className="ml-1.5 font-normal text-muted-foreground">· {formatDate(saleItem.data)}{saleItem.vendedor ? ` · ${saleItem.vendedor}` : ""}</span>}
+                                </span>
                                 <span className="shrink-0 font-semibold text-muted-foreground">{formatBRL(Number(saleItem.valor || 0))}</span>
                               </div>
                             );

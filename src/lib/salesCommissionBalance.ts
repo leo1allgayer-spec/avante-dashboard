@@ -28,24 +28,18 @@ export function salesInCommissionPeriod(sales:Venda[],closings:FechamentoDiario[
 
 // Shared by Vendas and Pagamentos: commission is earned only on collected net money.
 export function salesCommissionBalance(rawItems:Venda[],closings:FechamentoDiario[],allSales:Venda[]=rawItems,taxProfile:'opcao1'|'opcao2'='opcao1',recalculateFees=false){
- const consolidated=new Map<string,Venda>();
- [...rawItems].sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).forEach(item=>{
-  const categoryKey=category(item),previous=consolidated.get(categoryKey);
-  const duplicate=previous&&(Boolean(previous.aluno_futuro_id)!==Boolean(item.aluno_futuro_id)||(Boolean(previous.aluno_futuro_id)&&previous.aluno_futuro_id===item.aluno_futuro_id));
-  if(!previous)consolidated.set(categoryKey,item);
-  else if(duplicate){const preferred=Number(item.valor||0)>Number(previous.valor||0)?item:previous;consolidated.set(categoryKey,{...preferred,valor:Math.max(Number(previous.valor||0),Number(item.valor||0)),comissao:Math.max(Number(previous.comissao||0),Number(item.comissao||0)),comissao_paga_valor:Math.max(registeredPaidCommission(previous),registeredPaidCommission(item))});}
-  else consolidated.set(`${categoryKey}|${item.id}`,item);
- });
- const items=[...consolidated.values()];
+ const items=[...rawItems];
  const reference=items[0];
- const ids=new Set(rawItems.map(item=>item.id)),categories=new Set(items.map(category));
- const related=reference?closings.filter(closing=>key(closing.status)!=='cancelado'&&(closing.venda_id?ids.has(closing.venda_id):key(closing.cliente)===key(reference.cliente)&&key(closing.vendedor)===key(reference.vendedor)&&categories.has(closingCategory(closing)))):[];
+ const ids=new Set(rawItems.map(item=>item.id)),legacyPairs=new Set(items.map(item=>`${key(item.vendedor)}|${category(item)}`));
+ const related=reference?closings.filter(closing=>key(closing.status)!=='cancelado'&&(closing.venda_id?ids.has(closing.venda_id):key(closing.cliente)===key(reference.cliente)&&legacyPairs.has(`${key(closing.vendedor)}|${closingCategory(closing)}`))):[];
  const {getFechamentoCollectedNet}=collectionCalculator(allSales,'0000-01-01','9999-12-31',taxProfile,recalculateFees);
- const byCategory=new Map<string,{gross:number;net:number}>();
- related.forEach(closing=>{const k=closingCategory(closing),previous=byCategory.get(k)||{gross:0,net:0};byCategory.set(k,{gross:Math.max(previous.gross,Number(closing.valor_sinal||0),0),net:Math.max(previous.net,getFechamentoCollectedNet(closing))});});
+ const bySale=new Map<string,{gross:number;net:number}>(),byLegacyCategory=new Map<string,{gross:number;net:number}>();
+ related.forEach(closing=>{const k=closingCategory(closing),target=closing.venda_id?bySale:byLegacyCategory,targetKey=closing.venda_id||k,previous=target.get(targetKey)||{gross:0,net:0};target.set(targetKey,{gross:Math.max(previous.gross,Number(closing.valor_sinal||0),0),net:Math.max(previous.net,getFechamentoCollectedNet(closing))});});
+ const linkedCategories=new Set(related.filter(closing=>closing.venda_id).map(closingCategory));
+ const closingTotals=[...bySale.values(),...[...byLegacyCategory.entries()].filter(([key])=>!linkedCategories.has(key)).map(([,value])=>value)];
  const totalSold=items.reduce((sum,item)=>sum+Math.max(0,Number(item.valor||0)),0);
- const gross=Math.min(totalSold,[...byCategory.values()].reduce((sum,item)=>sum+item.gross,0));
- const net=Math.min(gross,[...byCategory.values()].reduce((sum,item)=>sum+item.net,0));
+ const gross=Math.min(totalSold,closingTotals.reduce((sum,item)=>sum+item.gross,0));
+ const net=Math.min(gross,closingTotals.reduce((sum,item)=>sum+item.net,0));
  const earned=+items.reduce((sum,item)=>sum+Number((net*(totalSold>0?Math.max(0,Number(item.valor||0))/totalSold:0)*getSaleCommissionRate(item.origem)).toFixed(2)),0).toFixed(2);
  const paid=+items.reduce((sum,item)=>sum+registeredPaidCommission(item),0).toFixed(2);
  return {items,related,totalSold,gross,net,earned,paid,pending:pendingEarnedCommission(earned,paid)};
