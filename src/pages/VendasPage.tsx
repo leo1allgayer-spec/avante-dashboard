@@ -363,6 +363,18 @@ const VendasPage = () => {
         normalizeText(canonicalizeSaleCategory(survey.curso_realizado)) === course;
     });
   }, [courseSurveys]);
+  const getSaleCourseBooking = useMemo(() => (sale: Venda) => {
+    const course = normalizeText(getVendaCategoria(sale));
+    if (!course || !COURSE_PRODUCTS.some((product) => normalizeText(product) === course)) return null;
+    return courseBookings.find((booking) => {
+      const bookingCourse = normalizeText(canonicalizeSaleCategory(booking.courseName));
+      const bookingStatus = normalizeText(booking.courseStatus);
+      return booking.status === "confirmed" &&
+        !["cancelado", "cancelada", "faltou", "nao compareceu"].includes(bookingStatus) &&
+        normalizeText(booking.studentName) === normalizeText(sale.cliente) &&
+        bookingCourse === course;
+    }) || null;
+  }, [courseBookings]);
   const dateFilter = useLocalDateFilter();
   const [filterYear, filterMonth] = dateFilter.range.start.split("-").map(Number);
   const { data: monthMetrics = [] } = useMonthMetrics(filterYear, (filterMonth || 1) - 1);
@@ -2527,6 +2539,23 @@ const VendasPage = () => {
                           {nomes.length > 1 ? `${course} · ` : ""}Curso feito · Formulário preenchido
                         </Badge>
                       ))}
+                      {grupo.itens.filter((sale) => {
+                        const category = getVendaCategoria(sale);
+                        return COURSE_PRODUCTS.some((product) => normalizeText(product) === normalizeText(category));
+                      }).map((sale) => {
+                        const booking = getSaleCourseBooking(sale);
+                        const course = saleCourseDisplayName(getVendaCategoria(sale));
+                        return (
+                          <Badge
+                            key={`booking-${sale.id}`}
+                            variant="outline"
+                            className={`my-1 whitespace-normal text-[10px] ${booking ? "border-primary/30 bg-primary/10 text-primary" : "border-muted-foreground/30 bg-muted/30 text-muted-foreground"}`}
+                            title={booking ? `${course}: curso marcado para ${formatDate(booking.date)}` : `${course}: ainda sem agendamento`}
+                          >
+                            {nomes.length > 1 ? `${course} · ` : ""}{booking ? `Curso marcado · ${formatDate(booking.date)}` : "Curso não marcado"}
+                          </Badge>
+                        );
+                      })}
                       <p className="truncate text-[11px] text-muted-foreground">
                         {grupo.quantidade} {grupo.quantidade === 1 ? "item" : "itens"}
                         {grupo.datasPrevistasCurso.length > 0 ? ` · Curso: ${grupo.datasPrevistasCurso.map(formatDate).join(", ")}` : ""}
