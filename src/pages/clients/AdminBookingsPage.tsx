@@ -105,7 +105,7 @@ export default function AdminBookings() {
   const [availabilityInstructor,setAvailabilityInstructor]=useState(isHenrique?"Henrique":"Nicolas");
   const weekdayCourses = availabilityInstructor === "Henrique" ? COURSES.filter(course => ["Curso Meta Ads", "Curso Meta Ads Avançado", "Curso Meta Ads Online", "Curso Google Ads"].includes(course)) : COURSES;
   const [availabilityMonth, setAvailabilityMonth] = useState(() => format(new Date(), 'yyyy-MM'));
-  const { loading: disabledLoading, saving: availabilitySaving, toggleDay, isDayDisabled, isShiftDisabled: isShiftOnlyDisabled } = useCourseWeekAvailability(availabilityMonth,availabilityInstructor);
+  const { loading: disabledLoading, saving: availabilitySaving, toggleDay, isDayDisabled, isShiftDisabled: isShiftOnlyDisabled, isMeetingConflict } = useCourseWeekAvailability(availabilityMonth,availabilityInstructor);
   const [availabilityWeek, setAvailabilityWeek] = useState(() => monthWeeks(format(new Date(), 'yyyy-MM')).findIndex(week => week.some(date => format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'))));
   const availabilityWeeks = monthWeeks(availabilityMonth);
   const selectedAvailabilityDays = availabilityWeeks[Math.min(availabilityWeek, availabilityWeeks.length - 1)];
@@ -691,16 +691,18 @@ export default function AdminBookings() {
                                 const date = format(selectedAvailabilityDays[dayIndex], 'yyyy-MM-dd');
                                 const outsideMonth = !dateInMonth(selectedAvailabilityDays[dayIndex], availabilityMonth);
                                 const off = isDayDisabled(course, date);
+                                const meetingConflict = isMeetingConflict(course, date);
                                 return (
                                   <td key={dayIndex} className="text-center px-1 py-1">
                                     <Button
-                                      variant={off ? "destructive" : "outline"}
+                                      variant={off || meetingConflict ? "destructive" : "outline"}
                                       size="sm"
-                                      className={`w-full min-w-[44px] h-7 text-xs ${!off ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10" : ""}`}
-                                      disabled={outsideMonth || availabilitySaving || disabledLoading}
+                                      className={`w-full min-w-[44px] h-7 text-xs ${!off && !meetingConflict ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10" : ""}`}
+                                      title={meetingConflict ? "Um compromisso futuro do professor bloqueia automaticamente este turno." : undefined}
+                                      disabled={outsideMonth || availabilitySaving || disabledLoading || (off && meetingConflict)}
                                       onClick={() => toggleDay(course, date, null)}
                                     >
-                                      {outsideMonth ? '—' : off ? "Off" : "On"}
+                                      {outsideMonth ? '—' : off ? "Off" : meetingConflict ? "Parcial" : "On"}
                                     </Button>
                                   </td>
                                 );
@@ -714,13 +716,15 @@ export default function AdminBookings() {
                                   const outsideMonth = !dateInMonth(selectedAvailabilityDays[dayIndex], availabilityMonth);
                                   const fullOff = isDayDisabled(course, date);
                                   const shiftOff = isShiftOnlyDisabled(course, date, shift);
+                                  const meetingConflict = isMeetingConflict(course, date, shift);
                                   return (
                                     <td key={dayIndex} className="text-center px-1 py-1">
                                       <Button
-                                        variant={fullOff || shiftOff ? "destructive" : "outline"}
+                                        variant={fullOff || shiftOff || meetingConflict ? "destructive" : "outline"}
                                         size="sm"
-                                        disabled={outsideMonth || availabilitySaving || disabledLoading}
-                                        className={`w-full min-w-[44px] h-7 text-xs ${!fullOff && !shiftOff ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10" : ""}`}
+                                        title={meetingConflict ? "Um compromisso futuro do professor bloqueia automaticamente este turno." : undefined}
+                                        disabled={outsideMonth || availabilitySaving || disabledLoading || meetingConflict}
+                                        className={`w-full min-w-[44px] h-7 text-xs ${!fullOff && !shiftOff && !meetingConflict ? "border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10" : ""}`}
                                         onClick={() => toggleDay(course, date, shift)}
                                       >
                                         {outsideMonth ? '—' : shiftOff ? "Off" : "On"}
