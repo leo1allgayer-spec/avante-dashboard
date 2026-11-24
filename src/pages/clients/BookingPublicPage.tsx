@@ -255,18 +255,21 @@ export default function BookingPublic() {
 
         for (const shift of ["Manhã", "Tarde"]) {
           const shiftTime = shift === "Manhã" ? "08:30" : "14:00";
+          const exceptionOverride = ["Curso Meta Ads", "Curso Meta Ads Avançado"].includes(selectedCourse)
+            && exceptionSet.has(`${dateStr}|${shift}`);
           // Require at least 1h in advance
           const [h, m] = shiftTime.split(":").map(Number);
           const shiftDateTime = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
-          if (shiftDateTime.getTime() - now.getTime() < minAdvanceMs) continue;
+          if (shiftDateTime.getTime() <= now.getTime()) continue;
+          if (!exceptionOverride && shiftDateTime.getTime() - now.getTime() < minAdvanceMs) continue;
 
-          if (isWeekdayShiftDisabled(dateStr, shiftTime)) continue;
-          if (isBlocked(dateStr, shift)) continue;
-          if (onlineConflicts.has(`${dateStr}|${shift}`)) continue;
+          if (!exceptionOverride && isWeekdayShiftDisabled(dateStr, shiftTime)) continue;
+          if (!exceptionOverride && isBlocked(dateStr, shift)) continue;
+          if (!exceptionOverride && onlineConflicts.has(`${dateStr}|${shift}`)) continue;
           // Mutual exclusion: if sibling course has bookings, block this slot (unless exception)
           const siblingKey = `${dateStr}|${shift}`;
-          if (sharedBookedSet.has(siblingKey)) continue;
-          if (siblingBookedSet.has(siblingKey) && !exceptionSet.has(siblingKey)) continue;
+          if (!exceptionOverride && sharedBookedSet.has(siblingKey)) continue;
+          if (!exceptionOverride && siblingBookedSet.has(siblingKey)) continue;
           const key = `${dateStr}|${shift}`;
           const booked = countMap[key] || 0;
           shifts.push({
