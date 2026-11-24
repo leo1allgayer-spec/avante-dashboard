@@ -48,6 +48,11 @@ export function useCourseWeekAvailability(month: string, instructor: string = "N
   const isMeetingConflict = (course: string, date: string, shift?: string | null) => {
     if (!isInstructorScheduled(course) || (course === 'Curso em Turma' && instructor !== 'Nicolas')) return false;
     const shifts = shift ? [shift] : ['08:30', '14:00'];
+    // An explicitly enabled cohort date/turn is an administrator exception and
+    // must take precedence over a meeting conflict for this specific slot.
+    if (course === 'Curso em Turma' && shifts.every(time =>
+      instructorDates.some(row => row.course_name === course && row.date === date && row.shift === time && row.enabled),
+    )) return false;
     return shifts.some(time => meetingConflicts.some(conflict => conflict.booking_date === date && conflict.booking_shift === time));
   };
   const isShiftDisabled = (course: string, date: string, shift: string) => {
