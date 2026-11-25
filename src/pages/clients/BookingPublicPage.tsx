@@ -39,6 +39,26 @@ const getSupabaseErrorMessage = (error: unknown) => {
   return maybeError.message || maybeError.details || maybeError.hint || "";
 };
 
+const withRequestTimeout = async <T,>(
+  request: (signal: AbortSignal) => PromiseLike<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> => {
+  const controller = new AbortController();
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      controller.abort();
+      reject(new Error(message));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([Promise.resolve(request(controller.signal)), timeout]);
+  } finally {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  }
+};
+
 const normalizeShift = (time: string) => {
   if (time === "Manhã" || time === "08:30") return "Manhã";
   if (time === "Tarde" || time === "14:00") return "Tarde";
@@ -91,8 +111,10 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
   const [commitmentAccepted, setCommitmentAccepted] = useState(false);
   const [commitmentError, setCommitmentError] = useState("");
   const [commitmentReceipt, setCommitmentReceipt] = useState<CommitmentAcceptance | null>(null);
+  const registrationRequestIdRef = useRef<string | null>(null);
   const updateForm = (updates: Partial<typeof form> | ((current: typeof form) => typeof form)) => {
     setForm((current) => typeof updates === "function" ? updates(current) : { ...current, ...updates });
+    registrationRequestIdRef.current = null;
     setCommitmentAccepted(false);
     setCommitmentError("");
     setCommitmentReceipt(null);
@@ -401,8 +423,9 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
   const saveStudentRegistration = async (prazo: "agendar_agora" | "15_dias" | "30_dias") => {
     const cpf = normalizeCpf(form.cpf);
     if (cpf.length !== 11) throw new Error("Informe um CPF com 11 dígitos antes de continuar.");
-    const requestId = crypto.randomUUID();
-    const { data, error } = await (supabase as any).rpc("register_future_student_with_commitment", {
+    const requestId = registrationRequestIdRef.current || (registrationRequestIdRef.current = crypto.randomUUID());
+    const { data, error } = await withRequestTimeout(
+      (signal) => (supabase as any).rpc("register_future_student_with_commitment", {
       p_nome: form.name.trim(),
       p_telefone: form.phone.trim(),
       p_cpf: cpf,
@@ -423,21 +446,30 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
       ].filter(Boolean).join("\n"),
       p_accepted: commitmentAccepted,
       p_request_id: requestId,
-    });
+      }).abortSignal(signal),
+      25_000,
+      "O cadastro está demorando para responder. Confira sua conexão e tente novamente; seus dados não serão duplicados.",
+    );
     if (error) throw error;
     const studentId = data?.student_id as string | undefined;
     const acceptance = data?.acceptance as CommitmentAcceptance | undefined;
     if (!studentId || !acceptance?.id || !acceptance.accepted_at) throw new Error("O servidor não retornou o comprovante do aceite.");
+    registrationRequestIdRef.current = null;
     setCommitmentReceipt(acceptance);
 
     if (existingRegistration) return;
 
-    const { error: notificationError } = await supabase.functions.invoke("notify-new-student", {
-      body: { studentId, course: selectedCourse },
-    });
-    if (notificationError) {
+    void withRequestTimeout(
+      (signal) => supabase.functions.invoke("notify-new-student", {
+        body: { studentId, course: selectedCourse }, signal,
+      }),
+      10_000,
+      "Tempo limite ao enviar a notificação interna.",
+    ).then(({ error: notificationError }) => {
+      if (notificationError) console.error("Cadastro salvo, mas a notificação interna não foi enviada:", notificationError);
+    }).catch((notificationError) => {
       console.error("Cadastro salvo, mas a notificação interna não foi enviada:", notificationError);
-    }
+    });
   };
 
   const recordCommitmentAcceptance = async (date: string | null = null, shift: string | null = null) => {
@@ -473,7 +505,11 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
     setCommitmentError("");
     setSubmitting(true);
     try {
-      const {data:existing,error:checkError}=await supabase.functions.invoke('reschedule-booking-request',{body:{action:'check',courseName:selectedCourse,studentName:form.name.trim(),email:form.email.trim(),phone:form.phone.trim(),cpf:form.cpf}});
+      const {data:existing,error:checkError}=await withRequestTimeout(
+        (signal) => supabase.functions.invoke('reschedule-booking-request',{body:{action:'check',courseName:selectedCourse,studentName:form.name.trim(),email:form.email.trim(),phone:form.phone.trim(),cpf:form.cpf}, signal}),
+        15_000,
+        "A verificação está demorando. Confira sua conexão e tente novamente.",
+      );
       if(checkError || existing?.error || typeof existing?.exists !== 'boolean') throw new Error(existing?.error || 'Não foi possível verificar sua inscrição. Tente novamente antes de continuar.');
       if(existing.exists && existing.currentBooking){
         setExistingCourseBooking(existing.currentBooking);
