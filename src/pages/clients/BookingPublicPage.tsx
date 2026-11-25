@@ -24,6 +24,7 @@ const MAX_STUDENTS = 5;
 const DAYS_AHEAD = 60;
 const SAVED_REGISTRATION_KEY = "avante-course-registration";
 const currencyFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const normalizeCpf = (value: string) => value.replace(/\D/g, "");
 
 const parseMoney = (value: string) => {
   const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
