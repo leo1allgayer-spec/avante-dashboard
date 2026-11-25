@@ -399,11 +399,13 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
   };
 
   const saveStudentRegistration = async (prazo: "agendar_agora" | "15_dias" | "30_dias") => {
+    const cpf = normalizeCpf(form.cpf);
+    if (cpf.length !== 11) throw new Error("Informe um CPF com 11 dígitos antes de continuar.");
     const requestId = crypto.randomUUID();
     const { data, error } = await (supabase as any).rpc("register_future_student_with_commitment", {
       p_nome: form.name.trim(),
       p_telefone: form.phone.trim(),
-      p_cpf: form.cpf.trim(),
+      p_cpf: cpf,
       p_curso: selectedCourse,
       p_valor_sinal: parseMoney(form.signalValue),
       p_data_nascimento: form.birthDate,
@@ -439,8 +441,10 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
   };
 
   const recordCommitmentAcceptance = async (date: string | null = null, shift: string | null = null) => {
+    const cpf = normalizeCpf(form.cpf);
+    if (cpf.length !== 11) throw new Error("Informe um CPF com 11 dígitos para registrar o aceite.");
     const { data, error } = await (supabase as any).rpc("record_student_commitment_acceptance", {
-      p_cpf: form.cpf.trim(),
+      p_cpf: cpf,
       p_course_name: selectedCourse,
       p_course_date: date,
       p_course_shift: shift,
