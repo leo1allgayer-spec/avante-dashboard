@@ -375,6 +375,7 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
       }
       updateForm((current) => ({
         ...current,
+        cpf,
         name: data.name || current.name,
         birthDate: data.birthDate || current.birthDate,
         phone: data.phone || current.phone,
