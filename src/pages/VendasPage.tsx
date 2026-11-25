@@ -7,7 +7,7 @@ import {registeredPaidCommission,commissionPaymentDate,commissionPaidInPeriod,pe
 import { getSaleCommissionRate, INFLUENCER_ORIGINS, matchesSaleOrigin } from "@/constants/saleOrigins";
 import { salesExportSummary, salesExportOrigins, salesWithPendingCommission } from "@/lib/salesExport";
 import { receivablesCalculator } from "@/lib/receivablesCalculator";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import PageTransition from "@/components/PageTransition";
@@ -431,6 +431,21 @@ const VendasPage = () => {
 
   const [form, setForm] = useState({ ...defaultForm });
   const [additionalItems, setAdditionalItems] = useState<VendaItemForm[]>([]);
+  const [agendaSelection, setAgendaSelection] = useState("");
+  useEffect(() => {
+    if (searchParams.get("novo") !== "1") return;
+    const produto = canonicalizeSaleCategory(searchParams.get("produto") || "");
+    const date = searchParams.get("agendaData") || "";
+    const shift = searchParams.get("agendaTurno") || "";
+    setEditingVenda(null);
+    setEditingFechamento(null);
+    setEditingCriativoVenda(null);
+    setEditingRecords([]);
+    setForm({ ...defaultForm, produto });
+    setAdditionalItems([]);
+    setAgendaSelection(date ? `Disponibilidade consultada: ${date.split("-").reverse().join("/")}${shift ? ` · ${shift}` : ""}` : "");
+    setDialogOpen(true);
+  }, [searchParams]);
   const metaAdsWithEmoji = useMemo(
     () => metaAdCreatives.filter((ad) => /\p{Extended_Pictographic}/u.test(ad.name) || /\p{Extended_Pictographic}/u.test(ad.campaignName)),
     [metaAdCreatives],
@@ -1296,6 +1311,7 @@ const VendasPage = () => {
     setEditingRecords([]);
     setForm({ ...defaultForm });
     setAdditionalItems([]);
+    setAgendaSelection("");
     setDialogOpen(true);
   };
 
@@ -1577,7 +1593,7 @@ const VendasPage = () => {
             {editingVenda ? "Editar Venda" : "Nova Venda"}
           </DialogTitle>
           <DialogDescription className="text-muted-foreground/70">
-            {editingVenda ? "Altere os dados da venda" : "Preencha os dados para registrar uma nova venda"}
+            {editingVenda ? "Altere os dados da venda" : agendaSelection || "Preencha os dados para registrar uma nova venda"}
           </DialogDescription>
         </DialogHeader>
       </div>

@@ -223,6 +223,7 @@ const AnimatedRoutes = () => {
         <Route path="/agenda-social-media" element={<ProtectedRoute><OperationalAgendaPage category="social_media" /></ProtectedRoute>} />
         <Route path="/admin-settings" element={<ProtectedRoute><ClientSettingsPage /></ProtectedRoute>} />
         <Route path="/admin/agendamentos" element={<ProtectedRoute><AdminBookingsPage /></ProtectedRoute>} />
+        <Route path="/agenda-cursos" element={<ProtectedRoute><BookingPublicPage internalMode /></ProtectedRoute>} />
         <Route path="/agendar" element={<BookingPublicPage />} />
         <Route path="/agendar/:courseSlug" element={<BookingPublicPage />} />
         <Route path="/confirmar-agendamento" element={<ConfirmBookingPage />} />

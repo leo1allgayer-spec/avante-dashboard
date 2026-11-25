@@ -1,6 +1,6 @@
 import {BOOKABLE_COURSES} from '@/constants/courseCatalog';
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,11 +64,12 @@ interface DateShift {
   available: boolean;
 }
 
-export default function BookingPublic() {
+export default function BookingPublic({ internalMode = false }: { internalMode?: boolean }) {
   const birthDateInput = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
   const { courseSlug } = useParams();
   const lockedCourse = useMemo(() => COURSES.find(c => c.slug === courseSlug), [courseSlug]);
-  const [step, setStep] = useState<"course" | "form" | "date" | "confirm" | "loading" | "registered" | "done" | "rescheduleSent">(() => lockedCourse ? "form" : "course");
+  const [step, setStep] = useState<"course" | "form" | "date" | "confirm" | "loading" | "registered" | "done" | "rescheduleSent">(() => internalMode ? "course" : lockedCourse ? "form" : "course");
   const [selectedCourse, setSelectedCourse] = useState(() => lockedCourse?.id || "");
   const [dateShifts, setDateShifts] = useState<DateShift[]>([]);
   const [selectedShift, setSelectedShift] = useState<DateShift | null>(null);
@@ -321,7 +322,7 @@ export default function BookingPublic() {
 
   const handleSelectCourse = (c: string) => {
     setSelectedCourse(c);
-    setStep("form");
+    setStep(internalMode ? "date" : "form");
   };
 
   const handleSelectShift = (s: DateShift) => {
@@ -576,7 +577,10 @@ export default function BookingPublic() {
 
   const goBack = () => {
     if (step === "confirm") setStep("date");
-    else if (step === "date") setStep("form");
+    else if (step === "date") {
+      if (internalMode) { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
+      else setStep("form");
+    }
     else if (step === "form" && !lockedCourse) { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
   };
 
@@ -624,6 +628,13 @@ export default function BookingPublic() {
     <div className="min-h-screen bg-background text-foreground dot-pattern">
       <div className="min-h-screen bg-background/85">
         <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-8">
+          {internalMode && (
+            <div className="mb-3">
+              <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="mr-1 h-4 w-4" /> Voltar ao dashboard
+              </Button>
+            </div>
+          )}
           {/* Header */}
           <div className="mb-6 rounded-2xl border border-border/60 bg-card/70 p-5 shadow-lg shadow-black/10 backdrop-blur-lg sm:p-6">
             <div className="mb-4 flex items-center gap-3">
@@ -631,24 +642,23 @@ export default function BookingPublic() {
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60">Avante Digital</p>
                 <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-                  Agende seu Curso
+                  {internalMode ? "Disponibilidade dos Cursos" : "Agende seu Curso"}
                 </h1>
               </div>
             </div>
             <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
-              Escolha o curso, registre seus dados e decida se deseja agendar agora.
+              {internalMode ? "Consulte os mesmos cursos e horários do formulário público. Esta consulta não reserva a vaga." : "Escolha o curso, registre seus dados e decida se deseja agendar agora."}
             </p>
           </div>
 
           {/* Step indicators */}
           {["course", "form", "date", "confirm"].includes(step) && (
-            <div className="mb-6 grid grid-cols-3 gap-2">
-              {[
-                { key: "course", label: "Curso" },
-                { key: "form", label: "Dados" },
-                { key: "date", label: "Agendamento" },
-              ].map((s, i) => {
-                const stepOrder = ["course", "form", "date"];
+            <div className={`mb-6 grid gap-2 ${internalMode ? "grid-cols-2" : "grid-cols-3"}`}>
+              {(internalMode
+                ? [{ key: "course", label: "Curso" }, { key: "date", label: "Disponibilidade" }]
+                : [{ key: "course", label: "Curso" }, { key: "form", label: "Dados" }, { key: "date", label: "Agendamento" }]
+              ).map((s, i) => {
+                const stepOrder = internalMode ? ["course", "date"] : ["course", "form", "date"];
                 const indicatorStep = step === "confirm" ? "date" : step;
                 const current = stepOrder.indexOf(indicatorStep);
                 const isActive = indicatorStep === s.key;
@@ -997,7 +1007,16 @@ export default function BookingPublic() {
             <div className="space-y-4">
               <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="mr-1 h-4 w-4" /> Voltar</Button>
               <Card className="rounded-2xl border-primary/20 bg-primary/10"><CardContent className="p-5"><div className="text-xs text-muted-foreground">Confirme seu agendamento:</div><div className="mt-1 font-semibold">{selectedCourseInfo?.label || selectedCourse}</div><div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDate(selectedShift.date)}</span><span className="flex items-center gap-1.5">{shiftIcon(selectedShift.shift)}{shiftDescription(selectedShift.shift)}</span></div></CardContent></Card>
-              <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar agendamento</Button>
+              {internalMode ? (
+                <Button className="h-12 w-full" size="lg" onClick={() => {
+                  const params = new URLSearchParams({ novo: "1", produto: selectedCourse, agendaData: selectedShift.date, agendaTurno: selectedShift.shift });
+                  navigate(`/vendas?${params.toString()}`);
+                }}>
+                  Continuar para cadastrar a venda
+                </Button>
+              ) : (
+                <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting}>Confirmar agendamento</Button>
+              )}
             </div>
           )}
 
