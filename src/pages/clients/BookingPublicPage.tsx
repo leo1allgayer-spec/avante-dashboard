@@ -466,10 +466,6 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
 
   const finishRegistration = async (scheduleNow: boolean) => {
     if (!validate()) return;
-    if (!commitmentAccepted) {
-      setCommitmentError("Leia e aceite o termo para concluir o cadastro.");
-      return;
-    }
     setCommitmentError("");
     setSubmitting(true);
     try {
@@ -478,8 +474,14 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
       if(existing.exists && existing.currentBooking){
         setExistingCourseBooking(existing.currentBooking);
         setLookupMessage('Você já possui este curso agendado. Escolha uma nova data para confirmar a troca, sem gerar outra venda.');
-        await recordCommitmentAcceptance();
-      } else await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      } else if (!existingRegistration) {
+        if (!commitmentAccepted) {
+          setCommitmentError("Leia e aceite o termo para concluir um novo cadastro.");
+          setSubmitting(false);
+          return;
+        }
+        await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      }
       localStorage.setItem(SAVED_REGISTRATION_KEY, JSON.stringify({ course: selectedCourse, form }));
       setSubmitting(false);
       setStep(scheduleNow ? "date" : "registered");
@@ -494,7 +496,6 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
     if (!existingCourseBooking) return;
     setSubmitting(true);
     try {
-      await recordCommitmentAcceptance(existingCourseBooking.date, normalizeShift(existingCourseBooking.shift));
       setSelectedShift({ date: existingCourseBooking.date, shift: normalizeShift(existingCourseBooking.shift), bookedCount: 0, available: true });
       setShowExistingBooking(false);
       setStep("done");
@@ -509,7 +510,6 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
     if (!existingCourseBooking || !selectedShift) return;
     setSubmitting(true);
     try {
-      await recordCommitmentAcceptance(selectedShift.date, selectedShift.shift);
       const bookingPayload = {
         courseName: selectedCourse,
         date: selectedShift.date,
@@ -538,11 +538,6 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
   };
   const handleSubmit = async () => {
     if (!selectedShift) return;
-    if (!commitmentAccepted) {
-      setCommitmentError("Aceite o Termo de Compromisso para continuar.");
-      setStep("form");
-      return;
-    }
     setSubmitting(true);
 
     const bookingPayload = {
@@ -568,7 +563,15 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
         setSubmitting(false);
         return;
       }
-      await recordCommitmentAcceptance(selectedShift.date, selectedShift.shift);
+      if (!existingRegistration) {
+        if (!commitmentAccepted) {
+          setCommitmentError("Aceite o Termo de Compromisso para confirmar um novo agendamento.");
+          setStep("form");
+          setSubmitting(false);
+          return;
+        }
+        await recordCommitmentAcceptance(selectedShift.date, selectedShift.shift);
+      }
       const { data: rpcData, error: rpcError } = await supabase.rpc("create_public_course_booking", {
         p_course_name: bookingPayload.courseName,
         p_date: bookingPayload.date,
@@ -1061,7 +1064,7 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
                   <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                   <div>
                     <h3 id="commitment-title" className="font-semibold">{STUDENT_COMMITMENT_TITLE}</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">Leia com atenção antes de concluir seu cadastro · versão {STUDENT_COMMITMENT_VERSION}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{existingRegistration ? "Este curso já consta no seu cadastro; você pode agendar ou remarcar sem aceitar o termo novamente." : "Para um novo cadastro, leia e aceite antes de continuar."} · versão {STUDENT_COMMITMENT_VERSION}</p>
                   </div>
                 </div>
                 <div className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">
@@ -1076,21 +1079,20 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
                     checked={commitmentAccepted}
                     onChange={(event) => { setCommitmentAccepted(event.target.checked); setCommitmentError(""); }}
                     className="mt-1 h-4 w-4 shrink-0 accent-primary"
-                    required
                   />
-                  <span>{STUDENT_COMMITMENT_ACCEPTANCE} <span className="text-destructive">*</span></span>
+                  <span>{STUDENT_COMMITMENT_ACCEPTANCE}</span>
                 </label>
                 {commitmentError && <p role="alert" className="mt-2 text-xs text-destructive">{commitmentError}</p>}
-                <p className="mt-2 text-xs text-muted-foreground">O aceite registra o compromisso e não substitui a confirmação do pagamento do sinal.</p>
+                <p className="mt-2 text-xs text-muted-foreground">O aceite registra o compromisso e não substitui a confirmação do pagamento do sinal. Quem já está agendado pode remarcar sem um novo aceite.</p>
               </section>
 
               <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
                 <p className="text-sm font-semibold">Você quer agendar o curso agora?</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Button className="h-12" size="lg" onClick={() => finishRegistration(true)} disabled={submitting || !commitmentAccepted}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar cadastro e compromisso</Button>
+                  <Button className="h-12" size="lg" onClick={() => finishRegistration(true)} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar cadastro e compromisso</Button>
                   <div className="flex gap-2">
                     <Select value={intendedTime} onValueChange={(value: "15_dias" | "30_dias") => setIntendedTime(value)}><SelectTrigger className="h-12 flex-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="15_dias">Nos próximos 15 dias</SelectItem><SelectItem value="30_dias">Nos próximos 30 dias</SelectItem></SelectContent></Select>
-                    <Button className="h-12" variant="outline" onClick={() => finishRegistration(false)} disabled={submitting || !commitmentAccepted}>Concluir e agendar depois</Button>
+                    <Button className="h-12" variant="outline" onClick={() => finishRegistration(false)} disabled={submitting}>Concluir e agendar depois</Button>
                   </div>
                 </div>
               </div>
@@ -1109,13 +1111,13 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
                   Continuar para cadastrar a venda
                 </Button>
               ) : (
-                <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting || !commitmentAccepted}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar agendamento</Button>
+                <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar agendamento</Button>
               )}
             </div>
           )}
 
           {step === "registered" && (
-            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">Seu sinal foi registrado. Anotamos que você pretende realizar o curso {intendedTime === "15_dias" ? "nos próximos 15 dias" : "nos próximos 30 dias"}. Quando quiser, você pode escolher a data sem preencher seus dados novamente.</p><div className="flex flex-col justify-center gap-2 sm:flex-row">{commitmentReceipt && <Button variant="outline" onClick={downloadCurrentCommitment}><FileDown className="mr-2 h-4 w-4" />Baixar termo em PDF</Button>}<Button onClick={() => setStep("date")}>Escolher data agora</Button><Button variant="outline" onClick={reset}>Voltar ao início</Button></div></CardContent></Card>
+            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">{existingRegistration ? "Encontramos seu cadastro deste curso. Quando quiser, você pode escolher ou alterar a data sem preencher seus dados novamente." : `Seu sinal foi registrado. Anotamos que você pretende realizar o curso ${intendedTime === "15_dias" ? "nos próximos 15 dias" : "nos próximos 30 dias"}. Quando quiser, você pode escolher a data sem preencher seus dados novamente.`}</p><div className="flex flex-col justify-center gap-2 sm:flex-row">{commitmentReceipt && <Button variant="outline" onClick={downloadCurrentCommitment}><FileDown className="mr-2 h-4 w-4" />Baixar termo em PDF</Button>}<Button onClick={() => setStep("date")}>Escolher data agora</Button><Button variant="outline" onClick={reset}>Voltar ao início</Button></div></CardContent></Card>
           )}
 
           {/* Loading step */}
