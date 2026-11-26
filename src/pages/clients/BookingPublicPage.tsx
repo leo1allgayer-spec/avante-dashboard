@@ -1127,16 +1127,37 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
                 <p className="mt-2 text-xs text-muted-foreground">O aceite registra o compromisso e não substitui a confirmação do pagamento do sinal. Quem já está agendado pode remarcar sem um novo aceite.</p>
               </section>
 
-              <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-                <p className="text-sm font-semibold">Você quer agendar o curso agora?</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Button className="h-12" size="lg" onClick={() => finishRegistration(true)} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar cadastro e compromisso</Button>
-                  <div className="flex gap-2">
-                    <Select value={intendedTime} onValueChange={(value: "15_dias" | "30_dias") => setIntendedTime(value)}><SelectTrigger className="h-12 flex-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="15_dias">Nos próximos 15 dias</SelectItem><SelectItem value="30_dias">Nos próximos 30 dias</SelectItem></SelectContent></Select>
-                    <Button className="h-12" variant="outline" onClick={() => finishRegistration(false)} disabled={submitting}>Concluir e agendar depois</Button>
+              <section className="rounded-2xl border border-border/60 bg-card/70 p-4 sm:p-5">
+                <div>
+                  <h3 className="text-base font-semibold">Como deseja continuar?</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Escolha se quer reservar uma data agora ou concluir o cadastro para agendar depois.</p>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col rounded-xl border border-primary/40 bg-primary/5 p-4">
+                    <h4 className="font-semibold">Quero agendar agora</h4>
+                    <p className="mt-1 min-h-10 text-sm text-muted-foreground">Depois do cadastro, você escolhe a data e o turno disponíveis para confirmar o curso.</p>
+                    <Button className="mt-4 min-h-12 w-full whitespace-normal" size="lg" onClick={() => finishRegistration(true)} disabled={submitting}>
+                      {submitting && <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />}
+                      Cadastrar e escolher data
+                    </Button>
+                  </div>
+                  <div className="flex flex-col rounded-xl border border-border bg-background/40 p-4">
+                    <h4 className="font-semibold">Quero agendar depois</h4>
+                    <p className="mt-1 min-h-10 text-sm text-muted-foreground">Seu cadastro e termo serão salvos agora. O curso ainda não ficará agendado e a data ficará como “A definir”.</p>
+                    <label className="mt-4 text-xs font-medium text-muted-foreground" htmlFor="intended-course-date">Quando pretende agendar?</label>
+                    <Select value={intendedTime} onValueChange={(value: "15_dias" | "30_dias") => setIntendedTime(value)}>
+                      <SelectTrigger id="intended-course-date" className="mt-1 h-11 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15_dias">Nos próximos 15 dias</SelectItem>
+                        <SelectItem value="30_dias">Nos próximos 30 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button className="mt-3 min-h-11 w-full whitespace-normal" variant="outline" onClick={() => finishRegistration(false)} disabled={submitting}>
+                      {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando cadastro…</> : "Concluir sem escolher data"}
+                    </Button>
                   </div>
                 </div>
-              </div>
+              </section>
             </div>
           )}
 
@@ -1158,7 +1179,7 @@ export default function BookingPublic({ internalMode = false }: { internalMode?:
           )}
 
           {step === "registered" && (
-            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">{existingRegistration ? "Encontramos seu cadastro deste curso. Quando quiser, você pode escolher ou alterar a data sem preencher seus dados novamente." : `Seu sinal foi registrado. Anotamos que você pretende realizar o curso ${intendedTime === "15_dias" ? "nos próximos 15 dias" : "nos próximos 30 dias"}. Quando quiser, você pode escolher a data sem preencher seus dados novamente.`}</p><div className="flex flex-col justify-center gap-2 sm:flex-row">{commitmentReceipt && <Button variant="outline" onClick={downloadCurrentCommitment}><FileDown className="mr-2 h-4 w-4" />Baixar termo em PDF</Button>}<Button onClick={() => setStep("date")}>Escolher data agora</Button><Button variant="outline" onClick={reset}>Voltar ao início</Button></div></CardContent></Card>
+            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">{existingRegistration ? "Encontramos seu cadastro deste curso. Quando quiser, você pode escolher ou alterar a data sem preencher seus dados novamente." : `Seu cadastro e termo foram salvos. O curso ainda não está agendado e a data ficará como “A definir”. Anotamos sua previsão de agendamento para ${intendedTime === "15_dias" ? "os próximos 15 dias" : "os próximos 30 dias"}.`}</p><div className="flex flex-col justify-center gap-2 sm:flex-row">{commitmentReceipt && <Button variant="outline" onClick={downloadCurrentCommitment}><FileDown className="mr-2 h-4 w-4" />Baixar termo em PDF</Button>}<Button onClick={() => setStep("date")}>Escolher data agora</Button><Button variant="outline" onClick={reset}>Voltar ao início</Button></div></CardContent></Card>
           )}
 
           {/* Loading step */}
