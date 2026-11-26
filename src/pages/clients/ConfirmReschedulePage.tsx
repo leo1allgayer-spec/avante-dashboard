@@ -97,7 +97,7 @@ export default function ConfirmReschedulePage() {
             const bookingId = row.booking_id;
             if (bookingId) {
               await supabase.functions.invoke("whatsapp-trigger", {
-                body: { bookingId },
+                body: { bookingId, rescheduled: true },
               });
             }
 

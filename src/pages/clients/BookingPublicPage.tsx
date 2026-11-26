@@ -1,6 +1,6 @@
 import {BOOKABLE_COURSES} from '@/constants/courseCatalog';
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabaseClients as supabase } from "@/integrations/supabase/clientsClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { format, parse, addDays, startOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  CalendarDays, Sun, CloudSun, ChevronLeft, ChevronRight, CheckCircle2, Loader2,
+  CalendarDays, Sun, CloudSun, ChevronLeft, ChevronRight, CheckCircle2, Loader2, FileDown, ShieldCheck,
 } from "lucide-react";
 import avanteLogo from "@/assets/logo-full.svg";
 import { courseShiftDisabled } from "@/lib/courseWeekAvailability";
+import { downloadCommitmentPdf, STUDENT_COMMITMENT_ACCEPTANCE, STUDENT_COMMITMENT_TEXT, STUDENT_COMMITMENT_TITLE, STUDENT_COMMITMENT_VERSION, type CommitmentAcceptance } from "@/lib/studentCommitment";
 
 const COURSES=BOOKABLE_COURSES.map(course=>({id:course.name,slug:course.slug,label:course.name,subtitle:'subtitle' in course?course.subtitle:undefined}));
 
@@ -23,6 +24,7 @@ const MAX_STUDENTS = 5;
 const DAYS_AHEAD = 60;
 const SAVED_REGISTRATION_KEY = "avante-course-registration";
 const currencyFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const normalizeCpf = (value: string) => value.replace(/\D/g, "");
 
 const parseMoney = (value: string) => {
   const normalized = value.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
@@ -36,6 +38,26 @@ const getSupabaseErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message;
   const maybeError = error as { message?: string; details?: string; hint?: string };
   return maybeError.message || maybeError.details || maybeError.hint || "";
+};
+
+const withRequestTimeout = async <T,>(
+  request: (signal: AbortSignal) => PromiseLike<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> => {
+  const controller = new AbortController();
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      controller.abort();
+      reject(new Error(message));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([Promise.resolve(request(controller.signal)), timeout]);
+  } finally {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  }
 };
 
 const normalizeShift = (time: string) => {
@@ -64,11 +86,12 @@ interface DateShift {
   available: boolean;
 }
 
-export default function BookingPublic() {
+export default function BookingPublic({ internalMode = false }: { internalMode?: boolean }) {
   const birthDateInput = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
   const { courseSlug } = useParams();
   const lockedCourse = useMemo(() => COURSES.find(c => c.slug === courseSlug), [courseSlug]);
-  const [step, setStep] = useState<"course" | "form" | "date" | "confirm" | "loading" | "registered" | "done" | "rescheduleSent">(() => lockedCourse ? "form" : "course");
+  const [step, setStep] = useState<"course" | "form" | "date" | "confirm" | "loading" | "registered" | "done" | "rescheduleSent">(() => internalMode ? "course" : lockedCourse ? "form" : "course");
   const [selectedCourse, setSelectedCourse] = useState(() => lockedCourse?.id || "");
   const [dateShifts, setDateShifts] = useState<DateShift[]>([]);
   const [selectedShift, setSelectedShift] = useState<DateShift | null>(null);
@@ -86,6 +109,17 @@ export default function BookingPublic() {
   const [lookupMessage, setLookupMessage] = useState("");
   const [existingCourseBooking, setExistingCourseBooking] = useState<ExistingCourseBooking | null>(null);
   const [showExistingBooking, setShowExistingBooking] = useState(false);
+  const [commitmentAccepted, setCommitmentAccepted] = useState(false);
+  const [commitmentError, setCommitmentError] = useState("");
+  const [commitmentReceipt, setCommitmentReceipt] = useState<CommitmentAcceptance | null>(null);
+  const registrationRequestIdRef = useRef<string | null>(null);
+  const updateForm = (updates: Partial<typeof form> | ((current: typeof form) => typeof form)) => {
+    setForm((current) => typeof updates === "function" ? updates(current) : { ...current, ...updates });
+    registrationRequestIdRef.current = null;
+    setCommitmentAccepted(false);
+    setCommitmentError("");
+    setCommitmentReceipt(null);
+  };
 
   useEffect(() => {
     try {
@@ -321,7 +355,10 @@ export default function BookingPublic() {
 
   const handleSelectCourse = (c: string) => {
     setSelectedCourse(c);
-    setStep("form");
+    setCommitmentAccepted(false);
+    setCommitmentReceipt(null);
+    setCommitmentError("");
+    setStep(internalMode ? "date" : "form");
   };
 
   const handleSelectShift = (s: DateShift) => {
@@ -359,8 +396,9 @@ export default function BookingPublic() {
         setLookupMessage("Cadastro não encontrado. Preencha os dados para realizar o cadastro.");
         return;
       }
-      setForm((current) => ({
+      updateForm((current) => ({
         ...current,
+        cpf,
         name: data.name || current.name,
         birthDate: data.birthDate || current.birthDate,
         phone: data.phone || current.phone,
@@ -384,10 +422,14 @@ export default function BookingPublic() {
   };
 
   const saveStudentRegistration = async (prazo: "agendar_agora" | "15_dias" | "30_dias") => {
-    const { data: studentId, error } = await supabase.rpc("register_future_student_from_booking" as any, {
+    const cpf = normalizeCpf(form.cpf);
+    if (cpf.length !== 11) throw new Error("Informe um CPF com 11 dígitos antes de continuar.");
+    const requestId = registrationRequestIdRef.current || (registrationRequestIdRef.current = crypto.randomUUID());
+    const { data, error } = await withRequestTimeout(
+      (signal) => (supabase as any).rpc("register_future_student_with_commitment", {
       p_nome: form.name.trim(),
       p_telefone: form.phone.trim(),
-      p_cpf: form.cpf.trim(),
+      p_cpf: cpf,
       p_curso: selectedCourse,
       p_valor_sinal: parseMoney(form.signalValue),
       p_data_nascimento: form.birthDate,
@@ -403,29 +445,84 @@ export default function BookingPublic() {
         prazo === "agendar_agora" ? "Aluno optou por agendar agora" : `Pretende realizar em: ${prazo === "15_dias" ? "até 15 dias" : "até 30 dias"}`,
         form.observation.trim(),
       ].filter(Boolean).join("\n"),
-    } as any);
+      p_accepted: commitmentAccepted,
+      p_request_id: requestId,
+      }).abortSignal(signal),
+      25_000,
+      "O cadastro está demorando para responder. Confira sua conexão e tente novamente; seus dados não serão duplicados.",
+    );
     if (error) throw error;
+    const studentId = data?.student_id as string | undefined;
+    const acceptance = data?.acceptance as CommitmentAcceptance | undefined;
+    if (!studentId || !acceptance?.id || !acceptance.accepted_at) throw new Error("O servidor não retornou o comprovante do aceite.");
+    registrationRequestIdRef.current = null;
+    setCommitmentReceipt(acceptance);
 
     if (existingRegistration) return;
 
-    const { error: notificationError } = await supabase.functions.invoke("notify-new-student", {
-      body: { studentId, course: selectedCourse },
-    });
-    if (notificationError) {
+    void withRequestTimeout(
+      (signal) => supabase.functions.invoke("notify-new-student", {
+        body: { studentId, course: selectedCourse }, signal,
+      }),
+      10_000,
+      "Tempo limite ao enviar a notificação interna.",
+    ).then(({ error: notificationError }) => {
+      if (notificationError) console.error("Cadastro salvo, mas a notificação interna não foi enviada:", notificationError);
+    }).catch((notificationError) => {
       console.error("Cadastro salvo, mas a notificação interna não foi enviada:", notificationError);
-    }
+    });
+  };
+
+  const recordCommitmentAcceptance = async (date: string | null = null, shift: string | null = null) => {
+    const cpf = normalizeCpf(form.cpf);
+    if (cpf.length !== 11) throw new Error("Informe um CPF com 11 dígitos para registrar o aceite.");
+    const { data, error } = await (supabase as any).rpc("record_student_commitment_acceptance", {
+      p_cpf: cpf,
+      p_course_name: selectedCourse,
+      p_course_date: date,
+      p_course_shift: shift,
+      p_accepted: commitmentAccepted,
+      p_request_id: crypto.randomUUID(),
+    });
+    if (error) throw error;
+    if (!data?.id || !data?.accepted_at) throw new Error("O servidor não retornou o comprovante do aceite.");
+    const receipt = data as CommitmentAcceptance;
+    setCommitmentReceipt(receipt);
+    return receipt;
+  };
+
+  const downloadCurrentCommitment = () => {
+    if (!commitmentReceipt) return;
+    downloadCommitmentPdf({
+      studentName: form.name.trim(), cpf: form.cpf.trim(), phone: form.phone.trim(), email: form.email.trim(),
+      courseName: selectedCourse,
+      signalValue: parseMoney(form.signalValue),
+      acceptance: commitmentReceipt,
+    });
   };
 
   const finishRegistration = async (scheduleNow: boolean) => {
     if (!validate()) return;
+    setCommitmentError("");
     setSubmitting(true);
     try {
-      const {data:existing,error:checkError}=await supabase.functions.invoke('reschedule-booking-request',{body:{action:'check',courseName:selectedCourse,studentName:form.name.trim(),email:form.email.trim(),phone:form.phone.trim(),cpf:form.cpf}});
+      const {data:existing,error:checkError}=await withRequestTimeout(
+        (signal) => supabase.functions.invoke('reschedule-booking-request',{body:{action:'check',courseName:selectedCourse,studentName:form.name.trim(),email:form.email.trim(),phone:form.phone.trim(),cpf:form.cpf}, signal}),
+        15_000,
+        "A verificação está demorando. Confira sua conexão e tente novamente.",
+      );
       if(checkError || existing?.error || typeof existing?.exists !== 'boolean') throw new Error(existing?.error || 'Não foi possível verificar sua inscrição. Tente novamente antes de continuar.');
       if(existing.exists && existing.currentBooking){
         setExistingCourseBooking(existing.currentBooking);
         setLookupMessage('Você já possui este curso agendado. Escolha uma nova data para confirmar a troca, sem gerar outra venda.');
-      } else await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      } else if (!existingRegistration) {
+        if (!commitmentAccepted) {
+          setCommitmentError("Leia e aceite o termo para concluir um novo cadastro.");
+          setSubmitting(false);
+          return;
+        }
+        await saveStudentRegistration(scheduleNow ? "agendar_agora" : intendedTime);
+      }
       localStorage.setItem(SAVED_REGISTRATION_KEY, JSON.stringify({ course: selectedCourse, form }));
       setSubmitting(false);
       setStep(scheduleNow ? "date" : "registered");
@@ -436,16 +533,18 @@ export default function BookingPublic() {
     }
   };
 
-  const keepExistingBooking = () => {
+  const keepExistingBooking = async () => {
     if (!existingCourseBooking) return;
-    setSelectedShift({
-      date: existingCourseBooking.date,
-      shift: normalizeShift(existingCourseBooking.shift),
-      bookedCount: 0,
-      available: true,
-    });
-    setShowExistingBooking(false);
-    setStep("done");
+    setSubmitting(true);
+    try {
+      setSelectedShift({ date: existingCourseBooking.date, shift: normalizeShift(existingCourseBooking.shift), bookedCount: 0, available: true });
+      setShowExistingBooking(false);
+      setStep("done");
+    } catch (error) {
+      alert(getSupabaseErrorMessage(error) || "Não foi possível registrar o aceite da data.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const replaceExistingBooking = async () => {
@@ -504,6 +603,15 @@ export default function BookingPublic() {
         setShowExistingBooking(true);
         setSubmitting(false);
         return;
+      }
+      if (!existingRegistration) {
+        if (!commitmentAccepted) {
+          setCommitmentError("Aceite o Termo de Compromisso para confirmar um novo agendamento.");
+          setStep("form");
+          setSubmitting(false);
+          return;
+        }
+        await recordCommitmentAcceptance(selectedShift.date, selectedShift.shift);
       }
       const { data: rpcData, error: rpcError } = await supabase.rpc("create_public_course_booking", {
         p_course_name: bookingPayload.courseName,
@@ -576,7 +684,10 @@ export default function BookingPublic() {
 
   const goBack = () => {
     if (step === "confirm") setStep("date");
-    else if (step === "date") setStep("form");
+    else if (step === "date") {
+      if (internalMode) { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
+      else { setStep("form"); setCommitmentAccepted(false); setCommitmentReceipt(null); setCommitmentError(""); }
+    }
     else if (step === "form" && !lockedCourse) { setStep("course"); setSelectedCourse(""); setDateShifts([]); }
   };
 
@@ -586,6 +697,9 @@ export default function BookingPublic() {
     setForm({ name: "", birthDate: "", email: "", phone: "55", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
     setErrors({ name: "", birthDate: "", email: "", phone: "", cpf: "", cep: "", city: "", address: "", signalValue: "", instagram: "", certificateName: "", observation: "" });
     setIntendedTime("15_dias");
+    setCommitmentAccepted(false);
+    setCommitmentError("");
+    setCommitmentReceipt(null);
   };
 
   // Build a set of available dates and their shifts
@@ -624,6 +738,13 @@ export default function BookingPublic() {
     <div className="min-h-screen bg-background text-foreground dot-pattern">
       <div className="min-h-screen bg-background/85">
         <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-8">
+          {internalMode && (
+            <div className="mb-3">
+              <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="mr-1 h-4 w-4" /> Voltar ao dashboard
+              </Button>
+            </div>
+          )}
           {/* Header */}
           <div className="mb-6 rounded-2xl border border-border/60 bg-card/70 p-5 shadow-lg shadow-black/10 backdrop-blur-lg sm:p-6">
             <div className="mb-4 flex items-center gap-3">
@@ -631,24 +752,23 @@ export default function BookingPublic() {
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground/60">Avante Digital</p>
                 <h1 className="font-display text-2xl font-extrabold tracking-tight text-foreground sm:text-4xl">
-                  Agende seu Curso
+                  {internalMode ? "Disponibilidade dos Cursos" : "Agende seu Curso"}
                 </h1>
               </div>
             </div>
             <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
-              Escolha o curso, registre seus dados e decida se deseja agendar agora.
+              {internalMode ? "Consulte os mesmos cursos e horários do formulário público. Esta consulta não reserva a vaga." : "Escolha o curso, registre seus dados e decida se deseja agendar agora."}
             </p>
           </div>
 
           {/* Step indicators */}
           {["course", "form", "date", "confirm"].includes(step) && (
-            <div className="mb-6 grid grid-cols-3 gap-2">
-              {[
-                { key: "course", label: "Curso" },
-                { key: "form", label: "Dados" },
-                { key: "date", label: "Agendamento" },
-              ].map((s, i) => {
-                const stepOrder = ["course", "form", "date"];
+            <div className={`mb-6 grid gap-2 ${internalMode ? "grid-cols-2" : "grid-cols-3"}`}>
+              {(internalMode
+                ? [{ key: "course", label: "Curso" }, { key: "date", label: "Disponibilidade" }]
+                : [{ key: "course", label: "Curso" }, { key: "form", label: "Dados" }, { key: "date", label: "Agendamento" }]
+              ).map((s, i) => {
+                const stepOrder = internalMode ? ["course", "date"] : ["course", "form", "date"];
                 const indicatorStep = step === "confirm" ? "date" : step;
                 const current = stepOrder.indexOf(indicatorStep);
                 const isActive = indicatorStep === s.key;
@@ -852,7 +972,7 @@ export default function BookingPublic() {
                     onChange={e => {
                       const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
                       const masked = digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-                      setForm({ ...form, cpf: masked });
+                      updateForm({ cpf: masked });
                       setExistingRegistration(false);
                       setLookupMessage("");
                       setErrors({ ...errors, cpf: "" });
@@ -874,7 +994,7 @@ export default function BookingPublic() {
                   <label className="text-sm font-medium">Nome completo <span className="text-destructive">*</span></label>
                   <Input
                     value={form.name}
-                    onChange={e => { setForm({ ...form, name: e.target.value }); setErrors({ ...errors, name: "" }); }}
+                    onChange={e => { updateForm({ name: e.target.value }); setErrors({ ...errors, name: "" }); }}
                     placeholder="Seu nome completo"
                     className={errors.name ? "border-destructive" : ""}
                   />
@@ -883,7 +1003,7 @@ export default function BookingPublic() {
                 <div className="space-y-1.5">
                   <label htmlFor="booking-birth-date" className="text-sm font-medium">Data de nascimento <span className="text-destructive">*</span></label>
                   <div className="flex flex-wrap gap-2">
-                    <Input ref={birthDateInput} id="booking-birth-date" type="date" autoComplete="bday" aria-invalid={!!errors.birthDate} value={form.birthDate} onChange={e => { setForm({ ...form, birthDate: e.target.value }); setErrors({ ...errors, birthDate: "" }); }} max={format(new Date(), "yyyy-MM-dd")} className={`h-12 min-w-0 flex-1 basis-40 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:p-2 ${errors.birthDate ? "border-destructive" : ""}`} />
+                    <Input ref={birthDateInput} id="booking-birth-date" type="date" autoComplete="bday" aria-invalid={!!errors.birthDate} value={form.birthDate} onChange={e => { updateForm({ birthDate: e.target.value }); setErrors({ ...errors, birthDate: "" }); }} max={format(new Date(), "yyyy-MM-dd")} className={`h-12 min-w-0 flex-1 basis-40 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:p-2 ${errors.birthDate ? "border-destructive" : ""}`} />
                     <Button type="button" variant="outline" className="h-12 gap-2 border-primary/60 bg-primary/10 px-4 text-primary hover:bg-primary/20" onClick={() => {
                       const input = birthDateInput.current;
                       if (!input) return;
@@ -898,7 +1018,7 @@ export default function BookingPublic() {
                   <Input
                     type="email"
                     value={form.email}
-                    onChange={e => { setForm({ ...form, email: e.target.value }); setErrors({ ...errors, email: "" }); }}
+                    onChange={e => { updateForm({ email: e.target.value }); setErrors({ ...errors, email: "" }); }}
                     placeholder="seu@email.com (opcional)"
                     className={errors.email ? "border-destructive" : ""}
                   />
@@ -912,7 +1032,7 @@ export default function BookingPublic() {
                       let val = e.target.value.replace(/\D/g, "");
                       if (!val.startsWith("55")) val = "55" + val;
                       if (val.length > 13) val = val.slice(0, 13);
-                      setForm({ ...form, phone: val });
+                      updateForm({ phone: val });
                       setErrors({ ...errors, phone: "" });
                     }}
                     placeholder="5551999999999"
@@ -923,27 +1043,27 @@ export default function BookingPublic() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">CEP <span className="text-destructive">*</span></label>
-                  <Input value={form.cep} onChange={e => { const digits = e.target.value.replace(/\D/g, "").slice(0, 8); const masked = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits; setForm({ ...form, cep: masked }); setErrors({ ...errors, cep: "" }); }} inputMode="numeric" placeholder="00000-000" className={errors.cep ? "border-destructive" : ""} />
+                  <Input value={form.cep} onChange={e => { const digits = e.target.value.replace(/\D/g, "").slice(0, 8); const masked = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits; updateForm({ cep: masked }); setErrors({ ...errors, cep: "" }); }} inputMode="numeric" placeholder="00000-000" className={errors.cep ? "border-destructive" : ""} />
                   {errors.cep && <p className="text-xs text-destructive mt-1">{errors.cep}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Cidade <span className="text-destructive">*</span></label>
-                  <Input value={form.city} onChange={e => { setForm({ ...form, city: e.target.value }); setErrors({ ...errors, city: "" }); }} placeholder="Sua cidade" className={errors.city ? "border-destructive" : ""} />
+                  <Input value={form.city} onChange={e => { updateForm({ city: e.target.value }); setErrors({ ...errors, city: "" }); }} placeholder="Sua cidade" className={errors.city ? "border-destructive" : ""} />
                   {errors.city && <p className="text-xs text-destructive mt-1">{errors.city}</p>}
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <label className="text-sm font-medium">Endereço completo <span className="text-destructive">*</span></label>
-                  <Input value={form.address} onChange={e => { setForm({ ...form, address: e.target.value }); setErrors({ ...errors, address: "" }); }} placeholder="Rua, bairro, número e complemento" className={errors.address ? "border-destructive" : ""} />
+                  <Input value={form.address} onChange={e => { updateForm({ address: e.target.value }); setErrors({ ...errors, address: "" }); }} placeholder="Rua, bairro, número e complemento" className={errors.address ? "border-destructive" : ""} />
                   {errors.address && <p className="text-xs text-destructive mt-1">{errors.address}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Valor do sinal pago <span className="text-destructive">*</span></label>
                   <Input
                     value={form.signalValue}
-                    onChange={e => { setForm({ ...form, signalValue: e.target.value }); setErrors({ ...errors, signalValue: "" }); }}
+                    onChange={e => { updateForm({ signalValue: e.target.value }); setErrors({ ...errors, signalValue: "" }); }}
                     onBlur={() => {
                       const value = parseMoney(form.signalValue);
-                      if (value > 0) setForm(current => ({ ...current, signalValue: currencyFormatter.format(value) }));
+                      if (value > 0) updateForm(current => ({ ...current, signalValue: currencyFormatter.format(value) }));
                     }}
                     placeholder="R$ 0,00"
                     inputMode="decimal"
@@ -955,7 +1075,7 @@ export default function BookingPublic() {
                   <label className="text-sm font-medium">Instagram</label>
                   <Input
                     value={form.instagram}
-                    onChange={e => { setForm({ ...form, instagram: e.target.value }); }}
+                    onChange={e => { updateForm({ instagram: e.target.value }); }}
                     placeholder="@seuusuario"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Opcional</p>
@@ -964,7 +1084,7 @@ export default function BookingPublic() {
                   <label className="text-sm font-medium">Nome para o certificado</label>
                   <Input
                     value={form.certificateName}
-                    onChange={e => { setForm({ ...form, certificateName: e.target.value }); }}
+                    onChange={e => { updateForm({ certificateName: e.target.value }); }}
                     placeholder="Nome que deseja no certificado"
                   />
                   <p className="text-xs text-muted-foreground mt-1">Se deixar em branco, será usado o nome completo</p>
@@ -973,23 +1093,71 @@ export default function BookingPublic() {
                   <label className="text-sm font-medium">Observação</label>
                   <Textarea
                     value={form.observation}
-                    onChange={e => setForm({ ...form, observation: e.target.value })}
+                    onChange={e => updateForm({ observation: e.target.value })}
                     placeholder="Informação adicional sobre o pagamento ou cadastro (opcional)"
                     className="min-h-[82px]"
                   />
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border/60 bg-card/70 p-4">
-                <p className="text-sm font-semibold">Você quer agendar o curso agora?</p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Button className="h-12" size="lg" onClick={() => finishRegistration(true)} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sim, escolher data agora</Button>
-                  <div className="flex gap-2">
-                    <Select value={intendedTime} onValueChange={(value: "15_dias" | "30_dias") => setIntendedTime(value)}><SelectTrigger className="h-12 flex-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="15_dias">Nos próximos 15 dias</SelectItem><SelectItem value="30_dias">Nos próximos 30 dias</SelectItem></SelectContent></Select>
-                    <Button className="h-12" variant="outline" onClick={() => finishRegistration(false)} disabled={submitting}>Só concluir</Button>
+              <section className="rounded-2xl border border-primary/25 bg-card/80 p-4 shadow-lg shadow-black/10 sm:p-5" aria-labelledby="commitment-title">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                  <div>
+                    <h3 id="commitment-title" className="font-semibold">{STUDENT_COMMITMENT_TITLE}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">{existingRegistration ? "Este curso já consta no seu cadastro; você pode agendar ou remarcar sem aceitar o termo novamente." : "Para um novo cadastro, leia e aceite antes de continuar."} · versão {STUDENT_COMMITMENT_VERSION}</p>
                   </div>
                 </div>
-              </div>
+                <div className="mt-4 space-y-3 text-sm leading-relaxed text-muted-foreground">
+                  {STUDENT_COMMITMENT_TEXT.split(/\n\s*\n/).slice(1).map((paragraph, index) => {
+                    const highlighted = paragraph.startsWith("Compromisso de comparecimento:") || paragraph.startsWith("Segundo não comparecimento:");
+                    return <p key={index} className={highlighted ? "rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-foreground" : ""}>{paragraph}</p>;
+                  })}
+                </div>
+                <label className={`mt-5 flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm ${commitmentError ? "border-destructive bg-destructive/5" : "border-border/60 bg-background/40"}`}>
+                  <input
+                    type="checkbox"
+                    checked={commitmentAccepted}
+                    onChange={(event) => { setCommitmentAccepted(event.target.checked); setCommitmentError(""); }}
+                    className="mt-1 h-4 w-4 shrink-0 accent-primary"
+                  />
+                  <span>{STUDENT_COMMITMENT_ACCEPTANCE}</span>
+                </label>
+                {commitmentError && <p role="alert" className="mt-2 text-xs text-destructive">{commitmentError}</p>}
+                <p className="mt-2 text-xs text-muted-foreground">O aceite registra o compromisso e não substitui a confirmação do pagamento do sinal. Quem já está agendado pode remarcar sem um novo aceite.</p>
+              </section>
+
+              <section className="rounded-2xl border border-border/60 bg-card/70 p-4 sm:p-5">
+                <div>
+                  <h3 className="text-base font-semibold">Como deseja continuar?</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Escolha se quer reservar uma data agora ou concluir o cadastro para agendar depois.</p>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col rounded-xl border border-primary/40 bg-primary/5 p-4">
+                    <h4 className="font-semibold">Quero agendar agora</h4>
+                    <p className="mt-1 min-h-10 text-sm text-muted-foreground">Depois do cadastro, você escolhe a data e o turno disponíveis para confirmar o curso.</p>
+                    <Button className="mt-4 min-h-12 w-full whitespace-normal" size="lg" onClick={() => finishRegistration(true)} disabled={submitting}>
+                      {submitting && <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" />}
+                      Cadastrar e escolher data
+                    </Button>
+                  </div>
+                  <div className="flex flex-col rounded-xl border border-border bg-background/40 p-4">
+                    <h4 className="font-semibold">Quero agendar depois</h4>
+                    <p className="mt-1 min-h-10 text-sm text-muted-foreground">Seu cadastro e termo serão salvos agora. O curso ainda não ficará agendado e a data ficará como “A definir”.</p>
+                    <label className="mt-4 text-xs font-medium text-muted-foreground" htmlFor="intended-course-date">Quando pretende agendar?</label>
+                    <Select value={intendedTime} onValueChange={(value: "15_dias" | "30_dias") => setIntendedTime(value)}>
+                      <SelectTrigger id="intended-course-date" className="mt-1 h-11 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15_dias">Nos próximos 15 dias</SelectItem>
+                        <SelectItem value="30_dias">Nos próximos 30 dias</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button className="mt-3 min-h-11 w-full whitespace-normal" variant="outline" onClick={() => finishRegistration(false)} disabled={submitting}>
+                      {submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando cadastro…</> : "Concluir sem escolher data"}
+                    </Button>
+                  </div>
+                </div>
+              </section>
             </div>
           )}
 
@@ -997,12 +1165,21 @@ export default function BookingPublic() {
             <div className="space-y-4">
               <Button variant="ghost" size="sm" onClick={goBack} className="text-muted-foreground hover:text-foreground"><ChevronLeft className="mr-1 h-4 w-4" /> Voltar</Button>
               <Card className="rounded-2xl border-primary/20 bg-primary/10"><CardContent className="p-5"><div className="text-xs text-muted-foreground">Confirme seu agendamento:</div><div className="mt-1 font-semibold">{selectedCourseInfo?.label || selectedCourse}</div><div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDate(selectedShift.date)}</span><span className="flex items-center gap-1.5">{shiftIcon(selectedShift.shift)}{shiftDescription(selectedShift.shift)}</span></div></CardContent></Card>
-              <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar agendamento</Button>
+              {internalMode ? (
+                <Button className="h-12 w-full" size="lg" onClick={() => {
+                  const params = new URLSearchParams({ novo: "1", produto: selectedCourse, agendaData: selectedShift.date, agendaTurno: selectedShift.shift });
+                  navigate(`/vendas?${params.toString()}`);
+                }}>
+                  Continuar para cadastrar a venda
+                </Button>
+              ) : (
+                <Button className="h-12 w-full" size="lg" onClick={handleSubmit} disabled={submitting}>{submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar agendamento</Button>
+              )}
             </div>
           )}
 
           {step === "registered" && (
-            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">Seu sinal foi registrado. Anotamos que você pretende realizar o curso {intendedTime === "15_dias" ? "nos próximos 15 dias" : "nos próximos 30 dias"}. Quando quiser, você pode escolher a data sem preencher seus dados novamente.</p><div className="flex flex-col justify-center gap-2 sm:flex-row"><Button onClick={() => setStep("date")}>Escolher data agora</Button><Button variant="outline" onClick={reset}>Voltar ao início</Button></div></CardContent></Card>
+            <Card className="mx-auto max-w-xl rounded-2xl border-success/30 bg-card/70"><CardContent className="space-y-4 p-8 text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-success/10 text-success"><CheckCircle2 className="h-9 w-9" /></div><h2 className="font-display text-2xl font-bold">Cadastro concluído!</h2><p className="text-muted-foreground">{existingRegistration ? "Encontramos seu cadastro deste curso. Quando quiser, você pode escolher ou alterar a data sem preencher seus dados novamente." : `Seu cadastro e termo foram salvos. O curso ainda não está agendado e a data ficará como “A definir”. Anotamos sua previsão de agendamento para ${intendedTime === "15_dias" ? "os próximos 15 dias" : "os próximos 30 dias"}.`}</p><div className="flex flex-col justify-center gap-2 sm:flex-row">{commitmentReceipt && <Button variant="outline" onClick={downloadCurrentCommitment}><FileDown className="mr-2 h-4 w-4" />Baixar termo em PDF</Button>}<Button onClick={() => setStep("date")}>Escolher data agora</Button><Button variant="outline" onClick={reset}>Voltar ao início</Button></div></CardContent></Card>
           )}
 
           {/* Loading step */}
@@ -1039,6 +1216,7 @@ export default function BookingPublic() {
                     </span>
                   </div>
                 )}
+                {commitmentReceipt && <Button variant="outline" onClick={downloadCurrentCommitment}><FileDown className="mr-2 h-4 w-4" />Baixar termo aceito em PDF</Button>}
                 <Button variant="outline" onClick={reset}>
                   Voltar para agenda
                 </Button>

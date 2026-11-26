@@ -146,9 +146,10 @@ Deno.serve(async (req) => {
 
     // Reuse the internal instructor notice type, now routing Meta to its saved teacher.
     let googleManagerNotified = sentMessageTypes.has("google_manager_notification");
+    const assignedInstructor = ['Nicolas', 'Henrique'].includes(String(booking.instructor || '').trim());
     const teacherPhone = booking.instructor === 'Nicolas' ? '5551998119283' : booking.instructor === 'Henrique' ? '555197152836' : null;
     const isSpecialTime = Boolean(booking.time && !['Manhã','Tarde','08:30','14:00'].includes(String(booking.time).trim()));
-    const hasAssignedTeacher = ['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online','Curso em Turma'].includes(booking.course_name) || isSpecialTime;
+    const hasAssignedTeacher = assignedInstructor || ['Curso Meta Ads','Curso Meta Ads Avançado','Curso Meta Ads Online','Curso em Turma'].includes(booking.course_name) || isSpecialTime;
     const recipient = hasAssignedTeacher ? teacherPhone : String(booking.course_name || '').toLowerCase().includes('google ads') ? '555197152836' : null;
     if (!googleManagerNotified && recipient) {
       const [year,month,day]=booking.date.split('-');
