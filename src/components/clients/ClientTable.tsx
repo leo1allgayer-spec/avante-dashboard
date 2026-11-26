@@ -265,8 +265,8 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
-        <div className="overflow-x-auto overscroll-contain">
+      <div className="rounded-lg border border-border bg-card/30">
+        <div className="overflow-x-auto overscroll-contain rounded-lg">
         <table className={cn(summaryOnly ? (canViewMetaBalance ? "min-w-[1465px]" : "min-w-[1335px]") : hideInternalFinancial ? "min-w-[1450px]" : hideContractValues ? "min-w-[1680px]" : hideContractAmounts ? "min-w-[1820px]" : "min-w-[2030px]", "w-full table-fixed text-xs")}>
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
