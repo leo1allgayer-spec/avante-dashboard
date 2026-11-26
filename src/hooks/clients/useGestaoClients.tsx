@@ -231,8 +231,12 @@ export function useClients(area: ClientArea = "meta_ads") {
 
   useEffect(() => {
     if (!session?.user?.id) return;
+    // Several dashboard widgets can mount this hook for the same area at once.
+    // Supabase reuses channels by name, so sharing a name can return an already
+    // subscribed channel and throw when another hook attaches postgres_changes.
+    const instanceId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const channel = supabase
-      .channel(`gestao-clients-realtime-${area}`)
+      .channel(`gestao-clients-realtime-${area}-${instanceId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "gestao_clients" }, () => fetchClients())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
