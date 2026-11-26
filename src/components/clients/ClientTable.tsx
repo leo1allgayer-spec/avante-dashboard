@@ -270,7 +270,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
         <table className={cn(summaryOnly ? (canViewMetaBalance ? "min-w-[1465px]" : "min-w-[1335px]") : hideInternalFinancial ? "min-w-[1450px]" : hideContractValues ? "min-w-[1680px]" : hideContractAmounts ? "min-w-[1820px]" : "min-w-[2030px]", "w-full table-fixed text-xs")}>
           <thead className="sticky top-0 z-20 bg-secondary shadow-sm shadow-background/40">
             <tr>
-              <SortHeader label="Cliente" sortField="name" className="w-[185px]" />
+              <SortHeader label="Cliente" sortField="name" className="sticky left-0 z-30 w-[185px] bg-secondary shadow-[6px_0_8px_-6px_rgba(0,0,0,0.8)]" />
               <StaticHeader label="Instagram" className="w-[130px]" />
               <StaticHeader label="Gestor" className="w-[70px]" />
               <StaticHeader label="Status" className="w-[70px]" />
@@ -302,7 +302,7 @@ export function ClientTable({ clients, onClientClick, onUpdateClient, onDeleteCl
                 )}
                 onClick={() => { if (!summaryOnly) onClientClick(client.id); }}
               >
-                <td className="px-2 py-2 font-medium whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                <td className={cn("sticky left-0 z-10 px-2 py-2 font-medium whitespace-nowrap shadow-[6px_0_8px_-6px_rgba(0,0,0,0.75)] group-hover:bg-accent/50", filtered.indexOf(client) % 2 === 1 ? "bg-muted" : "bg-card")} onClick={(e) => e.stopPropagation()}>
                   <div className="max-w-[140px] truncate" title={client.name}>
                     <div>{renderEditable(client, "name", client.name)}</div>
                     <Select value={client.level || "nao_definido"} onValueChange={value => onUpdateClient({ ...client, level: value as Client["level"] })}>
