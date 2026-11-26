@@ -13,6 +13,7 @@ import { useClients } from "@/hooks/useClients";
 import { useVendas } from "@/hooks/useVendas";
 import { useCursosDados } from "@/hooks/useCursosDados";
 import { isCourseCategory } from "@/constants/serviceCategories";
+import { findCourse } from "@/constants/courseCatalog";
 import { useMeetings } from "@/hooks/clients/useMeetings";
 import { agendaActivityCounts, dailyMeetingGoal, defaultMeetingAnalytics, meetingAnalytics } from "@/lib/meetingAnalytics";
 import { useMeetingAdInvestment } from "@/hooks/clients/useMeetingAdInvestment";
@@ -205,6 +206,11 @@ const DashboardTVPage = () => {
     const vendasHoje = vendasMes.filter((v) => v.data === todayKey);
     const cursosVendidosMes = vendasMes.filter((v) => isCourseCategory(v.servico || v.produto));
     const cursosFeitosMes = cursosDados.filter((c) => dateInRange(c.data, rangeStart, rangeEnd) && !!c.survey_response_id);
+    const isGroupCourse = (name?: string | null) => findCourse(name)?.id === "turma";
+    const cursosVendidosNormais = cursosVendidosMes.filter((v) => !isGroupCourse(v.servico || v.produto));
+    const cursosVendidosTurma = cursosVendidosMes.filter((v) => isGroupCourse(v.servico || v.produto));
+    const cursosFeitosNormais = cursosFeitosMes.filter((c) => !isGroupCourse(c.tipo_curso));
+    const cursosFeitosTurma = cursosFeitosMes.filter((c) => isGroupCourse(c.tipo_curso));
 
     const fechamentosAtivos = fechamentos.filter((f) => normalizeStatus(f.status) !== "cancelado");
     const fechamentosMes = fechamentosAtivos.filter((f) =>
@@ -266,6 +272,10 @@ const DashboardTVPage = () => {
       cursosVendidosHoje: cursosVendidosMes.filter((v) => v.data === todayKey).length,
       cursosFeitosMes: cursosFeitosMes.length,
       cursosFeitosHoje: cursosFeitosMes.filter((c) => c.data === todayKey).length,
+      cursosVendidosNormais,
+      cursosVendidosTurma,
+      cursosFeitosNormais,
+      cursosFeitosTurma,
       fechamentosMes,
       faturamentoMes,
       faturamentoHoje,
@@ -650,29 +660,37 @@ const DashboardTVPage = () => {
           return (
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.65 }}
               className="col-span-5 rounded-2xl p-3 flex flex-col min-w-0 min-h-0" style={cardStyle}>
-              <p className="text-sm uppercase tracking-[0.08em] text-slate-300 font-medium mb-2">Cursos · {range.label}</p>
-              <div className="flex-1 min-h-0 flex">
-                <div className="w-full grid grid-cols-2 gap-4 items-center">
+              <p className="text-sm uppercase tracking-[0.08em] text-slate-300 font-medium mb-2">Cursos · {range.label}<TVHideButton id="course:split" label="Cursos"/></p>
+              <TVSecret id="course:split">
+                <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: "Cursos vendidos", value: tvData.cursosVendidosMes, today: tvData.cursosVendidosHoje },
-                    { label: "Cursos feitos", value: tvData.cursosFeitosMes, today: tvData.cursosFeitosHoje },
-                  ].map((item) => (
-                    <div key={item.label}>
-                      <p className="text-sm text-slate-300">{item.label} · {range.label}<TVHideButton id={'course:'+item.label} label={item.label}/></p>
-                      <TVSecret id={'course:'+item.label}>
-                      <p className="text-4xl xl:text-5xl font-display font-bold tabular-nums">{item.value}</p>
-                      <p className="text-xs text-slate-300">Hoje: {item.today}</p>
-                      <p className="text-xs text-slate-300 mt-1">
-                        {metaCursos > 0 ? `Meta mensal: ${metaCursos} · ${item.value >= metaCursos ? "Meta atingida!" : `Faltam ${Math.max(0, metaCursos - item.value)}`}` : "Meta não definida"}
-                      </p>
-                      <div role="progressbar" aria-label={`Progresso de ${item.label.toLowerCase()}`} aria-valuenow={metaCursos > 0 ? Math.min(100, item.value / metaCursos * 100) : 0} aria-valuemin={0} aria-valuemax={100} className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                        <div className={`h-full rounded-full ${metaCursos > 0 && item.value >= metaCursos ? "bg-emerald-400" : "bg-violet-500"}`} style={{ width: `${metaCursos > 0 ? Math.min(100, item.value / metaCursos * 100) : 0}%` }} />
+                    { id: "normal", label: "Cursos normais", sold: tvData.cursosVendidosNormais, done: tvData.cursosFeitosNormais },
+                    { id: "turma", label: "Cursos em turma", sold: tvData.cursosVendidosTurma, done: tvData.cursosFeitosTurma },
+                  ].map((group) => (
+                    <div key={group.id} className="min-w-0 rounded-xl border border-white/10 bg-black/10 p-2">
+                      <p className="truncate text-xs font-semibold text-slate-200">{group.label}</p>
+                      <div className="mt-1 grid grid-cols-2 gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-[10px] text-slate-400">Vendidos · {range.label}</p>
+                          <p className="text-2xl font-display font-bold tabular-nums">{group.sold.length}</p>
+                          <p className="text-[10px] text-slate-400">Hoje: {group.sold.filter((v) => v.data === todayKey).length}</p>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-[10px] text-slate-400">Feitos · {range.label}</p>
+                          <p className="text-2xl font-display font-bold tabular-nums">{group.done.length}</p>
+                          <p className="text-[10px] text-slate-400">Hoje: {group.done.filter((c) => c.data === todayKey).length}</p>
+                        </div>
                       </div>
-                      </TVSecret>
                     </div>
                   ))}
                 </div>
-              </div>
+                <p className="mt-2 text-[10px] text-slate-400">
+                  {metaCursos > 0 ? `Meta mensal geral: ${metaCursos} · Vendidos no período: ${tvData.cursosVendidosMes} · ${tvData.cursosVendidosMes >= metaCursos ? "Meta atingida!" : `Faltam ${Math.max(0, metaCursos - tvData.cursosVendidosMes)}`}` : "Meta não definida"}
+                </p>
+                <div role="progressbar" aria-label="Progresso da meta geral de cursos vendidos" aria-valuenow={metaCursos > 0 ? Math.min(100, tvData.cursosVendidosMes / metaCursos * 100) : 0} aria-valuemin={0} aria-valuemax={100} className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                  <div className={`h-full rounded-full ${metaCursos > 0 && tvData.cursosVendidosMes >= metaCursos ? "bg-emerald-400" : "bg-violet-500"}`} style={{ width: `${metaCursos > 0 ? Math.min(100, tvData.cursosVendidosMes / metaCursos * 100) : 0}%` }} />
+                </div>
+              </TVSecret>
             </motion.div>
           );
         })()}
