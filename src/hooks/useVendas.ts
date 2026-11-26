@@ -100,11 +100,24 @@ export function useUpdateVenda() {
 export function useDeleteVenda() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("vendas").delete().eq("id", id);
-      if (error) throw error;
+    mutationFn: async (items: Array<{ id: string; closingId?: string | null; creativeId?: string | null; expectedUpdatedAt?: string | null }>) => {
+      const { error } = await supabase.rpc("delete_sale_items" as any, {
+        p_items: items.map((item) => ({
+          sale_id: item.id,
+          closing_id: item.closingId || null,
+          creative_id: item.creativeId || null,
+          expected_updated_at: item.expectedUpdatedAt || null,
+        })) as any,
+      });
+      if (error) throw new Error(error.message || "Não foi possível remover a venda.");
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["vendas"] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["vendas"] }),
+        qc.invalidateQueries({ queryKey: ["fechamentos_diarios"] }),
+        qc.invalidateQueries({ queryKey: ["criativos_vendas"] }),
+      ]);
+    },
   });
 }
 

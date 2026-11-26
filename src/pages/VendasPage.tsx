@@ -695,6 +695,7 @@ const VendasPage = () => {
         comissaoPaga: +comissaoPaga.toFixed(2),
         comissaoPendente: pendingEarnedCommission(comissaoCalculadaSobreRecebido, comissaoPaga),
         paymentHistory,
+        fechamentosRelacionados,
         coletadoPeriodo,
         taxasMaquininhaPeriodo,
         aReceberPeriodo,
@@ -714,6 +715,50 @@ const VendasPage = () => {
       return ultimoLancamentoB - ultimoLancamentoA;
     });
   }, [tableFilteredSales, fechamentos, courseBookings, taxProfile, statusFilter, dateFilter.range.start, dateFilter.range.end]);
+
+  const removeVendaGroup = async (grupo: (typeof vendasAgrupadas)[number]) => {
+    const usedFechamentos = new Set<string>();
+    const usedCriativos = new Set<string>();
+    const items = grupo.itens.map((venda) => {
+      const categoria = getVendaCategoria(venda);
+      const fechamento = grupo.fechamentosRelacionados
+        .filter((item) =>
+          !usedFechamentos.has(item.id) &&
+          !item.venda_id &&
+          normalizeFechamentoStatus(item.status) !== "cancelado" &&
+          item.cliente.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+          item.vendedor.trim().toLowerCase() === venda.vendedor.trim().toLowerCase() &&
+          getFechamentoCategoria(item) === categoria,
+        )
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] || null;
+      if (fechamento) usedFechamentos.add(fechamento.id);
+      const criativosCorrespondentes = criativosVendas.filter((item) =>
+        item.data === venda.data &&
+        item.nome_aluno.trim().toLowerCase() === venda.cliente.trim().toLowerCase() &&
+        Number(item.valor_curso || 0) === Number(venda.valor || 0) &&
+        !usedCriativos.has(item.id),
+      );
+      const criativo = criativosCorrespondentes.length === 1 ? criativosCorrespondentes[0] : null;
+      if (criativo) usedCriativos.add(criativo.id);
+      return {
+        id: venda.id,
+        closingId: fechamento?.id || null,
+        creativeId: criativo?.id || null,
+        expectedUpdatedAt: venda.updated_at,
+      };
+    });
+
+    try {
+      await deleteVenda.mutateAsync(items);
+      toast({ title: "Venda removida", description: "A venda e os registros financeiros vinculados foram removidos." });
+    } catch (err) {
+      toast({
+        title: "Erro ao remover venda",
+        description: err instanceof Error ? err.message : "Não foi possível remover a venda. Atualize a página e tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const exportSalesPeriod = () => {
     const rows = salesWithPendingCommission(vendasAgrupadas);
@@ -2453,7 +2498,7 @@ const VendasPage = () => {
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openEditDialog(grupo.itens)} title="Editar venda">
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => Promise.all(grupo.itens.map((item) => deleteVenda.mutateAsync(item.id))).then(() => toast({ title: "Venda removida" })).catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }))} title="Remover venda">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => void removeVendaGroup(grupo)} disabled={deleteVenda.isPending} title="Remover venda">
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -2637,7 +2682,7 @@ const VendasPage = () => {
                     </TableCell>
                     <TableCell className="px-2 py-4">{grupo.saldo > 0 ? <Button type="button" size="sm" className="h-8 w-full px-2 text-xs" disabled={settlingSaleKey === grupo.chave} onClick={() => settleRemainingBalance(grupo.chave, grupo.itens)}>{settlingSaleKey === grupo.chave ? "..." : "Registrar"}</Button> : <Badge variant="secondary" className="px-2 text-[10px]">Quitado</Badge>}</TableCell>
                     <TableCell className="px-2 py-3"><Badge className="max-w-full truncate px-1.5 text-[9px]" variant={statusVenda === "paga" || statusVenda === "aprovada" ? "default" : statusVenda === "cancelada" ? "destructive" : "outline"}>{statusVenda === "paga" ? "pago" : statusVenda}</Badge></TableCell>
-                    <TableCell className="px-1 py-3"><div className="flex items-center justify-end gap-0.5"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(grupo.itens)} title="Editar venda"><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => Promise.all(grupo.itens.map((item) => deleteVenda.mutateAsync(item.id))).then(() => toast({ title: "Venda removida" })).catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }))} title="Remover venda"><Trash2 className="h-3.5 w-3.5" /></Button></div></TableCell>
+                    <TableCell className="px-1 py-3"><div className="flex items-center justify-end gap-0.5"><Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(grupo.itens)} title="Editar venda"><Pencil className="h-3.5 w-3.5" /></Button><Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => void removeVendaGroup(grupo)} disabled={deleteVenda.isPending} title="Remover venda"><Trash2 className="h-3.5 w-3.5" /></Button></div></TableCell>
                   </TableRow>
                 );
               })}
@@ -2889,9 +2934,8 @@ const VendasPage = () => {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => Promise.all(grupo.itens.map((item) => deleteVenda.mutateAsync(item.id)))
-                              .then(() => toast({ title: grupo.itens.length > 1 ? "Venda e seus itens removidos" : "Venda removida" }))
-                              .catch((err) => toast({ title: "Erro", description: err.message, variant: "destructive" }))}
+                            onClick={() => void removeVendaGroup(grupo)}
+                            disabled={deleteVenda.isPending}
                             title={grupo.itens.length > 1 ? "Remover toda a venda agrupada" : "Remover venda"}
                           >
                             <Trash2 className="h-3.5 w-3.5" />

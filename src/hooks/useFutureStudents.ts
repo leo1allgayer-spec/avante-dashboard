@@ -129,7 +129,7 @@ export function useDeleteFutureStudent() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("alunos_futuros" as any).delete().eq("id", id);
-      if (error) throw error;
+      if (error) throw new Error(error.message || "Não foi possível remover o cadastro do aluno.");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["future-students"] }),
   });
