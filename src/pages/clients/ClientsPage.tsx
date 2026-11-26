@@ -11,6 +11,7 @@ import { Link, Navigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
 import { hasFullClientManagementAccess } from "@/lib/accessControl";
+import { ClientInPersonAlert } from "@/components/clients/ClientInPersonAlert";
 
 const Index = () => {
   const { session } = useAuth();
@@ -67,6 +68,7 @@ const Index = () => {
         />
       ) : (
         <div className="space-y-8">
+          <ClientInPersonAlert />
           <ClientTable
             clients={clients}
             onClientClick={setSelectedId}

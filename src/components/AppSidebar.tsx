@@ -83,7 +83,7 @@ export function AppSidebar() {
   const summaryOnly = isClientSummaryUser(session?.user);
   const googleTasksOnly = isGoogleTasksOnlyUser(session?.user?.email) || summaryOnly;
 
-  const visibleGestaoItems = socialOnly ? [...metricsItems, ...gestaoItems].filter(item => SOCIAL_OPERATION_PATHS.has(item.url)) : summaryOnly ? [...gestaoItems.filter(item => item.url === "/gestao-clientes" || item.url === "/gestor-tarefas"), { title: "Agenda Geral", url: "/agenda-geral", icon: CalendarDays }, ...(canAccessSupportSchedule(session?.user) ? [{ title: "Agenda de Suporte", url: "/agenda-suporte", icon: CalendarCheck2 }] : [])] : googleTasksOnly
+  const visibleGestaoItems = socialOnly ? [...metricsItems, ...gestaoItems].filter(item => SOCIAL_OPERATION_PATHS.has(item.url)) : summaryOnly ? [...gestaoItems.filter(item => item.url === "/gestao-clientes" || item.url === "/agenda-relatorios-presenciais" || item.url === "/gestor-tarefas"), { title: "Agenda Geral", url: "/agenda-geral", icon: CalendarDays }, ...(canAccessSupportSchedule(session?.user) ? [{ title: "Agenda de Suporte", url: "/agenda-suporte", icon: CalendarCheck2 }] : [])] : googleTasksOnly
     ? [
         { title: "Cursos Google e Meta Ads", url: "/tasks", icon: GraduationCap },
         { title: "Clientes Google Ads", url: "/clientes-google-ads", icon: Users2 },

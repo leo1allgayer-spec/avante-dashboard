@@ -29,6 +29,7 @@ export const metricsItems = [
 
 export const gestaoItems = [
   { title: "Clientes", url: "/gestao-clientes", icon: Users2 },
+  { title: "Agenda presencial", url: "/agenda-relatorios-presenciais", icon: CalendarDays },
   { title: "Clientes MRV", url: "/contrato-cliente", icon: ReceiptText },
   { title: "NPS dos Clientes", url: "/nps-clientes", icon: ClipboardList },
   { title: "Métricas dos Clientes", url: "/metricas-clientes", icon: BarChart3 },
@@ -57,7 +58,7 @@ export const navigationGroups = [
  { title: 'Vendas e reuniões', paths: ['/vendas', '/planilha', '/reunioes', '/metricas-reunioes'] },
  { title: 'Marketing e anúncios', paths: ['/criativos', '/campanhas', '/meta-pixel'] },
  { title: 'Financeiro', paths: ['/faturamento', '/boletos', '/despesas-financeiras', '/pagamentos'] },
- { title: 'Clientes', paths: ['/gestao-clientes', '/clientes-google-ads', '/contrato-cliente', '/notas-clientes', '/metricas-clientes', '/nps-clientes'] },
+ { title: 'Clientes', paths: ['/gestao-clientes', '/agenda-relatorios-presenciais', '/clientes-google-ads', '/contrato-cliente', '/notas-clientes', '/metricas-clientes', '/nps-clientes'] },
  { title: 'Cursos e alunos', paths: ['/alunos-futuros', '/tasks', '/admin/agendamentos', '/dados-alunos', '/cursos-dados', '/analise-alunos', '/pesquisa'] },
  { title: 'Agendas da equipe', paths: ['/agenda-geral', '/agenda-captacao', '/agenda-social-media', '/agenda-suporte'] },
  { title: 'Tarefas e entregas', paths: ['/gestor-tarefas', '/calendario-editorial', '/kanban-social-media', '/kanban-sites', '/kanban-crm', '/kanban-edicao'] },

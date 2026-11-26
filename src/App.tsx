@@ -58,6 +58,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 import { AuthProvider as GestaoAuthProvider } from "@/hooks/clients/useGestaoAuth";
 const ClientSummaryPage = lazy(() => import("./pages/clients/ClientSummaryPage"));
 const ClientsPage = lazy(() => import("./pages/clients/ClientsPage"));
+const ClientInPersonAgendaPage = lazy(() => import("./pages/clients/ClientInPersonAgendaPage"));
 const ClientMetricsPage = lazy(() => import("./pages/clients/ClientMetricsPage"));
 const ClientTasksPage = lazy(() => import("./pages/clients/ClientTasksPage"));
 const TaskManagerPage = lazy(() => import("./pages/clients/TaskManagerPage"));
@@ -144,7 +145,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (location.pathname === "/nps-clientes" && !canAccessClientContracts(session.user.email)) return <Navigate to="/gestao-clientes" replace />;
   if (isClientSummaryUser(session.user)) {
     if (location.pathname === "/gestao-clientes") return isClientProfileEditor(session.user) || hasFullClientManagementAccess(session.user.email) ? <ClientsPage /> : <ClientSummaryPage />;
-    if (location.pathname !== "/agenda-geral" && location.pathname !== "/gestor-tarefas" && !(canAccessSupportSchedule(session.user) && location.pathname === "/agenda-suporte")) return <Navigate to="/gestao-clientes" replace />;
+    if (location.pathname !== "/agenda-geral" && location.pathname !== "/agenda-relatorios-presenciais" && location.pathname !== "/gestor-tarefas" && !(canAccessSupportSchedule(session.user) && location.pathname === "/agenda-suporte")) return <Navigate to="/gestao-clientes" replace />;
   }
   if (isGoogleTasksOnlyUser(session.user.email) && !isGoogleManagerPath(location.pathname)) {
     return <Navigate to={GOOGLE_TASKS_ONLY_PATH} replace />;
@@ -205,6 +206,7 @@ const AnimatedRoutes = () => {
         
         {/* Rotas de Gestão de Clientes (Banco ckabqsggkjebaaliyszn) */}
         <Route path="/gestao-clientes" element={<ProtectedRoute><ClientsPage /></ProtectedRoute>} />
+        <Route path="/agenda-relatorios-presenciais" element={<ProtectedRoute><ClientInPersonAgendaPage /></ProtectedRoute>} />
         <Route path="/contrato-cliente" element={<ProtectedRoute><ClientContractsPage /></ProtectedRoute>} />
         <Route path="/metricas-clientes" element={<ProtectedRoute><ClientMetricsPage /></ProtectedRoute>} />
         <Route path="/nps-clientes" element={<ProtectedRoute><ClientFeedbackPage /></ProtectedRoute>} />
