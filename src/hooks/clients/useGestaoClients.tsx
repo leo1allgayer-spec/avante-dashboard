@@ -244,7 +244,7 @@ export function useClients(area: ClientArea = "meta_ads") {
 
   const addClient = async (client: Client) => {
     if (!session?.user?.id) return;
-    if (isClientSummaryUser(session.user) && !isClientProfileEditor(session.user) && !hasFullClientManagementAccess(session.user.email)) {
+    if (isClientSummaryUser(session.user) && !hasFullClientManagementAccess(session.user.email)) {
       const { error } = await (supabase as any).rpc("create_client_summary", {
         p_settings: {
           name: client.name,
