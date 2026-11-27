@@ -39,7 +39,9 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
 
   useEffect(()=>{if(open&&initialClient)setForm({name:initialClient.name||'',company:initialClient.company||'',instagram:initialClient.instagram||'',manager:initialClient.manager||managerOptions[0]||MANAGERS[0],monthlyBudget:initialClient.monthlyBudget||0,paymentDate:initialClient.paymentDate||1,commissionValue:initialClient.commissionValue||0,contractValue:initialClient.contractValue||0,contractType:initialClient.contractType||'MRR',contractMonths:initialClient.contractMonths||1,reportDay:initialClient.reportDay||WEEKDAYS[0]});},[open]);
   const handleSubmit = async () => {
-    if (!form.name.trim()) return;
+    if (!form.name.trim()) { setError("Informe o nome do cliente."); return; }
+    if (!form.manager.trim()) { setError("Selecione o gestor responsável."); return; }
+    if (!form.reportDay.trim()) { setError("Selecione o dia da entrega do relatório."); return; }
     setError("");
     setSaving(true);
     const today = new Date().toISOString().split("T")[0];
@@ -89,41 +91,35 @@ export function AddClientDialog({ open, onClose, onAdd, hideContractValues = fal
           <Input placeholder="Nome do cliente *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="bg-input border-border" />
           <Input placeholder="Empresa (opcional)" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="bg-input border-border" />
           <Input placeholder="Instagram (ex: @usuario)" value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} className="bg-input border-border" />
-          <Select value={form.manager} onValueChange={(v) => setForm({ ...form, manager: v })}>
-            <SelectTrigger className="bg-input border-border">
-              <SelectValue placeholder="Gestor" />
-            </SelectTrigger>
-            <SelectContent>
-              {managerOptions.map((m) => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={form.reportDay} onValueChange={(v) => setForm({ ...form, reportDay: v })}>
-            <SelectTrigger className="bg-input border-border">
-              <SelectValue placeholder="Dia do relatório" />
-            </SelectTrigger>
-            <SelectContent>
-              {WEEKDAYS.map((d) => (
-                <SelectItem key={d} value={d}>{d}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Gestor responsável *</label>
+            <Select value={form.manager} onValueChange={(v) => setForm({ ...form, manager: v })}>
+              <SelectTrigger className="bg-input border-border" aria-label="Gestor responsável"><SelectValue placeholder="Selecione o gestor" /></SelectTrigger>
+              <SelectContent>{managerOptions.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Dia da entrega do relatório *</label>
+            <Select value={form.reportDay} onValueChange={(v) => setForm({ ...form, reportDay: v })}>
+              <SelectTrigger className="bg-input border-border" aria-label="Dia da entrega do relatório"><SelectValue placeholder="Selecione o dia" /></SelectTrigger>
+              <SelectContent>{WEEKDAYS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
           {!summaryOnly && <div className={hideContractValues ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
             <Input type="number" placeholder="Orçamento" value={form.monthlyBudget || ""} onChange={(e) => setForm({ ...form, monthlyBudget: Number(e.target.value) })} className="bg-input border-border" />
             {!hideContractValues && <Select value={form.contractType} onValueChange={(v: "MRR" | "TCV") => setForm({ ...form, contractType: v })}>
               <SelectTrigger className="bg-input border-border"><SelectValue placeholder="Tipo do contrato" /></SelectTrigger>
               <SelectContent><SelectItem value="MRR">MRR — valor mensal</SelectItem><SelectItem value="TCV">TCV — valor total</SelectItem></SelectContent>
             </Select>}
-            {!hideContractValues && <Input type="number" min={1} placeholder="Duração (meses)" value={form.contractMonths || ""} onChange={(e) => setForm({ ...form, contractMonths: Math.max(1, Number(e.target.value)) })} className="bg-input border-border" />}
+            {!hideContractValues && <div className="space-y-1"><label className="text-xs text-muted-foreground">Duração do contrato (meses)</label><Input type="number" min={1} aria-label="Duração do contrato em meses" placeholder="Ex.: 6 meses" value={form.contractMonths || ""} onChange={(e) => setForm({ ...form, contractMonths: Math.max(1, Number(e.target.value)) })} className="bg-input border-border" /></div>}
             {!hideContractValues && !hideContractAmounts && <Input type="number" placeholder={form.contractType === "TCV" ? "Valor total do contrato" : "Valor mensal"} value={form.contractValue || ""} onChange={(e) => setForm({ ...form, contractValue: Number(e.target.value) })} className="bg-input border-border" />}
           </div>}
           {!summaryOnly && !hideContractValues && !hideContractAmounts && <p className="text-xs text-muted-foreground">
             Mensal: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue / Math.max(1, form.contractMonths) : form.contractValue)} · Total do período: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(form.contractType === "TCV" ? form.contractValue : form.contractValue * Math.max(1, form.contractMonths))}
           </p>}
           {!summaryOnly && <div className="grid grid-cols-3 gap-2">
-            <Input type="number" placeholder="Dia pgto" min={1} max={31} value={form.paymentDate || ""} onChange={(e) => setForm({ ...form, paymentDate: Number(e.target.value) })} className="bg-input border-border" />
-            <Input type="number" placeholder="Comissão" value={form.commissionValue || ""} onChange={(e) => setForm({ ...form, commissionValue: Number(e.target.value) })} className="bg-input border-border" />
+            <div className="space-y-1"><label className="text-xs text-muted-foreground">Dia de vencimento</label><Input type="number" aria-label="Dia de vencimento do pagamento" placeholder="Dia (1–31)" min={1} max={31} value={form.paymentDate || ""} onChange={(e) => setForm({ ...form, paymentDate: Number(e.target.value) })} className="bg-input border-border" /></div>
+            <div className="space-y-1"><label className="text-xs text-muted-foreground">Comissão</label><Input type="number" aria-label="Comissão" placeholder="Valor da comissão" value={form.commissionValue || ""} onChange={(e) => setForm({ ...form, commissionValue: Number(e.target.value) })} className="bg-input border-border" /></div>
           </div>}
           {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
           <Button onClick={handleSubmit} className="w-full" disabled={saving}>

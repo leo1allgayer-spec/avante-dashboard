@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Link, Navigate } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
-import { hasFullClientManagementAccess } from "@/lib/accessControl";
+import { hasFullClientManagementAccess, isClientSummaryUser } from "@/lib/accessControl";
 import { ClientInPersonAlert } from "@/components/clients/ClientInPersonAlert";
 
 const Index = () => {
@@ -22,6 +22,7 @@ const Index = () => {
 
   const selectedClient = clients.find((c) => c.id === selectedId);
   const hideContractAmounts = hasFullClientManagementAccess(session?.user?.email);
+  const summaryOnly = isClientSummaryUser(session?.user) && !hideContractAmounts;
 
   const handleDelete = (id: string) => {
     deleteClient(id);
@@ -97,6 +98,7 @@ const Index = () => {
         onClose={() => setShowAdd(false)}
         onAdd={addClient}
         hideContractAmounts={hideContractAmounts}
+        summaryOnly={summaryOnly}
       />
     </DashboardLayout>
   );
