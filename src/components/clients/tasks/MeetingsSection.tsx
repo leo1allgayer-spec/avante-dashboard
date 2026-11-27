@@ -395,23 +395,24 @@ export function MeetingsSection({ meetings, blocks = [], currentUserId = "", mem
         return block.responsible + " está com a agenda bloqueada" + (block.reason ? ": " + block.reason : ".");
       }
     }
-    if (selectedParticipants.length === 0) return null;
-    const [h, m] = time.split(":").map(Number);
-    const newMinutes = h * 60 + m;
+    if (assignedPeople.length === 0) return null;
+    const assignedNames = (meeting: Meeting) => [meeting.responsible, meeting.professional, ...(meeting.responsibles || []), ...meeting.participants].filter(Boolean);
+    const newMinutes = meetingStart;
+    const newEnd = meetingStart + durationMinutes;
     const otherMeetings = meetings.filter((mt) => {
       if (editingMeeting && mt.id === editingMeeting.id) return false;
-      if (mt.status === "completed") return false;
+      if (mt.status === "completed" || mt.status === "cancelled") return false;
       return mt.date === dateToCheck && mt.time;
     });
     for (const mt of otherMeetings) {
       const [oh, om] = mt.time.split(":").map(Number);
       const otherMinutes = oh * 60 + om;
       const diff = Math.abs(newMinutes - otherMinutes);
-      if (diff < 60) {
-        const conflicting = selectedParticipants.filter((p) => mt.participants.includes(p));
-        if (conflicting.length > 0) {
-          return `${conflicting.join(", ")} já ${conflicting.length > 1 ? "têm" : "tem"} reunião "${mt.title}" às ${mt.time} (mínimo 1h de intervalo)`;
-        }
+      const otherEnd = otherMinutes + (mt.durationMinutes || 60);
+      const overlaps = meetingStart < otherEnd && newEnd > otherMinutes;
+      const conflicting = assignedPeople.filter((person) => assignedNames(mt).some((other) => matchesPersonName(person, other)));
+      if (conflicting.length > 0 && (overlaps || diff < 60)) {
+        return `${conflicting.join(", ")} já ${conflicting.length > 1 ? "têm" : "tem"} reunião "${mt.title}" às ${mt.time} (mínimo 1h de intervalo)`;
       }
     }
     return null;

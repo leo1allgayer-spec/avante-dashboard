@@ -27,6 +27,7 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth as useMainAuth } from "@/hooks/useAuth";
 import { isGoogleTasksOnlyUser } from "@/lib/accessControl";
+import { isCloserResponsible } from "@/lib/crmMeetingAgenda";
 
 const FullTasks = () => {
   const { session, signOut } = useAuth();
@@ -70,7 +71,7 @@ const FullTasks = () => {
   return (
     <DashboardLayout
       title={location.pathname === "/reunioes" ? "Agenda Closer" : "Gestão de Tarefas"}
-      subtitle={location.pathname === "/reunioes" ? "Reuniões comerciais, resultados e próximos passos" : "Organização de tarefas, equipe e reuniões"}
+      subtitle={location.pathname === "/reunioes" ? "Reuniões comerciais e compromissos do Leonardo para evitar sobreposições" : "Organização de tarefas, equipe e reuniões"}
       contentClassName="max-w-[96rem]"
     >
         <Tabs key={initialTab} defaultValue={initialTab} className="space-y-6">
@@ -228,7 +229,11 @@ const FullTasks = () => {
 
           <TabsContent value="meetings">
             <MeetingsSection
-              meetings={meetings.filter((meeting) => !meeting.agendaCategory || meeting.agendaCategory === "reunioes")}
+              meetings={meetings.filter((meeting) =>
+                !meeting.agendaCategory
+                || meeting.agendaCategory === "reunioes"
+                || [meeting.responsible, meeting.professional, ...(meeting.responsibles || []), ...meeting.participants].some(isCloserResponsible)
+              )}
               blocks={agendaBlocks.filter(block => block.agendaCategory === "reunioes" || block.agendaCategory === "geral")}
               currentUserId={currentUserId}
               onDeleteBlock={deleteBlock}
