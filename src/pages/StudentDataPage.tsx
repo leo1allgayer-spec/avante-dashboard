@@ -9,6 +9,7 @@ import MetricCard from "@/components/MetricCard";
 import { useFutureStudents, type FutureStudent } from "@/hooks/useFutureStudents";
 import { useSurveyResponses, type SurveyResponse } from "@/hooks/useSurveyInsights";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
